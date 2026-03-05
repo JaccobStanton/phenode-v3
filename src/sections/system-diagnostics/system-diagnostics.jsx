@@ -150,7 +150,7 @@ export default function SystemDiagnostics() {
                 </Box>
 
                 <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', px: 1 }}>
-                  <Typography variant="body1" sx={{ color: 'var(--blue)', textAlign: 'center' }}>
+                  <Typography variant="h5" sx={{ color: 'var(--blue)', textAlign: 'center' }}>
                     Wireless Sensors Connected to this PheNode
                   </Typography>
                 </Box>
@@ -185,7 +185,11 @@ export default function SystemDiagnostics() {
                 component="img"
                 src={phenodeDiagram}
                 alt="Phenode system diagram"
-                sx={{ width: { xs: '88%', sm: '80%', md: '72%', lg: '62%' }, maxHeight: { xs: 210, sm: 250, md: 290 }, objectFit: 'contain' }}
+                sx={{
+                  width: { md: '92%', lg: '96%', xl: '98%' },
+                  maxHeight: { md: 420, lg: 520, xl: 620 },
+                  objectFit: 'contain'
+                }}
               />
             </Box>
           </Grid>
