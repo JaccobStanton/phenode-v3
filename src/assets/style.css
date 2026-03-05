@@ -1,0 +1,56 @@
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:root {
+  --midnight-blue-2: #000d30;
+  --medium-grey: #797979;
+  --blue: #1a76e0;
+  --background-blue: #001f449c;
+  --transparent: #48f7f500;
+  --green: #48f7f5;
+  --box-outline-blue: #054085b0;
+  --drf: var(--transparent);
+  --reflected-light: #764ceb33;
+  --midnight-blue: #001244;
+  --gainsboro: #e8e8e8;
+  --dark-blue: #1258aa;
+  --med-grey: #afafaf;
+  --orange: #ff8c49;
+  --bg-dark-color: #001130;
+  --dark-orange: #f57931;
+  --inactive-grey: #474a4e;
+  --sensor-card-colors: #00123100;
+  --deep-sky-blue: #25c0e9;
+  --purple: #8955e2;
+  --red: #ff484b;
+  --critical: #f7487a;
+  --div-label-color-1: #011f4db0;
+  --dark-grey-1: #2c2c2c;
+  --steel-blue: #077e9e;
+  --card-grey: #28272c;
+  --background-grey: #181818;
+  --medium-bg-blue: #04264c;
+  --div-card-color: #0a3464;
+  --no-input: var(--orange);
+  --recess: #00102f1a;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+html,
+body {
+  background-color: var(--bg-dark-color);
+  background-image: radial-gradient(circle farthest-corner at 50% 0%, #043e83, var(--bg-dark-color) 65%, #7b00ff24 102%);
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-attachment: fixed;
+}
+
+#root {
+  background: transparent;
+}

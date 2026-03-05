@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="All" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 73.7 76">
+  <!-- Generator: Adobe Illustrator 29.0.1, SVG Export Plug-In . SVG Version: 2.1.0 Build 192)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: #48f7f5;
+      }
+
+      .st1 {
+        fill: #002b70;
+      }
+
+      .st2 {
+        fill: #0d56ff;
+      }
+
+      .st3 {
+        fill: none;
+        stroke: #0d56ff;
+        stroke-miterlimit: 10;
+        stroke-width: .5px;
+      }
+
+      .st4 {
+        fill: #002766;
+      }
+    </style>
+  </defs>
+  <path class="st4" d="M18.9,64.8c0,0,1.4,7.6-4.7,7.6h-7.6c0,0,0,1.9,0,1.9h7.6c7.5.1,6.6-8.7,6.6-8.9l-1.9-.6Z"/>
+  <g id="Soil_Probe">
+    <path class="st1" d="M24.5,23.6v-12.8c0-.7.4-1.4,1.1-1.6.5-.2,1.1,0,1.7.2,1,.3,1.8.4,2.8.7.3,0,.8.4,1,.7.2.2.2.6.2.9-.2,16.5-.3,33-.5,49.4,0,.7,0,1.5-.7,1.8-.3.2-.7.2-1.1.2-1.2,0-2.4,0-3.7-.1-.3,0-.5,0-.7-.2-.3-.2-.3-.6-.3-1,0-4,0-8,0-11.9s0-8,0-11.9,0-8,0-11.9"/>
+    <path class="st1" d="M18,63l.3,2.1s.6,1.4,3.1.4c.4-1.3.8-2.5.8-2.5h-4.3Z"/>
+    <path class="st3" d="M29.1,63.2h-3.6c-2.1-.1-4.3-.2-6.4-.2-1.6,0-3.2.1-4.3-1.2-.7-.9-.7-2-.7-3.1,0-2.5,0-5,.1-7.6,0-2,0-3.9,0-5.9s0-4.4,0-6.6,0-4.5,0-6.8,0-4.3,0-6.5,0-3.8,0-5.6,0-2.9,0-4.3,0-1.6,0-2.5,0-.3,0-.4c0,0-.4-2.9,3.5-3.2,4.1-.3,7.3-.5,7.3-.5l4.9,1.1s1.5.7,1.4,3.1c0,2.1,0,4.2,0,6.3,0,4.2-.1,8.5-.2,12.7s-.1,9.5-.2,14.3-.1,7.4-.1,11.1,0,1.9,0,2.8c0,1.2-.1,2.9-1.7,2.9Z"/>
+  </g>
+  <g id="Soil_Lights_GLow">
+    <image width="108" height="104" transform="translate(-9.7 -18.3)" xlink:href="data:image/png;base64,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"/>
+  </g>
+  <g id="Soil_Lights">
+    <g>
+      <path class="st0" d="M53.4,22.4l-23.9-.4c-.2.7-.4,1-.8,1.2s-.2,0-.3,0c0,0-.4,0-.5-.2-.4-.4-.6-1.3-.6-2.1,0-1.1.3-2.1,1-2.4h.3c.5,0,.9.5,1.1,1.2l23.8.4,6.5,1.1-6.5,1.2Z"/>
+      <path class="st2" d="M28.4,18.8h.2c.4,0,.7.5.9,1.2l24,.4,5,.8-5.2.8-24-.4c-.2.6-.4,1.1-.7,1.3h-.2c-.5,0-1-.9-.9-2,.1-1,.4-1.9.9-2.1M28.2,18.3c-.7.3-1.1,1.3-1.1,2.5,0,.8,0,1.8.6,2.3.2.2.5.3.7.3.1,0,.2,0,.4,0,.4-.2.6-.6.9-1.2l23.6.4h0l5.2-.8,2.9-.5-2.9-.5-5-.8h0l-23.6-.4c-.2-.7-.6-1.2-1.2-1.2h0c-.2,0-.3,0-.5,0h0Z"/>
+    </g>
+    <g>
+      <path class="st0" d="M53.3,35.1l-24-.3c-.2.7-.4,1-.8,1.2s-.2,0-.3,0c0,0-.4,0-.5-.2-.4-.4-.6-1.3-.6-2.1,0-1.1.3-2.1,1-2.4h.3c.5,0,.9.5,1.1,1.2l23.8.4,6.6,1.2-6.5,1.1Z"/>
+      <path class="st2" d="M28.2,31.6h.2c.4,0,.7.5.9,1.2l24,.4,5,.8-5.1.8-24.1-.4c-.2.6-.4,1.1-.7,1.3h-.2c-.5,0-1-.9-.9-2,0-1.1.4-1.9.9-2.1M28,31.1c-.7.3-1.1,1.3-1.1,2.5,0,.8,0,1.8.6,2.3.2.2.5.3.7.3.1,0,.2,0,.4,0,.4-.2.6-.6.9-1.2l23.7.3h0l5.1-.8,3-.5-3-.5-5-.8h0l-23.6-.4c-.2-.7-.6-1.2-1.2-1.2h0c-.2,0-.4,0-.5,0h0Z"/>
+    </g>
+    <g>
+      <path class="st0" d="M53,47.8l-23.9-.4c-.2.7-.4,1-.8,1.2s-.2,0-.3,0c0,0-.4,0-.5-.2-.4-.4-.6-1.3-.6-2.1,0-1.1.3-2.1,1-2.4h.3c.5,0,.9.5,1.1,1.2l23.8.4,6.5,1.1-6.5,1.2Z"/>
+      <path class="st2" d="M28,44.2h.2c.4,0,.7.5.9,1.2l24,.4,5,.8-5.2.8-24-.4c-.2.6-.4,1.1-.7,1.3h-.2c-.5,0-1-.9-.9-2,0-1.1.4-1.9.9-2.1M27.8,43.7c-.7.3-1.1,1.3-1.1,2.5,0,.8,0,1.8.6,2.3.2.2.5.3.7.3.1,0,.2,0,.4,0,.4-.2.6-.6.9-1.2l23.6.4h0l5.2-.8,2.9-.5-2.9-.5-5-.8h0l-23.6-.4c-.2-.7-.6-1.2-1.2-1.2h0c-.3,0-.4,0-.5,0h0Z"/>
+    </g>
+  </g>
+  <path class="st3" d="M26.1,63.2c-2.3.1-1.9-3.1-1.9-4.5s0-2.5,0-3.7c0-3.7,0-7.5,0-11.2s0-8.9,0-13.3,0-7.9,0-11.9,0-4.7,0-7,0-.4,0-.7c0,0,0-2,1.8-1.6"/>
+  <metadata>
+    <sfw xmlns="http://ns.adobe.com/SaveForWeb/1.0/">
+      <slices/>
+      <sliceSourceBounds x="437" y="93" width="108" height="104" bottomLeftOrigin="true"/>
+    </sfw>
+  </metadata>
+</svg>
