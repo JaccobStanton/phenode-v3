@@ -35,7 +35,10 @@ export default function MainCard({
         backgroundColor: 'rgb(5, 13, 18)',
         borderRadius: 1,
         boxShadow: boxShadow && !border ? shadow || theme.vars.customShadows.z1 : 'inherit',
-        ':hover': { boxShadow: boxShadow ? shadow || theme.vars.customShadows.z1 : 'inherit' },
+        ...(boxShadow &&
+          !border && {
+            ':hover': { boxShadow: shadow || theme.vars.customShadows.z1 }
+          }),
         ...(codeHighlight && {
           '& pre': { margin: 0, padding: '12px !important', fontFamily: theme.typography.fontFamily, fontSize: '0.75rem' }
         }),
@@ -70,13 +73,7 @@ export default function MainCard({
       {title && divider && <Divider />}
 
       {/* card content */}
-      {content && (
-        <CardContent
-          sx={{ backgroundColor: 'rgb(14, 26, 35)', ...contentSX }}
-        >
-          {children}
-        </CardContent>
-      )}
+      {content && <CardContent sx={{ backgroundColor: 'rgb(14, 26, 35)', ...contentSX }}>{children}</CardContent>}
       {!content && children}
     </Card>
   );

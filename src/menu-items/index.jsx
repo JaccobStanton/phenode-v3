@@ -1,9 +1,6 @@
 // project import
-import fleetOverviewTab from './fleet-overview/fleet-overview-tab';
-import sensorMeasurementsTab from './sensor-measurements/sensor-measurements-tab';
+import pheNodeTab from './phenode/phenode-tab';
 import wirelessSensorsTab from './wireless-sensors/wireless-sensors-tab';
-import imagingTab from './imaging/imaging-tab';
-import systemDiagnosticsTab from './system-diagnostics/system-diagnostics-tab';
 import dataDownloadTab from './data-download/data-download-tab';
 
 
@@ -12,11 +9,8 @@ import dataDownloadTab from './data-download/data-download-tab';
 
 const menuItems = {
   items: [
-    fleetOverviewTab,
-    sensorMeasurementsTab,
+    pheNodeTab,
     wirelessSensorsTab,
-    imagingTab,
-    systemDiagnosticsTab,
     dataDownloadTab
   ]
 };

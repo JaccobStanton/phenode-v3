@@ -11,11 +11,8 @@ const SensorNetworkPage = Loadable(lazy(() => import('pages/wireless-sensors/sen
 const MultiSensorGraphingPage = Loadable(lazy(() => import('pages/wireless-sensors/multi-sensor-graphing')));
 const ImagingDefault = Loadable(lazy(() => import('pages/imaging/default')));
 const SystemDiagnosticsPage = Loadable(lazy(() => import('pages/system-diagnostics/system-diagnostics')));
-const DataDownloadDefault = Loadable(lazy(() => import('pages/data-download/default')));
-
-
-
-
+const DataDownloadsPage = Loadable(lazy(() => import('pages/data-download/data-downloads')));
+const DownloadPreferencesPage = Loadable(lazy(() => import('pages/data-download/download-preferences')));
 
 // ==============================|| MAIN ROUTING ||============================== //
 
@@ -60,11 +57,14 @@ const MainRoutes = {
         },
         {
           path: 'data-download',
-          element: <DataDownloadDefault />
+          element: <DataDownloadsPage />
+        },
+        {
+          path: 'download-preferences',
+          element: <DownloadPreferencesPage />
         }
       ]
     }
-    
   ]
 };
 

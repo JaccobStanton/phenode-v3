@@ -95,11 +95,19 @@ export default function SystemDiagnostics() {
           <Typography variant="h4" sx={{ color: 'var(--blue)' }}>
             Diagnostics
           </Typography>
-          <Typography variant="subtitle1" sx={{ textAlign: { xs: 'left', md: 'right' } }}>
+          <Typography
+            variant="subtitle1"
+            sx={{
+              textAlign: { xs: 'left', md: 'right' },
+              width: { xs: '100%', md: 'auto' },
+              display: { xs: 'flex', md: 'block' },
+              alignItems: { xs: 'center', md: 'unset' }
+            }}
+          >
             <Box component="span" sx={{ color: 'var(--blue)' }}>
               Last Measurements Taken:
             </Box>
-            <Box component="span" sx={{ color: 'var(--green)', ml: 1.5, display: 'inline-block' }}>
+            <Box component="span" sx={{ color: 'var(--green)', ml: { xs: 'auto', md: 1.5 }, display: 'inline-block', textAlign: 'right' }}>
               1/9/2026, 1:03PM
             </Box>
           </Typography>
@@ -286,7 +294,11 @@ export default function SystemDiagnostics() {
               <Box
                 sx={{
                   display: 'grid',
-                  gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))', md: 'repeat(6, minmax(0, 1fr))' },
+                  gridTemplateColumns: {
+                    xs: 'repeat(2, minmax(0, 1fr))',
+                    sm: 'repeat(3, minmax(0, 1fr))',
+                    md: 'repeat(6, minmax(0, 1fr))'
+                  },
                   gap: 1.5
                 }}
               >
@@ -389,9 +401,7 @@ export default function SystemDiagnostics() {
                   display: 'grid',
                   gap: 1.5,
                   gridTemplateColumns:
-                    chartLayout === 'row'
-                      ? { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' }
-                      : '1fr'
+                    chartLayout === 'row' ? { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' } : '1fr'
                 }}
               >
                 {graphCards.map((graph) => (
@@ -421,10 +431,28 @@ export default function SystemDiagnostics() {
                           sx={{ width: '100%', height: 130, display: 'block' }}
                         >
                           {chartGridTicks.map((tick) => (
-                            <line key={`${graph.title}-x-grid-${tick}`} x1={tick} y1="0" x2={tick} y2="100" stroke="var(--blue)" strokeOpacity="0.35" strokeWidth="0.6" />
+                            <line
+                              key={`${graph.title}-x-grid-${tick}`}
+                              x1={tick}
+                              y1="0"
+                              x2={tick}
+                              y2="100"
+                              stroke="var(--blue)"
+                              strokeOpacity="0.35"
+                              strokeWidth="0.6"
+                            />
                           ))}
                           {chartGridTicks.map((tick) => (
-                            <line key={`${graph.title}-y-grid-${tick}`} x1="0" y1={tick} x2="100" y2={tick} stroke="var(--blue)" strokeOpacity="0.35" strokeWidth="0.6" />
+                            <line
+                              key={`${graph.title}-y-grid-${tick}`}
+                              x1="0"
+                              y1={tick}
+                              x2="100"
+                              y2={tick}
+                              stroke="var(--blue)"
+                              strokeOpacity="0.35"
+                              strokeWidth="0.6"
+                            />
                           ))}
                           <polyline fill="none" stroke="var(--green)" strokeWidth="2.2" points={graph.linePoints} />
                         </Box>

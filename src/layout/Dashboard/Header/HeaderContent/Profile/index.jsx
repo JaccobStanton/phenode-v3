@@ -28,7 +28,7 @@ import IconButton from 'components/@extended/IconButton';
 import LogoutOutlined from '@ant-design/icons/LogoutOutlined';
 import SettingOutlined from '@ant-design/icons/SettingOutlined';
 import UserOutlined from '@ant-design/icons/UserOutlined';
-import avatar1 from 'assets/images/users/avatar-1.png';
+import avatar1 from 'assets/images/users/marble_icon.svg';
 
 // tab panel wrapper
 function TabPanel({ children, value, index, ...other }) {

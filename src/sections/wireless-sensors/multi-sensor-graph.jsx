@@ -164,16 +164,9 @@ export default function MultiSensorGraph() {
           }}
         >
           <Typography variant="h4" sx={{ color: 'var(--blue)' }}>
-            Multi Sensor Graphing
+            Multi Sensor Comparitive Overlay
           </Typography>
-          <Typography variant="subtitle1" sx={{ textAlign: { xs: 'left', md: 'right' } }}>
-            <Box component="span" sx={{ color: 'var(--blue)' }}>
-              Last Measurements Taken:
-            </Box>
-            <Box component="span" sx={{ color: 'var(--green)', ml: 1.5, display: 'inline-block' }}>
-              3/5/2026, 12:13:44 PM
-            </Box>
-          </Typography>
+         
         </Stack>
       </Box>
 

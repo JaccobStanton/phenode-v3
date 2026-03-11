@@ -35,6 +35,7 @@ export default function OutlinedInput(theme) {
         notchedOutline: { borderColor: theme.vars.palette.grey[300] },
         root: {
           backgroundColor: inputBackgroundColor,
+          boxShadow: '0 11px 19px 1px #0000002e',
           color: '#ffffff',
           '& .MuiSelect-select': {
             color: '#ffffff'

@@ -43,11 +43,19 @@ export default function SensorNetwork() {
           <Typography variant="h4" sx={{ color: 'var(--blue)' }}>
             Wireless Sensor Measurements
           </Typography>
-          <Typography variant="subtitle1" sx={{ textAlign: { xs: 'left', md: 'right' } }}>
+          <Typography
+            variant="subtitle1"
+            sx={{
+              textAlign: { xs: 'left', md: 'right' },
+              width: { xs: '100%', md: 'auto' },
+              display: { xs: 'flex', md: 'block' },
+              alignItems: { xs: 'center', md: 'unset' }
+            }}
+          >
             <Box component="span" sx={{ color: 'var(--blue)' }}>
               Last Measurements Taken:
             </Box>
-            <Box component="span" sx={{ color: 'var(--green)', ml: 1.5, display: 'inline-block' }}>
+            <Box component="span" sx={{ color: 'var(--green)', ml: { xs: 'auto', md: 1.5 }, display: 'inline-block', textAlign: 'right' }}>
               1/9/2026, 1:03PM
             </Box>
           </Typography>
@@ -70,15 +78,19 @@ export default function SensorNetwork() {
                 component="img"
                 src={wirelessSensorsDiagram}
                 alt="Wireless sensor network diagram"
-                sx={{ width: { xs: '92%', sm: '88%', md: '84%', lg: '82%' }, maxHeight: { xs: 240, sm: 330, md: 400 }, objectFit: 'contain' }}
+                sx={{
+                  width: { xs: '92%', sm: '88%', md: '84%', lg: '82%' },
+                  maxHeight: { xs: 240, sm: 330, md: 400 },
+                  objectFit: 'contain'
+                }}
               />
             </Box>
           </Grid>
 
           <Grid size={{ xs: 12, lg: 4 }} sx={{ display: 'flex' }}>
             <Stack spacing={2.5} sx={{ width: '100%', height: '100%' }}>
-              <Box sx={{ borderRadius: 1, p: { xs: 1.5, sm: 2 },...glassSurfaceSx, ...reflectedCardChromeSx }}>
-                <Typography variant="h5" sx={{ mb: 2, color: 'var(--blue)'}}>
+              <Box sx={{ borderRadius: 1, p: { xs: 1.5, sm: 2 }, ...glassSurfaceSx, ...reflectedCardChromeSx }}>
+                <Typography variant="h5" sx={{ mb: 2, color: 'var(--blue)' }}>
                   Sensor Info
                 </Typography>
                 <Box sx={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 2, rowGap: 1.25 }}>
@@ -119,7 +131,7 @@ export default function SensorNetwork() {
                 </Box>
               </Box>
 
-              <Box sx={{ borderRadius: 1, p: { xs: 1.5, sm: 2 }, flexGrow: 1, ...glassSurfaceSx,...reflectedCardChromeSx }}>
+              <Box sx={{ borderRadius: 1, p: { xs: 1.5, sm: 2 }, flexGrow: 1, ...glassSurfaceSx, ...reflectedCardChromeSx }}>
                 <Stack sx={{ height: '100%', justifyContent: 'center', alignItems: 'center' }} spacing={2}>
                   <Typography variant="h5" sx={{ textAlign: 'center', color: 'var(--blue)' }}>
                     Rename this Sensor:
@@ -162,7 +174,7 @@ export default function SensorNetwork() {
                     sx={{
                       minWidth: 140,
                       color: 'var(--green)',
-                  
+
                       borderColor: 'var(--orange)',
                       '&:hover': {
                         borderColor: 'var(--green)',
@@ -181,7 +193,7 @@ export default function SensorNetwork() {
           </Grid>
 
           <Grid size={{ xs: 12 }}>
-            <Box sx={{ borderRadius: 1, p: { xs: 1.5, sm: 2 }, ...glassSurfaceSx,...reflectedCardChromeSx }}>
+            <Box sx={{ borderRadius: 1, p: { xs: 1.5, sm: 2 }, ...glassSurfaceSx, ...reflectedCardChromeSx }}>
               <Typography variant="h5" sx={{ mb: 1.5, color: 'var(--blue)' }}>
                 Measurements Over Time
               </Typography>

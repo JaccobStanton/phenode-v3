@@ -8,6 +8,7 @@ import ButtonBase from './ButtonBase';
 import CardContent from './CardContent';
 import Checkbox from './Checkbox';
 import Chip from './Chip';
+import DatePicker from './DatePicker';
 import Drawer from './Drawer';
 import FormHelperText from './FormHelperText';
 import IconButton from './IconButton';
@@ -37,6 +38,7 @@ export default function ComponentsOverrides(theme) {
     CardContent(),
     Checkbox(theme),
     Chip(theme),
+    DatePicker(),
     Drawer(),
     FormHelperText(),
     IconButton(theme),

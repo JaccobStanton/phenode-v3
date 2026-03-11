@@ -102,6 +102,7 @@ export default function Button(theme) {
       styleOverrides: {
         root: {
           fontWeight: 400,
+          boxShadow: '0 11px 19px 1px #0000002e',
           '&::after': {
             content: '""',
             display: 'block',

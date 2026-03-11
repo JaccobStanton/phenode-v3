@@ -15,7 +15,7 @@ const dataDownloadTab = {
   children: [
     {
       id: 'data-download',
-      title: 'Data Download',
+      title: 'Data Downloads',
       type: 'item',
       url: '/dashboard/data-download',
       icon: icons.DownloadOutlined,
