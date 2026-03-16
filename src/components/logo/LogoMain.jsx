@@ -1,7 +1,7 @@
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
-import logo from 'assets/images/logo.png';
+import logo from 'assets/logo/Logo.svg';
 
 // ==============================|| LOGO ||============================== //
 
