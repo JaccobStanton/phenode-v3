@@ -75,6 +75,5 @@
     "eslint-plugin-react": "7.37.5",
     "eslint-plugin-react-hooks": "7.0.1",
     "prettier": "3.7.4"
-  },
-  "packageManager": "yarn@4.12.0"
+  }
 }
