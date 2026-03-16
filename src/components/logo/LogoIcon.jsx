@@ -1,5 +1,5 @@
 import Box from '@mui/material/Box';
-import logo from 'assets/images/logo.png';
+import logo from 'assets/logo/logo_icon.svg';
 
 // ==============================|| LOGO ICON ||============================== //
 
