@@ -54,7 +54,7 @@ const tooltipSlotProps = {
 
 const fleetRows = [
   {
-    siteName: 'Shakoor Lab 020',
+    siteName: 'WS-1234567',
     lastMeasurements: '3/5/2026, 12:13:44 PM',
     metrics: [
       { label: 'Health Status:', value: 'Active' },
@@ -65,7 +65,7 @@ const fleetRows = [
     ]
   },
   {
-    siteName: 'Danforth Field Research',
+    siteName: 'WS-1112131415',
     lastMeasurements: '3/5/2026, 12:08:29 PM',
     metrics: [
       { label: 'Health Status:', value: 'Active' },
@@ -76,7 +76,7 @@ const fleetRows = [
     ]
   },
   {
-    siteName: 'Danforth Prairie',
+    siteName: 'WS-12345674',
     lastMeasurements: '3/5/2026, 11:52:01 AM',
     metrics: [
       { label: 'Health Status:', value: 'Active' },
@@ -87,7 +87,7 @@ const fleetRows = [
     ]
   },
   {
-    siteName: 'Clemson PDREC',
+    siteName: 'WS-98765443',
     lastMeasurements: '3/5/2026, 10:48:24 AM',
     metrics: [
       { label: 'Health Status:', value: 'Active' },
@@ -98,7 +98,7 @@ const fleetRows = [
     ]
   },
   {
-    siteName: 'Shakoor Lab 017',
+    siteName: 'WS-56473892',
     lastMeasurements: '3/5/2026, 10:12:08 AM',
     metrics: [
       { label: 'Health Status:', value: 'Active' },
@@ -110,7 +110,7 @@ const fleetRows = [
   }
 ];
 
-export default function FleetOverview() {
+export default function SensorFleetOverview() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchValue, setSearchValue] = useState('');
   const [sortMode, setSortMode] = useState('');
@@ -167,7 +167,7 @@ export default function FleetOverview() {
           </Typography>
           <Typography variant="body1" sx={{ ml: 'auto', textAlign: 'right' }}>
             <Box component="span" sx={{ color: 'var(--blue)', fontSize: { xs: '0.9rem', sm: '1rem' } }}>
-              PheNodes Active:
+              Sensors Active:
             </Box>
             <Box component="span" sx={{ ...greenGlowTextSx, ml: 1.5, display: 'inline-block', fontSize: { xs: '0.9rem', sm: '1rem' } }}>
               12
@@ -224,7 +224,7 @@ export default function FleetOverview() {
                 value={searchValue}
                 onChange={(event) => setSearchValue(event.target.value)}
                 size="small"
-                placeholder="Search PheNodes..."
+                placeholder="Search Wireless Sensors..."
                 fullWidth
                 inputProps={{ 'aria-label': 'Search fleet table' }}
                 startAdornment={

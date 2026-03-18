@@ -9,11 +9,15 @@ import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { LineChart } from '@mui/x-charts/LineChart';
 
 import MainCard from 'components/MainCard';
+import soilProbeDiagramIcon from 'assets/diagrams/Soil_Probe.svg';
+import wsToggleIcon from 'assets/toggle_buttons/WS.svg';
 import wirelessSensorsDiagram from 'assets/diagrams/Wireless-Sensors-v4.svg';
 
 import AppstoreOutlined from '@ant-design/icons/AppstoreOutlined';
@@ -82,10 +86,30 @@ const sensorMeasurementCharts = [
   }
 ];
 
+const soilProbeReadings = {
+  'probe-1': [
+    { label: 'Soil Temperature', value: '61.84 °F' },
+    { label: 'Soil Moisture', value: '42.5 %' },
+    { label: 'Soil Salinity', value: '1.83 kPa' }
+  ],
+  'probe-2': [
+    { label: 'Soil Temperature', value: '59.12 °F' },
+    { label: 'Soil Moisture', value: '39.8 %' },
+    { label: 'Soil Salinity', value: '2.07 kPa' }
+  ]
+};
+
 export default function SensorNetwork() {
   const [timeRange, setTimeRange] = useState('Last 24 hours');
   const [chartLayout, setChartLayout] = useState('column');
+  const [infoCardMode, setInfoCardMode] = useState('sensor');
+  const [selectedSoilProbe, setSelectedSoilProbe] = useState('probe-1');
   const chartCards = useMemo(() => sensorMeasurementCharts, []);
+  const isSoilDataMode = infoCardMode === 'soil';
+  const infoCardTitle = isSoilDataMode ? 'Soil Data' : 'Sensor Information';
+  const infoCardTooltipTitle = isSoilDataMode ? 'Sensor Info.' : 'Soil Data';
+  const infoCardToggleIcon = isSoilDataMode ? wsToggleIcon : soilProbeDiagramIcon;
+  const activeSoilReadings = soilProbeReadings[selectedSoilProbe];
 
   return (
     <MainCard content={false} sx={{ overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
@@ -151,46 +175,142 @@ export default function SensorNetwork() {
 
           <Grid size={{ xs: 12, lg: 4 }} sx={{ display: 'flex' }}>
             <Stack spacing={2.5} sx={{ width: '100%', height: '100%' }}>
-              <Box sx={{ borderRadius: 1, p: { xs: 1.5, sm: 2 }, ...glassSurfaceSx, ...reflectedCardChromeSx }}>
-                <Typography variant="h5" sx={{ mb: 2, color: 'var(--blue)' }}>
-                  Sensor Info
-                </Typography>
-                <Box sx={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 2, rowGap: 1.25 }}>
-                  <Typography variant="body1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
-                    Sensor ID:
+              <Box
+                sx={{
+                  borderRadius: 1,
+                  p: { xs: 1.5, sm: 2 },
+                  ...glassSurfaceSx,
+                  ...reflectedCardChromeSx,
+                  '& .info-card-green-text': {
+                    color: 'var(--green)',
+                    textShadow: '0 1px 9px #1a75e0c9'
+                  }
+                }}
+              >
+                <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h5" sx={{ color: '#646cff' }}>
+                    {infoCardTitle}
                   </Typography>
-                  <Typography variant="body1" sx={{ textAlign: 'right', color: 'var(--green)', fontWeight: 600 }}>
-                    WS-1234568
-                  </Typography>
+                  <Tooltip
+                    title={infoCardTooltipTitle}
+                    arrow={false}
+                    slotProps={{
+                      tooltip: {
+                        sx: {
+                          backgroundColor: 'rgba(0, 20, 61, 0.96)',
+                          color: 'var(--green)',
+                          border: '1px solid var(--reflected-light)',
+                          boxShadow: '0 11px 19px 1px #0000002e',
+                          fontSize: '0.78rem'
+                        }
+                      }
+                    }}
+                  >
+                    <IconButton
+                      aria-label={isSoilDataMode ? 'show sensor info' : 'show soil data'}
+                      onClick={() => setInfoCardMode((prev) => (prev === 'soil' ? 'sensor' : 'soil'))}
+                      sx={{
+                        border: '1px solid var(--reflected-light)',
+                        color: 'var(--blue)',
+                        backgroundColor: 'rgba(0, 20, 61, 0.72)',
+                        boxShadow: '0 11px 19px 1px #0000002e'
+                      }}
+                    >
+                      <Box component="img" src={infoCardToggleIcon} alt="" sx={{ width: 22, height: 22 }} />
+                    </IconButton>
+                  </Tooltip>
+                </Stack>
 
-                  <Typography variant="body1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
-                    GPS:
-                  </Typography>
-                  <Typography variant="body1" sx={{ textAlign: 'right', color: 'var(--green)', fontWeight: 600 }}>
-                    32 42 23 43, 92 89
-                  </Typography>
+                {isSoilDataMode ? (
+                  <>
+                    <ToggleButtonGroup
+                      exclusive
+                      value={selectedSoilProbe}
+                      onChange={(_, nextValue) => {
+                        if (nextValue) setSelectedSoilProbe(nextValue);
+                      }}
+                      size="small"
+                      sx={{
+                        mb: 2,
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        '& .MuiToggleButtonGroup-grouped': {
+                          border: '1px solid var(--reflected-light) !important',
+                          borderRadius: '6px !important',
+                          color: 'var(--blue)',
+                          backgroundColor: 'rgba(0, 20, 61, 0.72)',
+                          textTransform: 'none',
+                          fontWeight: 600
+                        },
+                        '& .MuiToggleButtonGroup-grouped:first-of-type': {
+                          borderTopRightRadius: '0 !important',
+                          borderBottomRightRadius: '0 !important'
+                        },
+                        '& .MuiToggleButtonGroup-grouped:last-of-type': {
+                          borderTopLeftRadius: '0 !important',
+                          borderBottomLeftRadius: '0 !important'
+                        },
+                        '& .Mui-selected': {
+                          color: 'var(--green) !important',
+                          backgroundColor: 'rgba(72, 247, 245, 0.12) !important'
+                        }
+                      }}
+                    >
+                      <ToggleButton value="probe-1">Soil Probe 1</ToggleButton>
+                      <ToggleButton value="probe-2">Soil Probe 2</ToggleButton>
+                    </ToggleButtonGroup>
 
-                  <Typography variant="body1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
-                    Altitude:
-                  </Typography>
-                  <Typography variant="body1" sx={{ textAlign: 'right', color: 'var(--green)', fontWeight: 600 }}>
-                    793.95ft
-                  </Typography>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 2, rowGap: 1.25 }}>
+                      {activeSoilReadings.map((reading) => (
+                        <Box key={reading.label} sx={{ display: 'contents' }}>
+                          <Typography variant="body1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
+                            {reading.label}
+                          </Typography>
+                          <Typography className="info-card-green-text" variant="body1" sx={{ textAlign: 'right', fontWeight: 600 }}>
+                            {reading.value}
+                          </Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                  </>
+                ) : (
+                  <Box sx={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 2, rowGap: 1.25 }}>
+                    <Typography variant="body1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
+                      Sensor ID:
+                    </Typography>
+                    <Typography className="info-card-green-text" variant="body1" sx={{ textAlign: 'right', fontWeight: 600 }}>
+                      WS-1234568
+                    </Typography>
 
-                  <Typography variant="body1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
-                    Battery:
-                  </Typography>
-                  <Typography variant="body1" sx={{ textAlign: 'right', color: 'var(--green)', fontWeight: 600 }}>
-                    87.52%
-                  </Typography>
+                    <Typography variant="body1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
+                      GPS:
+                    </Typography>
+                    <Typography className="info-card-green-text" variant="body1" sx={{ textAlign: 'right', fontWeight: 600 }}>
+                      32 42 23 43, 92 89
+                    </Typography>
 
-                  <Typography variant="body1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
-                    Sensors Connected:
-                  </Typography>
-                  <Typography variant="body1" sx={{ textAlign: 'right', color: 'var(--green)', fontWeight: 600 }}>
-                    2
-                  </Typography>
-                </Box>
+                    <Typography variant="body1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
+                      Altitude:
+                    </Typography>
+                    <Typography className="info-card-green-text" variant="body1" sx={{ textAlign: 'right', fontWeight: 600 }}>
+                      793.95ft
+                    </Typography>
+
+                    <Typography variant="body1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
+                      Battery:
+                    </Typography>
+                    <Typography className="info-card-green-text" variant="body1" sx={{ textAlign: 'right', fontWeight: 600 }}>
+                      87.52%
+                    </Typography>
+
+                    <Typography variant="body1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
+                      Probes Connected:
+                    </Typography>
+                    <Typography className="info-card-green-text" variant="body1" sx={{ textAlign: 'right', fontWeight: 600 }}>
+                      2
+                    </Typography>
+                  </Box>
+                )}
               </Box>
 
               <Box sx={{ borderRadius: 1, p: { xs: 1.5, sm: 2 }, flexGrow: 1, ...glassSurfaceSx, ...reflectedCardChromeSx }}>

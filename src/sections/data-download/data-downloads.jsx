@@ -506,42 +506,53 @@ export default function DataDownloads() {
           <Grid size={{ xs: 12, lg: 6 }}>
             <Card sx={{ p: { xs: 1.5, sm: 2 }, minHeight: 260, ...glassSurfaceSx, ...reflectedCardChromeSx }}>
               <Stack spacing={1}>
-                <Typography variant="subtitle1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
+                <Typography variant="subtitle1" sx={{ color: '#646cff', fontWeight: 600 }}>
                   Download Summary
                 </Typography>
-                <Box sx={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 2, rowGap: 1.25 }}>
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: 'auto 1fr',
+                    columnGap: 2,
+                    rowGap: 1.25,
+                    '& .summary-green-text': {
+                      color: 'var(--green)',
+                      textShadow: '0 1px 9px #1a75e0c9'
+                    }
+                  }}
+                >
                   <Typography variant="h6" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
                     From:
                   </Typography>
-                  <Typography variant="h6" sx={{ textAlign: 'right', color: 'var(--green)', fontWeight: 600 }}>
+                  <Typography className="summary-green-text" variant="h6" sx={{ textAlign: 'right', fontWeight: 600 }}>
                     {fromDateLabel}
                   </Typography>
 
                   <Typography variant="h6" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
                     To:
                   </Typography>
-                  <Typography variant="h6" sx={{ textAlign: 'right', color: 'var(--green)', fontWeight: 600 }}>
+                  <Typography className="summary-green-text" variant="h6" sx={{ textAlign: 'right', fontWeight: 600 }}>
                     {toDateLabel}
                   </Typography>
 
                   <Typography variant="h6" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
                     Type:
                   </Typography>
-                  <Typography variant="h6" sx={{ textAlign: 'right', color: 'var(--green)', fontWeight: 600 }}>
+                  <Typography className="summary-green-text" variant="h6" sx={{ textAlign: 'right', fontWeight: 600 }}>
                     {selectedDataType || 'Not selected'}
                   </Typography>
 
                   <Typography variant="h6" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
                     PheNodes:
                   </Typography>
-                  <Typography variant="h6" sx={{ textAlign: 'right', color: 'var(--green)', fontWeight: 600 }}>
+                  <Typography className="summary-green-text" variant="h6" sx={{ textAlign: 'right', fontWeight: 600 }}>
                     {selectedPheNodes.length || 0}
                   </Typography>
 
                   <Typography variant="h6" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
                     Wireless Sensors:
                   </Typography>
-                  <Typography variant="h6" sx={{ textAlign: 'right', color: 'var(--green)', fontWeight: 600 }}>
+                  <Typography className="summary-green-text" variant="h6" sx={{ textAlign: 'right', fontWeight: 600 }}>
                     {selectedWirelessSensors.length || 0}
                   </Typography>
                 </Box>

@@ -282,7 +282,7 @@ export default function SystemDiagnostics() {
                     Internal Temperature:
                   </Typography>
                   <Typography variant="subtitle1" sx={{ color: 'var(--orange)', mt: 0.5, textAlign: 'center' }}>
-                    113.63F
+                    113.63°F
                   </Typography>
                 </Box>
               </Box>
@@ -330,17 +330,19 @@ export default function SystemDiagnostics() {
                         boxShadow: `0 0 8px 1px ${card.notchColor}`
                       }}
                     />
-                    <Typography variant="h5" sx={{ color: 'var(--blue)', textAlign: 'center', mb: 0.75 }}>
-                      {card.title}
-                    </Typography>
-                    <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}>
-                      <Typography variant="body1" sx={{ color: 'var(--blue)' }}>
-                        Sensor Status:
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', transform: 'translateY(4px)' }}>
+                      <Typography variant="h5" sx={{ color: 'var(--blue)', textAlign: 'center', mb: 0.75 }}>
+                        {card.title}
                       </Typography>
-                      <Typography variant="body1" sx={{ color: card.statusColor }}>
-                        {card.status}
-                      </Typography>
-                    </Stack>
+                      <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}>
+                        <Typography variant="body1" sx={{ color: 'var(--blue)' }}>
+                          Sensor Status:
+                        </Typography>
+                        <Typography variant="body1" sx={{ color: card.statusColor }}>
+                          {card.status}
+                        </Typography>
+                      </Stack>
+                    </Box>
                   </Box>
                 ))}
               </Box>
