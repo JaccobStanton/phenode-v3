@@ -6,6 +6,7 @@ import DashboardLayout from 'layout/Dashboard';
 
 // render- Dashboard
 const FleetOverviewPage = Loadable(lazy(() => import('pages/fleet-overview/fleet-overview')));
+const SensorFleetOverviewPage = Loadable(lazy(() => import('pages/fleet-overview/sensor-fleet-overview')));
 const SensorMeasurementsDefault = Loadable(lazy(() => import('pages/sensor-measurements/default')));
 const SensorNetworkPage = Loadable(lazy(() => import('pages/wireless-sensors/sensor-network')));
 const MultiSensorGraphingPage = Loadable(lazy(() => import('pages/wireless-sensors/multi-sensor-graphing')));
@@ -34,6 +35,10 @@ const MainRoutes = {
         {
           path: 'fleet-overview',
           element: <FleetOverviewPage />
+        },
+        {
+          path: 'sensor-fleet-overview',
+          element: <SensorFleetOverviewPage />
         },
         {
           path: 'sensor-measurements',
