@@ -10,7 +10,7 @@ const icons = {
 
 const dataDownloadTab = {
   id: 'group-data-download',
-  // title: 'Data Download',
+  title: 'Data',
   type: 'group',
   children: [
     {

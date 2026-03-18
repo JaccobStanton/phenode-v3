@@ -1,5 +1,8 @@
+import Box from '@mui/material/Box';
+
 // assets
 import { DashboardOutlined, LineChartOutlined, PictureOutlined, ToolOutlined } from '@ant-design/icons';
+import pheNodeToggleIcon from 'assets/toggle_buttons/PheNode.svg';
 
 // icons
 const icons = {
@@ -8,6 +11,10 @@ const icons = {
   PictureOutlined,
   ToolOutlined
 };
+
+function PheNodeMenuIcon(props) {
+  return <Box component="img" src={pheNodeToggleIcon} alt="PheNode" sx={{ width: 18, height: 18 }} {...props} />;
+}
 
 // ==============================|| MENU ITEMS - PHENODE ||============================== //
 
@@ -21,7 +28,7 @@ const pheNodeTab = {
       title: 'Fleet Overview',
       type: 'item',
       url: '/dashboard/fleet-overview',
-      icon: icons.DashboardOutlined,
+      icon: PheNodeMenuIcon,
       breadcrumbs: true
     },
     {
