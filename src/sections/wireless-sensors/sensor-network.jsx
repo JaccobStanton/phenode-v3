@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 
+import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import FormControl from '@mui/material/FormControl';
@@ -22,6 +23,7 @@ import wirelessSensorsDiagram from 'assets/diagrams/Wireless-Sensors-v4.svg';
 
 import AppstoreOutlined from '@ant-design/icons/AppstoreOutlined';
 import ClockCircleOutlined from '@ant-design/icons/ClockCircleOutlined';
+import EnvironmentOutlined from '@ant-design/icons/EnvironmentOutlined';
 import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
 import ZoomInOutlined from '@ant-design/icons/ZoomInOutlined';
 
@@ -37,6 +39,33 @@ const reflectedCardChromeSx = {
 
 const chartSurfaceSx = {
   backgroundColor: 'rgba(0, 18, 55, 0.6)'
+};
+
+const neonControlSx = {
+  backgroundColor: 'rgba(0, 20, 61, 0.72)',
+  border: '1px solid var(--reflected-light)',
+  borderRadius: 1,
+  minHeight: 40,
+  boxShadow: '0 11px 19px 1px #0000002e'
+};
+
+const neonMenuPaperSx = {
+  backgroundColor: 'rgba(0, 20, 61, 0.96)',
+  backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))',
+  border: '1px solid var(--reflected-light)',
+  boxShadow: '0 11px 19px 1px #0000002e',
+  backdropFilter: 'blur(6px)',
+  color: 'var(--green)'
+};
+
+const neonMenuItemSx = {
+  color: 'var(--green)',
+  '&:hover': {
+    backgroundColor: 'rgba(72, 247, 245, 0.12)'
+  },
+  '&.Mui-focused': {
+    backgroundColor: 'rgba(72, 247, 245, 0.12)'
+  }
 };
 
 const timeRangeOptions = [
@@ -99,9 +128,12 @@ const soilProbeReadings = {
   ]
 };
 
+const sensorSelectionOptions = ['WS-1234568', 'WS-1234569', 'WS-1234570', 'WS-1234571', 'SOIL-2031', 'AIR-4412', 'RAIN-7722', 'WIND-9901'];
+
 export default function SensorNetwork() {
   const [timeRange, setTimeRange] = useState('Last 24 hours');
   const [chartLayout, setChartLayout] = useState('column');
+  const [selectedNetworkSensor, setSelectedNetworkSensor] = useState(null);
   const [infoCardMode, setInfoCardMode] = useState('sensor');
   const [selectedSoilProbe, setSelectedSoilProbe] = useState('probe-1');
   const chartCards = useMemo(() => sensorMeasurementCharts, []);
@@ -110,6 +142,7 @@ export default function SensorNetwork() {
   const infoCardTooltipTitle = isSoilDataMode ? 'Sensor Info.' : 'Soil Data';
   const infoCardToggleIcon = isSoilDataMode ? wsToggleIcon : soilProbeDiagramIcon;
   const activeSoilReadings = soilProbeReadings[selectedSoilProbe];
+  const diagramWidthSx = { xs: '84%', sm: '80%', md: '76%', lg: '74%' };
 
   return (
     <MainCard content={false} sx={{ overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
@@ -148,28 +181,120 @@ export default function SensorNetwork() {
         </Stack>
       </Box>
 
-      <Box sx={{ p: { xs: 2, sm: 3 } }}>
-        <Grid container spacing={2.5} sx={{ alignItems: 'stretch' }}>
-          <Grid size={{ xs: 12, lg: 8 }}>
-            <Box
+      <Box sx={{ px: { xs: 2, sm: 3 }, pt: 0, pb: { xs: 2, sm: 3 } }}>
+        <Stack direction="row" sx={{ justifyContent: 'flex-end', mb: 2.5 }}>
+          <Tooltip
+            title="Map View"
+            arrow={false}
+            slotProps={{
+              tooltip: {
+                sx: {
+                  backgroundColor: 'rgba(0, 20, 61, 0.96)',
+                  color: 'var(--green)',
+                  border: '1px solid var(--reflected-light)',
+                  boxShadow: '0 11px 19px 1px #0000002e',
+                  fontSize: '0.78rem'
+                }
+              }
+            }}
+          >
+            <IconButton
+              aria-label="map view"
               sx={{
-                p: { xs: 1.5, sm: 2 },
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
+                border: '1px solid var(--reflected-light)',
+                color: 'var(--blue)',
+                backgroundColor: 'rgba(0, 20, 61, 0.72)',
+                boxShadow: '0 11px 19px 1px #0000002e'
               }}
             >
-              <Box
-                component="img"
-                src={wirelessSensorsDiagram}
-                alt="Wireless sensor network diagram"
+              <EnvironmentOutlined />
+            </IconButton>
+          </Tooltip>
+        </Stack>
+
+        <Grid container spacing={2.5} sx={{ alignItems: 'stretch' }}>
+          <Grid size={{ xs: 12, lg: 8 }} sx={{ display: 'flex' }}>
+            <Box sx={{ width: diagramWidthSx, mx: 'auto', display: 'flex', flexDirection: 'column', height: '100%' }}>
+              <Stack
+                spacing={0.65}
                 sx={{
-                  width: { xs: '92%', sm: '88%', md: '84%', lg: '82%' },
-                  maxHeight: { xs: 240, sm: 330, md: 400 },
-                  objectFit: 'contain'
+                  width: { xs: 'calc(100% - 24px)', sm: 'calc(100% - 28px)', md: 'calc(100% - 32px)', lg: 'calc(100% - 36px)' },
+                  mr: 'auto'
                 }}
-              />
+              >
+                <Autocomplete
+                  fullWidth
+                  options={sensorSelectionOptions}
+                  value={selectedNetworkSensor}
+                  onChange={(_, newValue) => setSelectedNetworkSensor(newValue)}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      placeholder="Select Wireless Sensor..."
+                      size="small"
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          ...neonControlSx,
+                          '& .MuiOutlinedInput-notchedOutline': {
+                            border: 'none'
+                          },
+                          '&.Mui-focused': {
+                            borderColor: 'var(--blue)'
+                          }
+                        },
+                        '& .MuiInputBase-input': {
+                          color: 'var(--green)',
+                          '&::placeholder': {
+                            color: 'var(--green)',
+                            opacity: 1
+                          }
+                        },
+                        '& .MuiSvgIcon-root': {
+                          color: 'var(--blue)'
+                        }
+                      }}
+                    />
+                  )}
+                  slotProps={{
+                    paper: {
+                      sx: neonMenuPaperSx
+                    },
+                    listbox: {
+                      sx: {
+                        p: 0.5,
+                        '& .MuiAutocomplete-option': {
+                          ...neonMenuItemSx
+                        }
+                      }
+                    }
+                  }}
+                />
+              </Stack>
+
+              <Box
+                sx={{
+                  mt: { xs: 2.5, lg: 'auto' },
+                  pb: 0,
+                  lineHeight: 0,
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  justifyContent: 'center'
+                }}
+              >
+                <Box
+                  component="img"
+                  src={wirelessSensorsDiagram}
+                  alt="Wireless sensor network diagram"
+                  sx={{
+                    width: '100%',
+                    maxHeight: { xs: 210, sm: 280, md: 340, lg: 360 },
+                    objectFit: 'contain',
+                    display: 'block',
+                    mb: 0,
+                    pb: 0
+                  }}
+                />
+              </Box>
             </Box>
           </Grid>
 
