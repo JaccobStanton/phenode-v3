@@ -17,6 +17,7 @@ import Typography from '@mui/material/Typography';
 import { LineChart } from '@mui/x-charts/LineChart';
 
 import MainCard from 'components/MainCard';
+import MapView from 'sections/wireless-sensors/map-view';
 import soilProbeDiagramIcon from 'assets/diagrams/Soil_Probe.svg';
 import wsToggleIcon from 'assets/toggle_buttons/WS.svg';
 import wirelessSensorsDiagram from 'assets/diagrams/Wireless-Sensors-v4.svg';
@@ -129,10 +130,13 @@ const soilProbeReadings = {
 };
 
 const sensorSelectionOptions = ['WS-1234568', 'WS-1234569', 'WS-1234570', 'WS-1234571', 'SOIL-2031', 'AIR-4412', 'RAIN-7722', 'WIND-9901'];
+const pheNodeSelectionOptions = ['PheNode 020', 'PheNode 017', 'PheNode 031', 'PheNode 105', 'PheNode 214'];
 
 export default function SensorNetwork() {
   const [timeRange, setTimeRange] = useState('Last 24 hours');
   const [chartLayout, setChartLayout] = useState('column');
+  const [isMapView, setIsMapView] = useState(false);
+  const [selectedPheNode, setSelectedPheNode] = useState(null);
   const [selectedNetworkSensor, setSelectedNetworkSensor] = useState(null);
   const [infoCardMode, setInfoCardMode] = useState('sensor');
   const [selectedSoilProbe, setSelectedSoilProbe] = useState('probe-1');
@@ -143,6 +147,8 @@ export default function SensorNetwork() {
   const infoCardToggleIcon = isSoilDataMode ? wsToggleIcon : soilProbeDiagramIcon;
   const activeSoilReadings = soilProbeReadings[selectedSoilProbe];
   const diagramWidthSx = { xs: '84%', sm: '80%', md: '76%', lg: '74%' };
+  const sectionTitle = isMapView ? 'Sensor Overview' : 'Wireless Sensor Measurements';
+  const mapToggleTooltip = isMapView ? 'Sensor Overview' : 'Map View';
 
   return (
     <MainCard content={false} sx={{ overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
@@ -160,7 +166,7 @@ export default function SensorNetwork() {
           }}
         >
           <Typography variant="h4" sx={{ color: 'var(--blue)' }}>
-            Wireless Sensor Measurements
+            {sectionTitle}
           </Typography>
           <Typography
             variant="subtitle1"
@@ -182,9 +188,107 @@ export default function SensorNetwork() {
       </Box>
 
       <Box sx={{ px: { xs: 2, sm: 3 }, pt: 0, pb: { xs: 2, sm: 3 } }}>
-        <Stack direction="row" sx={{ justifyContent: 'flex-end', mb: 2.5 }}>
+        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2.5, gap: 1 }}>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 0 }}>
+            <Autocomplete
+              options={pheNodeSelectionOptions}
+              value={selectedPheNode}
+              onChange={(_, newValue) => setSelectedPheNode(newValue)}
+              sx={{ width: { xs: 170, sm: 220 } }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  placeholder="Select PheNode..."
+                  size="small"
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      ...neonControlSx,
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        border: 'none'
+                      },
+                      '&.Mui-focused': {
+                        borderColor: 'var(--blue)'
+                      }
+                    },
+                    '& .MuiInputBase-input': {
+                      color: 'var(--green)',
+                      '&::placeholder': {
+                        color: 'var(--green)',
+                        opacity: 1
+                      }
+                    },
+                    '& .MuiSvgIcon-root': {
+                      color: 'var(--blue)'
+                    }
+                  }}
+                />
+              )}
+              slotProps={{
+                paper: {
+                  sx: neonMenuPaperSx
+                },
+                listbox: {
+                  sx: {
+                    p: 0.5,
+                    '& .MuiAutocomplete-option': {
+                      ...neonMenuItemSx
+                    }
+                  }
+                }
+              }}
+            />
+
+            <Autocomplete
+              options={sensorSelectionOptions}
+              value={selectedNetworkSensor}
+              onChange={(_, newValue) => setSelectedNetworkSensor(newValue)}
+              sx={{ width: { xs: 190, sm: 250 } }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  placeholder="Select Wireless Sensor..."
+                  size="small"
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      ...neonControlSx,
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        border: 'none'
+                      },
+                      '&.Mui-focused': {
+                        borderColor: 'var(--blue)'
+                      }
+                    },
+                    '& .MuiInputBase-input': {
+                      color: 'var(--green)',
+                      '&::placeholder': {
+                        color: 'var(--green)',
+                        opacity: 1
+                      }
+                    },
+                    '& .MuiSvgIcon-root': {
+                      color: 'var(--blue)'
+                    }
+                  }}
+                />
+              )}
+              slotProps={{
+                paper: {
+                  sx: neonMenuPaperSx
+                },
+                listbox: {
+                  sx: {
+                    p: 0.5,
+                    '& .MuiAutocomplete-option': {
+                      ...neonMenuItemSx
+                    }
+                  }
+                }
+              }}
+            />
+          </Stack>
+
           <Tooltip
-            title="Map View"
+            title={mapToggleTooltip}
             arrow={false}
             slotProps={{
               tooltip: {
@@ -199,7 +303,8 @@ export default function SensorNetwork() {
             }}
           >
             <IconButton
-              aria-label="map view"
+              aria-label={isMapView ? 'sensor overview' : 'map view'}
+              onClick={() => setIsMapView((prev) => !prev)}
               sx={{
                 border: '1px solid var(--reflected-light)',
                 color: 'var(--blue)',
@@ -207,297 +312,278 @@ export default function SensorNetwork() {
                 boxShadow: '0 11px 19px 1px #0000002e'
               }}
             >
-              <EnvironmentOutlined />
+              {isMapView ? <Box component="img" src={wsToggleIcon} alt="" sx={{ width: 21, height: 21 }} /> : <EnvironmentOutlined />}
             </IconButton>
           </Tooltip>
         </Stack>
 
         <Grid container spacing={2.5} sx={{ alignItems: 'stretch' }}>
-          <Grid size={{ xs: 12, lg: 8 }} sx={{ display: 'flex' }}>
-            <Box sx={{ width: diagramWidthSx, mx: 'auto', display: 'flex', flexDirection: 'column', height: '100%' }}>
-              <Stack
-                spacing={0.65}
-                sx={{
-                  width: { xs: 'calc(100% - 24px)', sm: 'calc(100% - 28px)', md: 'calc(100% - 32px)', lg: 'calc(100% - 36px)' },
-                  mr: 'auto'
-                }}
-              >
-                <Autocomplete
-                  fullWidth
-                  options={sensorSelectionOptions}
-                  value={selectedNetworkSensor}
-                  onChange={(_, newValue) => setSelectedNetworkSensor(newValue)}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      placeholder="Select Wireless Sensor..."
-                      size="small"
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          ...neonControlSx,
-                          '& .MuiOutlinedInput-notchedOutline': {
-                            border: 'none'
-                          },
-                          '&.Mui-focused': {
-                            borderColor: 'var(--blue)'
-                          }
-                        },
-                        '& .MuiInputBase-input': {
-                          color: 'var(--green)',
-                          '&::placeholder': {
-                            color: 'var(--green)',
-                            opacity: 1
-                          }
-                        },
-                        '& .MuiSvgIcon-root': {
-                          color: 'var(--blue)'
-                        }
-                      }}
-                    />
-                  )}
-                  slotProps={{
-                    paper: {
-                      sx: neonMenuPaperSx
-                    },
-                    listbox: {
-                      sx: {
-                        p: 0.5,
-                        '& .MuiAutocomplete-option': {
-                          ...neonMenuItemSx
-                        }
-                      }
-                    }
-                  }}
-                />
-              </Stack>
-
-              <Box
-                sx={{
-                  mt: { xs: 2.5, lg: 'auto' },
-                  pb: 0,
-                  lineHeight: 0,
-                  display: 'flex',
-                  alignItems: 'flex-end',
-                  justifyContent: 'center'
-                }}
-              >
+          {isMapView ? (
+            <Grid size={{ xs: 12 }}>
+              <MapView
+                infoCardMode={infoCardMode}
+                setInfoCardMode={setInfoCardMode}
+                selectedSoilProbe={selectedSoilProbe}
+                setSelectedSoilProbe={setSelectedSoilProbe}
+              />
+            </Grid>
+          ) : (
+            <>
+              <Grid size={{ xs: 12, lg: 8 }} sx={{ display: 'flex' }}>
                 <Box
-                  component="img"
-                  src={wirelessSensorsDiagram}
-                  alt="Wireless sensor network diagram"
                   sx={{
+                    borderRadius: 1,
+                    p: { xs: 1.5, sm: 2 },
                     width: '100%',
-                    maxHeight: { xs: 210, sm: 280, md: 340, lg: 360 },
-                    objectFit: 'contain',
-                    display: 'block',
-                    mb: 0,
-                    pb: 0
+                    height: '100%',
+                    ...glassSurfaceSx,
+                    ...reflectedCardChromeSx
                   }}
-                />
-              </Box>
-            </Box>
-          </Grid>
+                >
+                  <Box sx={{ width: diagramWidthSx, mx: 'auto', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                    <Typography variant="body1" sx={{ width: '100%', textAlign: 'center', fontWeight: 600, pt: { xs: 0.25, sm: 0.5 } }}>
+                      <Box component="span" sx={{ color: 'var(--blue)' }}>
+                        [ MAC ADDR:
+                      </Box>{' '}
+                      <Box component="span" sx={{ color: 'var(--green)', textShadow: '0 1px 9px #1a75e0c9' }}>
+                        E3:45:2C:89:B6
+                      </Box>{' '}
+                      <Box component="span" sx={{ color: 'var(--blue)' }}>
+                        ]
+                      </Box>
+                    </Typography>
 
-          <Grid size={{ xs: 12, lg: 4 }} sx={{ display: 'flex' }}>
-            <Stack spacing={2.5} sx={{ width: '100%', height: '100%' }}>
-              <Box
-                sx={{
-                  borderRadius: 1,
-                  p: { xs: 1.5, sm: 2 },
-                  ...glassSurfaceSx,
-                  ...reflectedCardChromeSx,
-                  '& .info-card-green-text': {
-                    color: 'var(--green)',
-                    textShadow: '0 1px 9px #1a75e0c9'
-                  }
-                }}
-              >
-                <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography variant="h5" sx={{ color: '#646cff' }}>
-                    {infoCardTitle}
-                  </Typography>
-                  <Tooltip
-                    title={infoCardTooltipTitle}
-                    arrow={false}
-                    slotProps={{
-                      tooltip: {
-                        sx: {
-                          backgroundColor: 'rgba(0, 20, 61, 0.96)',
-                          color: 'var(--green)',
-                          border: '1px solid var(--reflected-light)',
-                          boxShadow: '0 11px 19px 1px #0000002e',
-                          fontSize: '0.78rem'
-                        }
-                      }
-                    }}
-                  >
-                    <IconButton
-                      aria-label={isSoilDataMode ? 'show sensor info' : 'show soil data'}
-                      onClick={() => setInfoCardMode((prev) => (prev === 'soil' ? 'sensor' : 'soil'))}
+                    <Box
                       sx={{
-                        border: '1px solid var(--reflected-light)',
-                        color: 'var(--blue)',
-                        backgroundColor: 'rgba(0, 20, 61, 0.72)',
-                        boxShadow: '0 11px 19px 1px #0000002e'
+                        mt: { xs: 2.5, lg: 'auto' },
+                        pb: 0,
+                        lineHeight: 0,
+                        display: 'flex',
+                        alignItems: 'flex-end',
+                        justifyContent: 'center'
                       }}
                     >
-                      <Box component="img" src={infoCardToggleIcon} alt="" sx={{ width: 22, height: 22 }} />
-                    </IconButton>
-                  </Tooltip>
-                </Stack>
-
-                {isSoilDataMode ? (
-                  <>
-                    <ToggleButtonGroup
-                      exclusive
-                      value={selectedSoilProbe}
-                      onChange={(_, nextValue) => {
-                        if (nextValue) setSelectedSoilProbe(nextValue);
-                      }}
-                      size="small"
-                      sx={{
-                        mb: 2,
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1fr',
-                        '& .MuiToggleButtonGroup-grouped': {
-                          border: '1px solid var(--reflected-light) !important',
-                          borderRadius: '6px !important',
-                          color: 'var(--blue)',
-                          backgroundColor: 'rgba(0, 20, 61, 0.72)',
-                          textTransform: 'none',
-                          fontWeight: 600
-                        },
-                        '& .MuiToggleButtonGroup-grouped:first-of-type': {
-                          borderTopRightRadius: '0 !important',
-                          borderBottomRightRadius: '0 !important'
-                        },
-                        '& .MuiToggleButtonGroup-grouped:last-of-type': {
-                          borderTopLeftRadius: '0 !important',
-                          borderBottomLeftRadius: '0 !important'
-                        },
-                        '& .Mui-selected': {
-                          color: 'var(--green) !important',
-                          backgroundColor: 'rgba(72, 247, 245, 0.12) !important'
-                        }
-                      }}
-                    >
-                      <ToggleButton value="probe-1">Soil Probe 1</ToggleButton>
-                      <ToggleButton value="probe-2">Soil Probe 2</ToggleButton>
-                    </ToggleButtonGroup>
-
-                    <Box sx={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 2, rowGap: 1.25 }}>
-                      {activeSoilReadings.map((reading) => (
-                        <Box key={reading.label} sx={{ display: 'contents' }}>
-                          <Typography variant="body1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
-                            {reading.label}
-                          </Typography>
-                          <Typography className="info-card-green-text" variant="body1" sx={{ textAlign: 'right', fontWeight: 600 }}>
-                            {reading.value}
-                          </Typography>
-                        </Box>
-                      ))}
+                      <Box
+                        component="img"
+                        src={wirelessSensorsDiagram}
+                        alt="Wireless sensor network diagram"
+                        sx={{
+                          width: '100%',
+                          maxHeight: { xs: 210, sm: 280, md: 340, lg: 360 },
+                          objectFit: 'contain',
+                          display: 'block',
+                          transform: { xs: 'translateY(8px)', sm: 'translateY(10px)' },
+                          mb: 0,
+                          pb: 0
+                        }}
+                      />
                     </Box>
-                  </>
-                ) : (
-                  <Box sx={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 2, rowGap: 1.25 }}>
-                    <Typography variant="body1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
-                      Sensor ID:
-                    </Typography>
-                    <Typography className="info-card-green-text" variant="body1" sx={{ textAlign: 'right', fontWeight: 600 }}>
-                      WS-1234568
-                    </Typography>
-
-                    <Typography variant="body1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
-                      GPS:
-                    </Typography>
-                    <Typography className="info-card-green-text" variant="body1" sx={{ textAlign: 'right', fontWeight: 600 }}>
-                      32 42 23 43, 92 89
-                    </Typography>
-
-                    <Typography variant="body1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
-                      Altitude:
-                    </Typography>
-                    <Typography className="info-card-green-text" variant="body1" sx={{ textAlign: 'right', fontWeight: 600 }}>
-                      793.95ft
-                    </Typography>
-
-                    <Typography variant="body1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
-                      Battery:
-                    </Typography>
-                    <Typography className="info-card-green-text" variant="body1" sx={{ textAlign: 'right', fontWeight: 600 }}>
-                      87.52%
-                    </Typography>
-
-                    <Typography variant="body1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
-                      Probes Connected:
-                    </Typography>
-                    <Typography className="info-card-green-text" variant="body1" sx={{ textAlign: 'right', fontWeight: 600 }}>
-                      2
-                    </Typography>
                   </Box>
-                )}
-              </Box>
+                </Box>
+              </Grid>
 
-              <Box sx={{ borderRadius: 1, p: { xs: 1.5, sm: 2 }, flexGrow: 1, ...glassSurfaceSx, ...reflectedCardChromeSx }}>
-                <Stack sx={{ height: '100%', justifyContent: 'center', alignItems: 'center' }} spacing={2}>
-                  <Typography variant="h5" sx={{ textAlign: 'center', color: 'var(--blue)' }}>
-                    Rename this Sensor:
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    placeholder="Enter new sensor name"
+              <Grid size={{ xs: 12, lg: 4 }} sx={{ display: 'flex' }}>
+                <Stack spacing={2.5} sx={{ width: '100%', height: '100%' }}>
+                  <Box
                     sx={{
-                      maxWidth: 320,
-                      '& .MuiOutlinedInput-root': {
-                        backgroundColor: '#00143642',
-                        borderStyle: 'none none solid',
-                        borderWidth: '1px 1px 2px',
-                        borderColor: 'var(--dark-blue) var(--dark-blue) var(--reflected-light)',
-                        borderRadius: 1,
-                        '& fieldset': {
-                          border: 'none'
-                        },
-                        '&:hover fieldset': {
-                          border: 'none'
-                        },
-                        '&.Mui-focused fieldset': {
-                          border: 'none'
-                        }
-                      },
-                      '& .MuiInputBase-input': {
-                        color: 'var(--blue)',
-                        textAlign: 'center',
-                        '&::placeholder': {
-                          color: 'var(--blue)',
-                          opacity: 1
-                        }
-                      }
-                    }}
-                    inputProps={{ 'aria-label': 'Rename sensor input' }}
-                  />
-                  <Button
-                    variant="outlined"
-                    sx={{
-                      minWidth: 140,
-                      color: 'var(--green)',
-
-                      borderColor: 'var(--orange)',
-                      '&:hover': {
-                        borderColor: 'var(--green)',
-                        boxShadow: '0 0 7px -5px var(--green)',
+                      borderRadius: 1,
+                      p: { xs: 1.5, sm: 2 },
+                      ...glassSurfaceSx,
+                      ...reflectedCardChromeSx,
+                      '& .info-card-green-text': {
                         color: 'var(--green)',
-                        textShadow: '0 1px 5px #007bff',
-                        backgroundColor: 'rgba(72, 247, 245, 0.08)'
+                        textShadow: '0 1px 9px #1a75e0c9'
                       }
                     }}
                   >
-                    Rename
-                  </Button>
+                    <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                      <Typography variant="h5" sx={{ color: '#646cff' }}>
+                        {infoCardTitle}
+                      </Typography>
+                      <Tooltip
+                        title={infoCardTooltipTitle}
+                        arrow={false}
+                        slotProps={{
+                          tooltip: {
+                            sx: {
+                              backgroundColor: 'rgba(0, 20, 61, 0.96)',
+                              color: 'var(--green)',
+                              border: '1px solid var(--reflected-light)',
+                              boxShadow: '0 11px 19px 1px #0000002e',
+                              fontSize: '0.78rem'
+                            }
+                          }
+                        }}
+                      >
+                        <IconButton
+                          aria-label={isSoilDataMode ? 'show sensor info' : 'show soil data'}
+                          onClick={() => setInfoCardMode((prev) => (prev === 'soil' ? 'sensor' : 'soil'))}
+                          sx={{
+                            border: '1px solid var(--reflected-light)',
+                            color: 'var(--blue)',
+                            backgroundColor: 'rgba(0, 20, 61, 0.72)',
+                            boxShadow: '0 11px 19px 1px #0000002e'
+                          }}
+                        >
+                          <Box component="img" src={infoCardToggleIcon} alt="" sx={{ width: 22, height: 22 }} />
+                        </IconButton>
+                      </Tooltip>
+                    </Stack>
+
+                    {isSoilDataMode ? (
+                      <>
+                        <ToggleButtonGroup
+                          exclusive
+                          value={selectedSoilProbe}
+                          onChange={(_, nextValue) => {
+                            if (nextValue) setSelectedSoilProbe(nextValue);
+                          }}
+                          size="small"
+                          sx={{
+                            mb: 2,
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 1fr',
+                            '& .MuiToggleButtonGroup-grouped': {
+                              border: '1px solid var(--reflected-light) !important',
+                              borderRadius: '6px !important',
+                              color: 'var(--blue)',
+                              backgroundColor: 'rgba(0, 20, 61, 0.72)',
+                              textTransform: 'none',
+                              fontWeight: 600
+                            },
+                            '& .MuiToggleButtonGroup-grouped:first-of-type': {
+                              borderTopRightRadius: '0 !important',
+                              borderBottomRightRadius: '0 !important'
+                            },
+                            '& .MuiToggleButtonGroup-grouped:last-of-type': {
+                              borderTopLeftRadius: '0 !important',
+                              borderBottomLeftRadius: '0 !important'
+                            },
+                            '& .Mui-selected': {
+                              color: 'var(--green) !important',
+                              backgroundColor: 'rgba(72, 247, 245, 0.12) !important'
+                            }
+                          }}
+                        >
+                          <ToggleButton value="probe-1">Soil Probe 1</ToggleButton>
+                          <ToggleButton value="probe-2">Soil Probe 2</ToggleButton>
+                        </ToggleButtonGroup>
+
+                        <Box sx={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 2, rowGap: 1.25 }}>
+                          {activeSoilReadings.map((reading) => (
+                            <Box key={reading.label} sx={{ display: 'contents' }}>
+                              <Typography variant="body1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
+                                {reading.label}
+                              </Typography>
+                              <Typography className="info-card-green-text" variant="body1" sx={{ textAlign: 'right', fontWeight: 600 }}>
+                                {reading.value}
+                              </Typography>
+                            </Box>
+                          ))}
+                        </Box>
+                      </>
+                    ) : (
+                      <Box sx={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 2, rowGap: 1.25 }}>
+                        <Typography variant="body1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
+                          Sensor ID:
+                        </Typography>
+                        <Typography className="info-card-green-text" variant="body1" sx={{ textAlign: 'right', fontWeight: 600 }}>
+                          WS-1234568
+                        </Typography>
+
+                        <Typography variant="body1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
+                          GPS:
+                        </Typography>
+                        <Typography className="info-card-green-text" variant="body1" sx={{ textAlign: 'right', fontWeight: 600 }}>
+                          32 42 23 43, 92 89
+                        </Typography>
+
+                        <Typography variant="body1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
+                          Altitude:
+                        </Typography>
+                        <Typography className="info-card-green-text" variant="body1" sx={{ textAlign: 'right', fontWeight: 600 }}>
+                          793.95ft
+                        </Typography>
+
+                        <Typography variant="body1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
+                          Battery:
+                        </Typography>
+                        <Typography className="info-card-green-text" variant="body1" sx={{ textAlign: 'right', fontWeight: 600 }}>
+                          87.52%
+                        </Typography>
+
+                        <Typography variant="body1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
+                          Probes Connected:
+                        </Typography>
+                        <Typography className="info-card-green-text" variant="body1" sx={{ textAlign: 'right', fontWeight: 600 }}>
+                          2
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+
+                  <Box sx={{ borderRadius: 1, p: { xs: 1.5, sm: 2 }, flexGrow: 1, ...glassSurfaceSx, ...reflectedCardChromeSx }}>
+                    <Stack sx={{ height: '100%', justifyContent: 'center', alignItems: 'center' }} spacing={2}>
+                      <Typography variant="h5" sx={{ textAlign: 'center', color: 'var(--blue)' }}>
+                        Rename this Sensor:
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        placeholder="Enter new sensor name"
+                        sx={{
+                          maxWidth: 320,
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#00143642',
+                            borderStyle: 'none none solid',
+                            borderWidth: '1px 1px 2px',
+                            borderColor: 'var(--dark-blue) var(--dark-blue) var(--reflected-light)',
+                            borderRadius: 1,
+                            '& fieldset': {
+                              border: 'none'
+                            },
+                            '&:hover fieldset': {
+                              border: 'none'
+                            },
+                            '&.Mui-focused fieldset': {
+                              border: 'none'
+                            }
+                          },
+                          '& .MuiInputBase-input': {
+                            color: 'var(--blue)',
+                            textAlign: 'center',
+                            '&::placeholder': {
+                              color: 'var(--blue)',
+                              opacity: 1
+                            }
+                          }
+                        }}
+                        inputProps={{ 'aria-label': 'Rename sensor input' }}
+                      />
+                      <Button
+                        variant="outlined"
+                        sx={{
+                          minWidth: 140,
+                          color: 'var(--green)',
+
+                          borderColor: 'var(--orange)',
+                          '&:hover': {
+                            borderColor: 'var(--green)',
+                            boxShadow: '0 0 7px -5px var(--green)',
+                            color: 'var(--green)',
+                            textShadow: '0 1px 5px #007bff',
+                            backgroundColor: 'rgba(72, 247, 245, 0.08)'
+                          }
+                        }}
+                      >
+                        Rename
+                      </Button>
+                    </Stack>
+                  </Box>
                 </Stack>
-              </Box>
-            </Stack>
-          </Grid>
+              </Grid>
+            </>
+          )}
 
           <Grid size={{ xs: 12 }}>
             <Box
