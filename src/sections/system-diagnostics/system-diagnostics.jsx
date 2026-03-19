@@ -175,7 +175,7 @@ export default function SystemDiagnostics() {
             </Box>
           </Grid>
 
-          <Grid size={{ xs: 12, lg: 8 }} sx={{ display: { xs: 'none', md: 'block' } }}>
+          <Grid size={{ xs: 12, lg: 8 }}>
             <Box
               sx={{
                 p: { xs: 1.5, sm: 2 },
@@ -189,16 +189,29 @@ export default function SystemDiagnostics() {
                 ...reflectedCardChromeSx
               }}
             >
-              <Box
-                component="img"
-                src={phenodeDiagram}
-                alt="Phenode system diagram"
-                sx={{
-                  width: { md: '92%', lg: '96%', xl: '98%' },
-                  maxHeight: { md: 420, lg: 520, xl: 620 },
-                  objectFit: 'contain'
-                }}
-              />
+              <Stack spacing={0.9} sx={{ width: '100%', alignItems: 'center' }}>
+                <Typography variant="body1" sx={{ textAlign: 'center', fontWeight: 600 }}>
+                  <Box component="span" sx={{ color: 'var(--blue)' }}>
+                    [ MAC ADDR:
+                  </Box>{' '}
+                  <Box component="span" sx={{ color: 'var(--green)', textShadow: '0 1px 9px #1a75e0c9' }}>
+                    E3:45:2C:89:B6
+                  </Box>{' '}
+                  <Box component="span" sx={{ color: 'var(--blue)' }}>
+                    ]
+                  </Box>
+                </Typography>
+                <Box
+                  component="img"
+                  src={phenodeDiagram}
+                  alt="Phenode system diagram"
+                  sx={{
+                    width: { xs: '90%', sm: '88%', md: '88%', lg: '92%', xl: '94%' },
+                    maxHeight: { md: 390, lg: 490, xl: 590 },
+                    objectFit: 'contain'
+                  }}
+                />
+              </Stack>
             </Box>
           </Grid>
 
