@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { DownloadOutlined } from '@ant-design/icons';
 
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -15,6 +14,8 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 
 import MainCard from 'components/MainCard';
+import downloadIconActive from 'assets/toggle_buttons/Download_Icon_Active.svg';
+import downloadIconInactive from 'assets/toggle_buttons/Download_Icon_Inactive.svg';
 
 const glassSurfaceSx = {
   backgroundColor: 'rgba(0, 17, 48, 0.03)',
@@ -92,6 +93,7 @@ export default function DownloadPreferences() {
   const [blankCustomValue, setBlankCustomValue] = useState('');
   const [timeZone, setTimeZone] = useState('UTC');
   const [hyphensStrategy, setHyphensStrategy] = useState('Leave hyphen');
+  const [isDownloadsButtonHovered, setIsDownloadsButtonHovered] = useState(false);
 
   const showErrorCustomInput = errorValuesStrategy === 'Flag with custom value';
   const showBlankCustomInput = blankCellsStrategy === 'Flag with custom value';
@@ -133,6 +135,10 @@ export default function DownloadPreferences() {
               component={Link}
               to="/dashboard/data-download"
               aria-label="Back to Data Downloads"
+              onMouseEnter={() => setIsDownloadsButtonHovered(true)}
+              onMouseLeave={() => setIsDownloadsButtonHovered(false)}
+              onFocus={() => setIsDownloadsButtonHovered(true)}
+              onBlur={() => setIsDownloadsButtonHovered(false)}
               sx={{
                 minWidth: 0,
                 width: 40,
@@ -152,7 +158,12 @@ export default function DownloadPreferences() {
                 textDecoration: 'none'
               }}
             >
-              <DownloadOutlined style={{ fontSize: 24 }} />
+              <Box
+                component="img"
+                src={isDownloadsButtonHovered ? downloadIconActive : downloadIconInactive}
+                alt="Data Downloads"
+                sx={{ width: 24, height: 24 }}
+              />
             </Box>
           </Tooltip>
         </Stack>

@@ -1,10 +1,9 @@
-// assets
-import { DownloadOutlined } from '@ant-design/icons';
+import Box from '@mui/material/Box';
+import downloadIconInactive from 'assets/toggle_buttons/Download_Icon_Inactive.svg';
 
-// icons
-const icons = {
-  DownloadOutlined
-};
+function DataDownloadMenuIcon(props) {
+  return <Box component="img" src={downloadIconInactive} alt="Data Downloads" sx={{ width: 18, height: 18 }} {...props} />;
+}
 
 // ==============================|| MENU ITEMS - DATA DOWNLOAD ||============================== //
 
@@ -18,7 +17,7 @@ const dataDownloadTab = {
       title: 'Data Downloads',
       type: 'item',
       url: '/dashboard/data-download',
-      icon: icons.DownloadOutlined,
+      icon: DataDownloadMenuIcon,
       breadcrumbs: true
     }
   ]
