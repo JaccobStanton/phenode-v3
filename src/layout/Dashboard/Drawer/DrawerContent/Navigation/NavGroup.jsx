@@ -39,7 +39,15 @@ export default function NavGroup({ item }) {
         item.title &&
         drawerOpen && (
           <Box sx={{ pl: 3, mb: 1.5 }}>
-            <Typography variant="subtitle2" color="textSecondary">
+            <Typography
+              variant="h6"
+              sx={{
+                color: 'var(--purple)',
+                fontSize: '1.05rem',
+                fontWeight: 700,
+                letterSpacing: '0.02em'
+              }}
+            >
               {item.title}
             </Typography>
             {/* only available in paid version */}

@@ -1,16 +1,12 @@
 import Box from '@mui/material/Box';
 
-// assets
-import { DashboardOutlined, LineChartOutlined, PictureOutlined, ToolOutlined } from '@ant-design/icons';
 import pheNodeToggleIcon from 'assets/drawer-icons/PheNode_Fleet.svg';
-
-// icons
-const icons = {
-  DashboardOutlined,
-  LineChartOutlined,
-  PictureOutlined,
-  ToolOutlined
-};
+import realTimeIconActive from 'assets/drawer-icons/Real_Time_Icon_Active.svg';
+import realTimeIconInactive from 'assets/drawer-icons/Real_Time_Icon_Inactive.svg';
+import imagingIconActive from 'assets/drawer-icons/Imaging_Icon_Active.svg';
+import imagingIconInactive from 'assets/drawer-icons/Imaging_Icon_Inactive.svg';
+import diagnosticsIconActive from 'assets/drawer-icons/Diagnostics_Icon_Active.svg';
+import diagnosticsIconInactive from 'assets/drawer-icons/Diagnostics-Icon_Inactive.svg';
 
 function PheNodeMenuIcon(props) {
   return <Box component="img" src={pheNodeToggleIcon} alt="PheNode" sx={{ width: 18, height: 18 }} {...props} />;
@@ -36,7 +32,8 @@ const pheNodeTab = {
       title: 'Sensor Measurements',
       type: 'item',
       url: '/dashboard/sensor-measurements',
-      icon: icons.LineChartOutlined,
+      iconInactive: realTimeIconInactive,
+      iconActive: realTimeIconActive,
       breadcrumbs: true
     },
     {
@@ -44,7 +41,8 @@ const pheNodeTab = {
       title: 'Imaging',
       type: 'item',
       url: '/dashboard/imaging',
-      icon: icons.PictureOutlined,
+      iconInactive: imagingIconInactive,
+      iconActive: imagingIconActive,
       breadcrumbs: true
     },
     {
@@ -52,7 +50,8 @@ const pheNodeTab = {
       title: 'System Diagnostics',
       type: 'item',
       url: '/dashboard/system-diagnostics',
-      icon: icons.ToolOutlined,
+      iconInactive: diagnosticsIconInactive,
+      iconActive: diagnosticsIconActive,
       breadcrumbs: true
     }
   ]

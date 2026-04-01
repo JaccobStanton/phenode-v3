@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import PropTypes from 'prop-types';
 import { Link, useLocation, matchPath } from 'react-router-dom';
 
@@ -20,6 +21,7 @@ import { handlerDrawerOpen, useGetMenuMaster } from 'api/menu';
 // ==============================|| NAVIGATION - LIST ITEM ||============================== //
 
 export default function NavItem({ item, level, isParents = false, setSelectedID }) {
+  const [isHovered, setIsHovered] = useState(false);
   const { menuMaster } = useGetMenuMaster();
   const drawerOpen = menuMaster.isDashboardDrawerOpened;
 
@@ -38,8 +40,32 @@ export default function NavItem({ item, level, isParents = false, setSelectedID 
     }
   };
 
+  const { pathname } = useLocation();
+  const isSelected = !!matchPath({ path: item?.link ? item.link : item.url, end: false }, pathname);
+
+  const textColor = 'var(--blue)';
+  const iconSelectedColor = 'var(--blue)';
+  const drawerHoverCardSx = {
+    backgroundColor: 'rgba(56, 152, 236, 0.1)',
+    borderLeft: '0.5px solid var(--green)',
+    borderRight: '0.5px solid var(--green)',
+    cursor: 'pointer'
+  };
+
   const Icon = item.icon;
-  const itemIcon = item.icon ? (
+  const hasDrawerHoverIcons = Boolean(item.iconInactive);
+  const itemIcon = hasDrawerHoverIcons ? (
+    <Box
+      component="img"
+      src={isHovered ? item.iconActive || item.iconInactive : item.iconInactive}
+      alt={item.title}
+      sx={{
+        width: isParents ? 20 : drawerOpen ? 18 : 20,
+        height: isParents ? 20 : drawerOpen ? 18 : 20,
+        display: 'block'
+      }}
+    />
+  ) : item.icon ? (
     <Icon
       style={{
         fontSize: drawerOpen ? '1rem' : '1.25rem',
@@ -49,12 +75,6 @@ export default function NavItem({ item, level, isParents = false, setSelectedID 
   ) : (
     false
   );
-
-  const { pathname } = useLocation();
-  const isSelected = !!matchPath({ path: item?.link ? item.link : item.url, end: false }, pathname);
-
-  const textColor = 'text.primary';
-  const iconSelectedColor = 'primary.main';
 
   const navButton = (
     <ListItemButton
@@ -68,21 +88,21 @@ export default function NavItem({ item, level, isParents = false, setSelectedID 
         pl: drawerOpen ? `${level * 28}px` : 1.5,
         py: !drawerOpen && level === 1 ? 1.25 : 1,
         ...(drawerOpen && {
-          '&:hover': { bgcolor: 'action.hover' },
+          '&:hover': { ...drawerHoverCardSx },
           '&.Mui-selected': {
-            bgcolor: 'action.selected',
-            borderRight: '2px solid',
-            borderColor: 'primary.main',
+            bgcolor: 'rgba(56, 152, 236, 0.04)',
             color: iconSelectedColor,
-            '&:hover': { color: iconSelectedColor, bgcolor: 'action.hover' }
+            '&:hover': { color: iconSelectedColor, ...drawerHoverCardSx }
           }
         }),
         ...(!drawerOpen && {
-          '&:hover': { bgcolor: 'transparent' },
-          '&.Mui-selected': { '&:hover': { bgcolor: 'transparent' }, bgcolor: 'transparent' }
+          '&:hover': { ...drawerHoverCardSx },
+          '&.Mui-selected': { '&:hover': { ...drawerHoverCardSx }, bgcolor: 'transparent' }
         })
       })}
       onClick={() => itemHandler()}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
       {itemIcon && (
         <ListItemIcon
@@ -94,13 +114,11 @@ export default function NavItem({ item, level, isParents = false, setSelectedID 
               width: 36,
               height: 36,
               alignItems: 'center',
-              justifyContent: 'center',
-              '&:hover': { bgcolor: 'action.hover' }
+              justifyContent: 'center'
             }),
             ...(!drawerOpen &&
               isSelected && {
-                bgcolor: 'action.selected',
-                '&:hover': { bgcolor: 'action.hover' }
+                bgcolor: 'transparent'
               })
           })}
         >
@@ -110,7 +128,7 @@ export default function NavItem({ item, level, isParents = false, setSelectedID 
       {(drawerOpen || (!drawerOpen && level !== 1)) && (
         <ListItemText
           primary={
-            <Typography variant="h6" sx={{ color: isSelected ? iconSelectedColor : textColor }}>
+            <Typography variant="h6" sx={{ color: isHovered ? 'var(--green)' : isSelected ? iconSelectedColor : textColor }}>
               {item.title}
             </Typography>
           }
