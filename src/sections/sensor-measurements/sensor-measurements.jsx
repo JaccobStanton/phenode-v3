@@ -164,7 +164,7 @@ export default function SensorMeasurements() {
                     backgroundColor: '#022452',
                     backgroundImage:
                       'radial-gradient(circle at 50% 24%, rgba(72, 247, 245, 0.12), rgba(2, 36, 82, 0.1) 45%, rgba(1, 30, 69, 0.45) 100%)',
-                    boxShadow: 'inset 0 14px 26px #011e45, inset 0 -8px 20px rgba(1, 30, 69, 0.75), 0 11px 19px 1px #0000002e',
+                    boxShadow: 'inset 0 14px 26px #011e45, inset 0 -8px 20px rgba(1, 30, 69, 0.75)',
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'center',
