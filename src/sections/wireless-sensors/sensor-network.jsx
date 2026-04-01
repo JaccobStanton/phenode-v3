@@ -19,7 +19,7 @@ import { LineChart } from '@mui/x-charts/LineChart';
 import MainCard from 'components/MainCard';
 import MapView from 'sections/wireless-sensors/map-view';
 import soilProbeDiagramIcon from 'assets/diagrams/Soil_Probe.svg';
-import wsToggleIcon from 'assets/toggle_buttons/WS.svg';
+import wsToggleIcon from 'assets/fleet-icons/WS_Fleet.svg';
 import wirelessSensorsDiagram from 'assets/diagrams/Wireless-Sensors-v4.svg';
 
 import AppstoreOutlined from '@ant-design/icons/AppstoreOutlined';
@@ -134,7 +134,7 @@ const pheNodeSelectionOptions = ['PheNode 020', 'PheNode 017', 'PheNode 031', 'P
 
 export default function SensorNetwork() {
   const [timeRange, setTimeRange] = useState('Last 24 hours');
-  const [chartLayout, setChartLayout] = useState('column');
+  const [chartLayout, setChartLayout] = useState('row');
   const [isMapView, setIsMapView] = useState(false);
   const [selectedPheNode, setSelectedPheNode] = useState(null);
   const [selectedNetworkSensor, setSelectedNetworkSensor] = useState(null);
@@ -534,11 +534,15 @@ export default function SensorNetwork() {
                         sx={{
                           maxWidth: 320,
                           '& .MuiOutlinedInput-root': {
+                            boxShadow: 'none !important',
                             backgroundColor: '#00143642',
                             borderStyle: 'none none solid',
                             borderWidth: '1px 1px 2px',
                             borderColor: 'var(--dark-blue) var(--dark-blue) var(--reflected-light)',
                             borderRadius: 1,
+                            '&.Mui-focused': {
+                              boxShadow: 'none !important'
+                            },
                             '& fieldset': {
                               border: 'none'
                             },
