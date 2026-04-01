@@ -2,7 +2,7 @@ import Box from '@mui/material/Box';
 
 // assets
 import { DashboardOutlined, LineChartOutlined, PictureOutlined, ToolOutlined } from '@ant-design/icons';
-import pheNodeToggleIcon from 'assets/toggle_buttons/PheNode.svg';
+import pheNodeToggleIcon from 'assets/fleet-icons/PheNode_Fleet.svg';
 
 // icons
 const icons = {

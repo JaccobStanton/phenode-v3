@@ -30,7 +30,7 @@ const reflectedCardChromeSx = {
 
 export default function SystemDiagnostics() {
   const [timeRange, setTimeRange] = useState('Last 24 hours');
-  const [chartLayout, setChartLayout] = useState('column');
+  const [chartLayout, setChartLayout] = useState('row');
   const signalBarHeights = [12, 18, 24, 30];
   const sensorStatusCards = [
     { title: 'Rainfall', status: 'Inactive', statusColor: 'var(--purple)', notchColor: 'var(--purple)' },

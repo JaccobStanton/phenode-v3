@@ -1,5 +1,5 @@
 import Box from '@mui/material/Box';
-import pheNodeToggleIcon from 'assets/toggle_buttons/PheNode.svg';
+import pheNodeToggleIcon from 'assets/fleet-cons/PheNode_Fleet.svg';
 
 function PheNodeMenuIcon(props) {
   return <Box component="img" src={pheNodeToggleIcon} alt="PheNode" sx={{ width: 18, height: 18 }} {...props} />;
