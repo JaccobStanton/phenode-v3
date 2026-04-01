@@ -10,7 +10,7 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 
 import soilProbeDiagramIcon from 'assets/diagrams/Soil_Probe.svg';
-import wsToggleIcon from 'assets/fleet-icons/WS_Fleet.svg';
+import wsToggleIcon from 'assets/drawer-icons/WS_Fleet.svg';
 
 const glassSurfaceSx = {
   backgroundColor: 'rgba(0, 17, 48, 0.03)',

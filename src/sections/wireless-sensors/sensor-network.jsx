@@ -19,7 +19,7 @@ import { LineChart } from '@mui/x-charts/LineChart';
 import MainCard from 'components/MainCard';
 import MapView from 'sections/wireless-sensors/map-view';
 import soilProbeDiagramIcon from 'assets/diagrams/Soil_Probe.svg';
-import wsToggleIcon from 'assets/fleet-icons/WS_Fleet.svg';
+import wsToggleIcon from 'assets/drawer-icons/WS_Fleet.svg';
 import wirelessSensorsDiagram from 'assets/diagrams/Wireless-Sensors-v4.svg';
 
 import AppstoreOutlined from '@ant-design/icons/AppstoreOutlined';

@@ -2,7 +2,7 @@ import Box from '@mui/material/Box';
 
 // assets
 import { WifiOutlined } from '@ant-design/icons';
-import wirelessSensorToggleIcon from 'assets/fleet-icons/WS_Fleet.svg';
+import wirelessSensorToggleIcon from 'assets/drawer-icons/WS_Fleet.svg';
 
 // icons
 const icons = {
