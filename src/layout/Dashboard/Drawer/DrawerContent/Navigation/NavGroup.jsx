@@ -38,7 +38,7 @@ export default function NavGroup({ item }) {
       subheader={
         item.title &&
         drawerOpen && (
-          <Box sx={{ pl: 3, mb: 1.5 }}>
+          <Box sx={{ pl: 3, mb: 0.15 }}>
             <Typography
               variant="h6"
               sx={{
