@@ -15,7 +15,9 @@ export default function HeaderContent() {
   return (
     <>
       <Box sx={{ flexGrow: 1 }} />
-      <Notification />
+      <Box sx={{ mr: 1.5 }}>
+        <Notification />
+      </Box>
       {!downLG && <Profile />}
       {downLG && <MobileSection />}
     </>

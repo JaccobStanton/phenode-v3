@@ -3,7 +3,6 @@ import { useRef, useState } from 'react';
 
 // material-ui
 import { useTheme } from '@mui/material/styles';
-import ButtonBase from '@mui/material/ButtonBase';
 import CardContent from '@mui/material/CardContent';
 import ClickAwayListener from '@mui/material/ClickAwayListener';
 import Grid from '@mui/material/Grid';
@@ -29,6 +28,27 @@ import LogoutOutlined from '@ant-design/icons/LogoutOutlined';
 import SettingOutlined from '@ant-design/icons/SettingOutlined';
 import UserOutlined from '@ant-design/icons/UserOutlined';
 import avatar1 from 'assets/images/users/marble_icon.svg';
+
+const projectTooltipSlotProps = {
+  tooltip: {
+    sx: {
+      backgroundColor: 'rgba(0, 20, 61, 0.96)',
+      color: 'var(--green)',
+      border: '1px solid var(--reflected-light)',
+      boxShadow: '0 11px 19px 1px #0000002e',
+      fontSize: '0.78rem'
+    }
+  }
+};
+
+const profileMenuPaperSx = {
+  backgroundColor: 'rgba(0, 20, 61, 0.96)',
+  backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))',
+  border: '1px solid var(--reflected-light)',
+  boxShadow: '0 11px 19px 1px #0000002e',
+  backdropFilter: 'blur(6px)',
+  color: 'var(--green)'
+};
 
 // tab panel wrapper
 function TabPanel({ children, value, index, ...other }) {
@@ -72,21 +92,43 @@ export default function Profile() {
 
   return (
     <Box sx={{ flexShrink: 0, ml: 'auto' }}>
-      <Tooltip title="Profile" disableInteractive>
-        <ButtonBase
-          sx={(theme) => ({
+      <Tooltip title="Profile" arrow={false} slotProps={projectTooltipSlotProps}>
+        <IconButton
+          color="secondary"
+          variant="light"
+          sx={{
             p: 0.25,
-            borderRadius: 1,
-            '&:focus-visible': { outline: `2px solid ${theme.vars.palette.secondary.dark}`, outlineOffset: 2 }
-          })}
+            color: 'inherit',
+            bgcolor: 'transparent',
+            border: 'none',
+            boxShadow: 'none',
+            '&:hover': {
+              bgcolor: 'transparent',
+              boxShadow: 'none'
+            },
+            ...(open && {
+              bgcolor: 'transparent',
+              boxShadow: 'none'
+            })
+          }}
           aria-label="open profile"
           ref={anchorRef}
           aria-controls={open ? 'profile-grow' : undefined}
           aria-haspopup="true"
           onClick={handleToggle}
         >
-          <Avatar alt="profile user" src={avatar1} size="sm" sx={{ '&:hover': { outline: '1px solid', outlineColor: 'primary.main' } }} />
-        </ButtonBase>
+          <Avatar
+            alt="profile user"
+            src={avatar1}
+            size="sm"
+            sx={{
+              bgcolor: 'transparent',
+              color: 'inherit',
+              '& img': { display: 'block' },
+              '&:hover': { outline: 'none' }
+            }}
+          />
+        </IconButton>
       </Tooltip>
       <Popper
         placement="bottom-end"
@@ -94,7 +136,7 @@ export default function Profile() {
         anchorEl={anchorRef.current}
         role={undefined}
         transition
-        disablePortal
+        sx={(theme) => ({ zIndex: theme.zIndex.modal + 1 })}
         popperOptions={{
           modifiers: [
             {
@@ -108,24 +150,28 @@ export default function Profile() {
       >
         {({ TransitionProps }) => (
           <Transitions type="grow" position="top-right" in={open} {...TransitionProps}>
-            <Paper sx={(theme) => ({ boxShadow: theme.vars.customShadows.z1, width: 290, minWidth: 240, maxWidth: { xs: 250, md: 290 } })}>
+            <Paper sx={{ ...profileMenuPaperSx, width: 290, minWidth: 240, maxWidth: { xs: 250, md: 290 } }}>
               <ClickAwayListener onClickAway={handleClose}>
-                <MainCard elevation={0} border={false} content={false}>
+                <MainCard elevation={0} border={false} content={false} sx={{ backgroundColor: 'transparent', backgroundImage: 'none' }}>
                   <CardContent sx={{ px: 2.5, pt: 3 }}>
                     <Grid container sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
                       <Grid>
                         <Stack direction="row" sx={{ gap: 1.25, alignItems: 'center' }}>
-                          <Avatar alt="profile user" src={avatar1} sx={{ width: 32, height: 32 }} />
+                          <Avatar
+                            alt="profile user"
+                            src={avatar1}
+                            sx={{ width: 32, height: 32, bgcolor: 'transparent', color: 'inherit' }}
+                          />
                           <Stack>
-                            <Typography variant="h6">John Doe</Typography>
+                            <Typography variant="h6">Bill Keezle</Typography>
                             <Typography variant="body2" color="text.secondary">
-                              UI/UX Designer
+                              Super User Account
                             </Typography>
                           </Stack>
                         </Stack>
                       </Grid>
                       <Grid>
-                        <Tooltip title="Logout">
+                        <Tooltip title="Logout" arrow={false} slotProps={projectTooltipSlotProps}>
                           <IconButton size="large" sx={{ color: 'text.primary' }}>
                             <LogoutOutlined />
                           </IconButton>
