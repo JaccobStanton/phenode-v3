@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import dayjs from 'dayjs';
 
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -7,6 +8,8 @@ import Checkbox from '@mui/material/Checkbox';
 import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
+import LinearProgress from '@mui/material/LinearProgress';
+import Pagination from '@mui/material/Pagination';
 import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
@@ -16,12 +19,18 @@ import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 
 import MainCard from 'components/MainCard';
-import avatarGroupImage from 'assets/images/users/avatar-group.png';
-import avatarOneImage from 'assets/images/users/avatar-1.png';
-import avatarTwoImage from 'assets/images/users/avatar-2.png';
-import avatarThreeImage from 'assets/images/users/avatar-3.png';
+import mockImage1 from 'assets/mock-images/D3_1F_20_E1_49_B7-1764522192573.jpg';
+import mockImage2 from 'assets/mock-images/D3_1F_20_E1_49_B7-1769714749408.jpg';
+import mockImage3 from 'assets/mock-images/D3_1F_20_E1_49_B7-1770138236808.jpg';
+import mockImage4 from 'assets/mock-images/D3_1F_20_E1_49_B7-1771270350213.jpg';
+import mockImage5 from 'assets/mock-images/D3_1F_20_E1_49_B7-1772221035999.jpg';
+import mockImage6 from 'assets/mock-images/D3_1F_20_E1_49_B7-1772989423177.jpg';
+import mockImage7 from 'assets/mock-images/D3_1F_20_E1_49_B7-1773344559031.jpg';
 
 import DownloadOutlined from '@ant-design/icons/DownloadOutlined';
 import LeftOutlined from '@ant-design/icons/LeftOutlined';
@@ -37,38 +46,199 @@ const reflectedCardChromeSx = {
   boxShadow: '0 11px 19px 1px #0000002e'
 };
 
+const neonControlSx = {
+  backgroundColor: 'rgba(0, 20, 61, 0.72)',
+  border: '1px solid var(--reflected-light)',
+  borderRadius: 1,
+  minHeight: 40,
+  boxShadow: '0 11px 19px 1px #0000002e'
+};
+
+const datePickerTextFieldSx = {
+  flex: 1,
+  '& .MuiOutlinedInput-root, & .MuiPickersOutlinedInput-root': {
+    ...neonControlSx,
+    '& .MuiOutlinedInput-notchedOutline, & .MuiPickersOutlinedInput-notchedOutline': {
+      border: '1px solid var(--reflected-light)'
+    },
+    '&:hover .MuiOutlinedInput-notchedOutline, &:hover .MuiPickersOutlinedInput-notchedOutline': {
+      borderColor: 'var(--reflected-light)'
+    },
+    '&.Mui-focused .MuiOutlinedInput-notchedOutline, &.Mui-focused .MuiPickersOutlinedInput-notchedOutline': {
+      borderColor: 'var(--blue)'
+    },
+    '&.Mui-focused': {
+      boxShadow: '0 11px 19px 1px #0000002e'
+    }
+  },
+  '& .MuiInputBase-input': {
+    color: 'var(--green) !important',
+    WebkitTextFillColor: 'var(--green)',
+    '&::placeholder': {
+      color: 'var(--green)',
+      opacity: 1
+    }
+  },
+  '& .MuiPickersInputBase-root, & .MuiPickersSectionList-root, & .MuiPickersSectionList-sectionContent': {
+    color: 'var(--green) !important'
+  },
+  '& [data-placeholder="true"]': {
+    color: 'var(--green) !important',
+    opacity: 1
+  },
+  '& .MuiSvgIcon-root': {
+    color: 'var(--blue)'
+  }
+};
+
+const datePickerPaperSx = {
+  backgroundColor: 'rgba(0, 20, 61, 0.94)',
+  backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))',
+  border: '1px solid var(--reflected-light)',
+  boxShadow: '0 11px 19px 1px #0000002e',
+  color: 'var(--green)',
+  backdropFilter: 'blur(6px)'
+};
+
+const datePickerPopperSx = {
+  '& .MuiPaper-root': datePickerPaperSx,
+  '& .MuiPickersLayout-root': {
+    color: 'var(--blue)'
+  },
+  '& .MuiDayCalendar-weekDayLabel': {
+    color: 'var(--blue)',
+    fontWeight: 600
+  },
+  '& .MuiPickersCalendarHeader-label': {
+    color: 'var(--blue)',
+    fontWeight: 600
+  },
+  '& .MuiPickersArrowSwitcher-button, & .MuiPickersCalendarHeader-switchViewButton': {
+    color: 'var(--blue)'
+  },
+  '& .MuiDateCalendar-viewTransitionContainer': {
+    border: '1px solid var(--box-outline-blue)',
+    borderRadius: 1,
+    backgroundColor: 'rgba(0, 20, 61, 0.42)'
+  },
+  '& .MuiPickersDay-root': {
+    color: 'var(--green)',
+    borderRadius: 1,
+    '&:hover': {
+      backgroundColor: 'rgba(72, 247, 245, 0.12)'
+    }
+  },
+  '& .MuiPickersDay-today': {
+    border: '1px solid var(--reflected-light)'
+  },
+  '& .MuiPickersDay-root.Mui-selected': {
+    backgroundColor: 'rgba(72, 247, 245, 0.2)',
+    color: 'var(--green)',
+    boxShadow: '0 0 7px -5px var(--green)'
+  }
+};
+
+const datePickerSlotProps = (placeholder) => ({
+  textField: {
+    size: 'small',
+    placeholder,
+    sx: datePickerTextFieldSx
+  },
+  openPickerIcon: {
+    sx: {
+      color: 'var(--blue)'
+    }
+  },
+  popper: {
+    sx: datePickerPopperSx
+  },
+  desktopPaper: {
+    sx: datePickerPaperSx
+  },
+  mobilePaper: {
+    sx: datePickerPaperSx
+  }
+});
+
 const carouselImages = [
-  { id: 'capture-001', name: 'PheNode_020_Capture_001.png', src: avatarGroupImage, date: '02/24/2026', time: '09:14 AM' },
-  { id: 'capture-002', name: 'PheNode_020_Capture_002.png', src: avatarOneImage, date: '02/24/2026', time: '09:22 AM' },
-  { id: 'capture-003', name: 'PheNode_020_Capture_003.png', src: avatarTwoImage, date: '02/24/2026', time: '09:37 AM' },
-  { id: 'capture-004', name: 'PheNode_020_Capture_004.png', src: avatarThreeImage, date: '02/24/2026', time: '09:48 AM' }
+  { id: 'capture-001', name: 'D3_1F_20_E1_49_B7-1764522192573.jpg', src: mockImage1 },
+  { id: 'capture-002', name: 'D3_1F_20_E1_49_B7-1769714749408.jpg', src: mockImage2 },
+  { id: 'capture-003', name: 'D3_1F_20_E1_49_B7-1770138236808.jpg', src: mockImage3 },
+  { id: 'capture-004', name: 'D3_1F_20_E1_49_B7-1771270350213.jpg', src: mockImage4 },
+  { id: 'capture-005', name: 'D3_1F_20_E1_49_B7-1772221035999.jpg', src: mockImage5 },
+  { id: 'capture-006', name: 'D3_1F_20_E1_49_B7-1772989423177.jpg', src: mockImage6 },
+  { id: 'capture-007', name: 'D3_1F_20_E1_49_B7-1773344559031.jpg', src: mockImage7 }
 ];
 
-const imageTableRows = [
-  { id: 'row-001', imageName: 'PheNode_020_Capture_001.png', date: '02/24/2026', time: '09:14 AM' },
-  { id: 'row-002', imageName: 'PheNode_020_Capture_002.png', date: '02/24/2026', time: '09:22 AM' },
-  { id: 'row-003', imageName: 'PheNode_020_Capture_003.png', date: '02/24/2026', time: '09:37 AM' },
-  { id: 'row-004', imageName: 'PheNode_020_Capture_004.png', date: '02/24/2026', time: '09:48 AM' },
-  { id: 'row-005', imageName: 'PheNode_020_Capture_005.png', date: '02/24/2026', time: '10:02 AM' },
-  { id: 'row-006', imageName: 'PheNode_020_Capture_006.png', date: '02/24/2026', time: '10:16 AM' },
-  { id: 'row-007', imageName: 'PheNode_020_Capture_007.png', date: '02/24/2026', time: '10:31 AM' },
-  { id: 'row-008', imageName: 'PheNode_020_Capture_008.png', date: '02/24/2026', time: '10:46 AM' }
-];
+const parseTimestampFromImageName = (name) => {
+  const match = name.match(/-(\d+)\.jpg$/i);
+  return match ? Number(match[1]) : Date.now();
+};
+
+const carouselImageEntries = carouselImages
+  .map((image) => {
+    const timestamp = parseTimestampFromImageName(image.name);
+    return {
+      ...image,
+      timestamp,
+      date: dayjs(timestamp).format('MM/DD/YYYY'),
+      time: dayjs(timestamp).format('hh:mm A')
+    };
+  })
+  .sort((a, b) => a.timestamp - b.timestamp);
+
+const imageTableRows = carouselImageEntries.map((image, index) => ({
+  id: `row-${String(index + 1).padStart(3, '0')}`,
+  imageName: image.name,
+  date: image.date,
+  time: image.time,
+  timestamp: image.timestamp
+}));
 
 export default function Imaging() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [fromDate, setFromDate] = useState(null);
+  const [toDate, setToDate] = useState(null);
+  const [page, setPage] = useState(1);
   const [selectedRows, setSelectedRows] = useState([]);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadedCount, setDownloadedCount] = useState(0);
+  const rowsPerPage = 5;
 
-  const currentImage = carouselImages[currentImageIndex];
-  const allSelected = selectedRows.length === imageTableRows.length && imageTableRows.length > 0;
-  const someSelected = selectedRows.length > 0 && !allSelected;
+  const currentImage = carouselImageEntries[currentImageIndex] || carouselImageEntries[0];
+  const lastCapturedImage = carouselImageEntries[carouselImageEntries.length - 1];
+  const filteredRows = useMemo(() => {
+    return imageTableRows.filter((row) => {
+      const capturedAt = dayjs(row.timestamp);
+      if (toDate && capturedAt.isAfter(dayjs(toDate).endOf('day'))) return false;
+      if (fromDate && capturedAt.isBefore(dayjs(fromDate).startOf('day'))) return false;
+      return true;
+    });
+  }, [fromDate, toDate]);
+  const filteredRowIds = useMemo(() => filteredRows.map((row) => row.id), [filteredRows]);
+  const selectedFilteredCount = useMemo(
+    () => filteredRows.filter((row) => selectedRows.includes(row.id)).length,
+    [filteredRows, selectedRows]
+  );
+  const allSelected = filteredRows.length > 0 && selectedFilteredCount === filteredRows.length;
+  const someSelected = selectedFilteredCount > 0 && !allSelected;
+  const pageCount = Math.max(1, Math.ceil(filteredRows.length / rowsPerPage));
+  const paginatedRows = useMemo(() => {
+    const start = (page - 1) * rowsPerPage;
+    return filteredRows.slice(start, start + rowsPerPage);
+  }, [filteredRows, page]);
+  const pageStartIndex = filteredRows.length === 0 ? 0 : (page - 1) * rowsPerPage + 1;
+  const pageEndIndex = Math.min(page * rowsPerPage, filteredRows.length);
+  const totalImagesToDownload = selectedRows.length;
+  const estimatedDownloadSizeMb = (totalImagesToDownload * 4.2).toFixed(1);
+  const downloadProgress = totalImagesToDownload > 0 ? (downloadedCount / totalImagesToDownload) * 100 : 0;
 
   const handlePreviousImage = () => {
-    setCurrentImageIndex((prev) => (prev === 0 ? carouselImages.length - 1 : prev - 1));
+    setCurrentImageIndex((prev) => (prev === 0 ? carouselImageEntries.length - 1 : prev - 1));
   };
 
   const handleNextImage = () => {
-    setCurrentImageIndex((prev) => (prev === carouselImages.length - 1 ? 0 : prev + 1));
+    setCurrentImageIndex((prev) => (prev === carouselImageEntries.length - 1 ? 0 : prev + 1));
   };
 
   const handleToggleRow = (rowId) => {
@@ -76,8 +246,39 @@ export default function Imaging() {
   };
 
   const handleToggleAllRows = () => {
-    setSelectedRows(allSelected ? [] : imageTableRows.map((row) => row.id));
+    setSelectedRows((prev) => {
+      if (allSelected) {
+        return prev.filter((id) => !filteredRowIds.includes(id));
+      }
+      return [...new Set([...prev, ...filteredRowIds])];
+    });
   };
+
+  const handleDownload = () => {
+    if (!totalImagesToDownload) return;
+    setDownloadedCount(0);
+    setIsDownloading(true);
+  };
+
+  useEffect(() => {
+    if (page > pageCount) {
+      setPage(pageCount);
+    }
+  }, [page, pageCount]);
+
+  useEffect(() => {
+    if (!isDownloading) return;
+    if (totalImagesToDownload === 0 || downloadedCount >= totalImagesToDownload) {
+      setIsDownloading(false);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setDownloadedCount((prev) => Math.min(prev + 1, totalImagesToDownload));
+    }, 320);
+
+    return () => clearTimeout(timer);
+  }, [isDownloading, downloadedCount, totalImagesToDownload]);
 
   return (
     <MainCard content={false} sx={{ overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
@@ -110,7 +311,7 @@ export default function Imaging() {
               Last Image Captured:
             </Box>
             <Box component="span" sx={{ color: 'var(--green)', ml: { xs: 'auto', md: 1.5 }, display: 'inline-block', textAlign: 'right' }}>
-              02/24/2026, 09:48 AM
+              {lastCapturedImage ? `${lastCapturedImage.date}, ${lastCapturedImage.time}` : 'N/A'}
             </Box>
           </Typography>
         </Stack>
@@ -122,7 +323,7 @@ export default function Imaging() {
             <Card
               sx={{
                 position: 'relative',
-                minHeight: { xs: 280, sm: 340, lg: 380 },
+                minHeight: { xs: 340, sm: 420, lg: 500 },
                 overflow: 'hidden',
                 ...glassSurfaceSx,
                 ...reflectedCardChromeSx
@@ -199,7 +400,8 @@ export default function Imaging() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   px: { xs: 7.5, sm: 9 },
-                  py: { xs: 3, sm: 3.5 }
+                  pt: { xs: 4, sm: 4.5 },
+                  pb: { xs: 11, sm: 12 }
                 }}
               >
                 <Box
@@ -209,7 +411,7 @@ export default function Imaging() {
                   sx={{
                     width: '100%',
                     height: '100%',
-                    maxHeight: { xs: 220, sm: 280, lg: 320 },
+                    maxHeight: { xs: 260, sm: 340, lg: 420 },
                     objectFit: 'contain',
                     filter: 'drop-shadow(0 12px 24px rgba(0, 0, 0, 0.35))'
                   }}
@@ -243,7 +445,7 @@ export default function Imaging() {
                   zIndex: 2
                 }}
               >
-                {carouselImages.map((image, index) => (
+                {carouselImageEntries.map((image, index) => (
                   <Tooltip
                     key={image.id}
                     title={image.name}
@@ -283,7 +485,7 @@ export default function Imaging() {
           </Grid>
 
           <Grid size={{ xs: 12, lg: 4 }}>
-            <Card sx={{ p: { xs: 1.5, sm: 2 }, minHeight: '100%', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
+            <Card sx={{ p: { xs: 1.5, sm: 2 }, height: 'fit-content', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
               <Stack spacing={1}>
                 <Typography variant="subtitle1" sx={{ color: '#646cff', fontWeight: 600 }}>
                   Description:
@@ -294,7 +496,7 @@ export default function Imaging() {
                     Total Images:
                   </Typography>
                   <Typography variant="h6" sx={{ textAlign: 'right', color: 'var(--green)', fontWeight: 600 }}>
-                    12
+                    {carouselImageEntries.length}
                   </Typography>
 
                   <Typography variant="h6" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
@@ -308,14 +510,14 @@ export default function Imaging() {
                     Date:
                   </Typography>
                   <Typography variant="h6" sx={{ textAlign: 'right', color: 'var(--green)', fontWeight: 600 }}>
-                    02/24/2026
+                    {currentImage.date}
                   </Typography>
 
                   <Typography variant="h6" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
                     Images To Download:
                   </Typography>
                   <Typography variant="h6" sx={{ textAlign: 'right', color: 'var(--green)', fontWeight: 600 }}>
-                    14
+                    {totalImagesToDownload}
                   </Typography>
                 </Box>
 
@@ -331,11 +533,21 @@ export default function Imaging() {
                   <Button
                     variant="outlined"
                     startIcon={<DownloadOutlined />}
+                    onClick={handleDownload}
+                    disabled={isDownloading || totalImagesToDownload === 0}
                     sx={{
                       borderColor: 'var(--orange)',
                       color: 'var(--green)',
                       backgroundColor: 'rgba(0, 20, 61, 0.72)',
                       boxShadow: '0 11px 19px 1px #0000002e',
+                      '&.Mui-disabled': {
+                        color: 'var(--med-grey)',
+                        borderColor: 'var(--med-grey)',
+                        backgroundColor: 'rgba(0, 20, 61, 0.4)'
+                      },
+                      '&.Mui-disabled:hover': {
+                        backgroundColor: 'rgba(0, 20, 61, 0.4)'
+                      },
                       '&:hover': {
                         borderColor: 'var(--green)',
                         boxShadow: '0 0 7px -5px var(--green)',
@@ -345,105 +557,212 @@ export default function Imaging() {
                       }
                     }}
                   >
-                    Download
+                    {isDownloading ? 'Downloading...' : 'Download'}
                   </Button>
+                </Box>
+
+                <Box sx={{ pt: 1 }}>
+                  <LinearProgress
+                    variant="determinate"
+                    value={downloadProgress}
+                    sx={{
+                      height: 8,
+                      borderRadius: 999,
+                      backgroundColor: 'rgba(0, 20, 61, 0.45)',
+                      border: '1px solid var(--reflected-light)',
+                      '& .MuiLinearProgress-bar': {
+                        backgroundColor: 'var(--green)',
+                        boxShadow: '0 0 8px rgba(72, 247, 245, 0.65)'
+                      }
+                    }}
+                  />
+                  <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mt: 0.75 }}>
+                    <Typography variant="caption" sx={{ color: 'var(--blue)' }}>
+                      {totalImagesToDownload === 0
+                        ? 'Select image rows to enable download.'
+                        : `Downloaded ${downloadedCount}/${totalImagesToDownload} image${totalImagesToDownload === 1 ? '' : 's'}`}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'var(--green)', fontWeight: 600 }}>
+                      {totalImagesToDownload === 0 ? '-- MB' : `${estimatedDownloadSizeMb} MB`}
+                    </Typography>
+                  </Stack>
                 </Box>
               </Stack>
             </Card>
           </Grid>
 
           <Grid size={{ xs: 12 }}>
-            <Card sx={{ p: 0, overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
-              <TableContainer sx={{ maxHeight: 360 }}>
-                <Table stickyHeader aria-label="imaging table">
-                  <TableHead>
-                    <TableRow
-                      sx={{
-                        '& th': {
-                          position: 'sticky',
-                          top: 0,
-                          zIndex: 1,
-                          backgroundColor: 'rgba(0, 20, 61, 0.96)',
-                          color: 'var(--blue)',
-                          borderBottom: '1px solid var(--reflected-light)'
-                        }
-                      }}
-                    >
-                      <TableCell padding="checkbox">
-                        <Checkbox
-                          checked={allSelected}
-                          indeterminate={someSelected}
-                          onChange={handleToggleAllRows}
-                          sx={{
-                            color: 'var(--blue)',
-                            '&.Mui-checked': { color: 'var(--green)' },
-                            '&.MuiCheckbox-indeterminate': { color: 'var(--green)' }
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell>Image Name</TableCell>
-                      <TableCell>Date</TableCell>
-                      <TableCell>Time</TableCell>
-                      <TableCell align="right">Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {imageTableRows.map((row) => {
-                      const isSelected = selectedRows.includes(row.id);
+            <Card sx={{ p: { xs: 1.5, sm: 2 }, overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
+              <Stack spacing={2}>
+                <Typography variant="h5" sx={{ color: 'var(--blue)' }}>
+                  PheNode Images
+                </Typography>
 
-                      return (
-                        <TableRow
-                          key={row.id}
-                          hover
-                          selected={isSelected}
-                          sx={{
-                            '& .MuiTableCell-root': {
-                              borderBottom: '1px solid rgba(118, 76, 235, 0.12)'
-                            },
-                            '&:hover': {
-                              backgroundColor: 'rgba(72, 247, 245, 0.04)'
-                            },
-                            '&.Mui-selected': {
-                              backgroundColor: 'rgba(72, 247, 245, 0.08)'
-                            },
-                            '&.Mui-selected:hover': {
-                              backgroundColor: 'rgba(72, 247, 245, 0.1)'
-                            }
-                          }}
-                        >
-                          <TableCell padding="checkbox">
-                            <Checkbox
-                              checked={isSelected}
-                              onChange={() => handleToggleRow(row.id)}
-                              sx={{
-                                color: 'var(--blue)',
-                                '&.Mui-checked': { color: 'var(--green)' }
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell sx={{ color: 'var(--green)' }}>{row.imageName}</TableCell>
-                          <TableCell sx={{ color: 'var(--green)' }}>{row.date}</TableCell>
-                          <TableCell sx={{ color: 'var(--green)' }}>{row.time}</TableCell>
-                          <TableCell align="right">
-                            <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end', alignItems: 'center' }}>
-                              <Button variant="text" sx={{ minWidth: 0, px: 0, color: 'var(--blue)', textTransform: 'none' }}>
-                                View
-                              </Button>
-                              <Typography component="span" sx={{ color: 'var(--medium-grey)' }}>
-                                |
-                              </Typography>
-                              <Button variant="text" sx={{ minWidth: 0, px: 0, color: 'var(--orange)', textTransform: 'none' }}>
-                                Delete
-                              </Button>
-                            </Stack>
+                <LocalizationProvider dateAdapter={AdapterDayjs}>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Stack spacing={0.5} sx={{ flex: 1 }}>
+                      <Typography variant="subtitle2" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
+                        To
+                      </Typography>
+                      <DatePicker
+                        value={toDate}
+                        onChange={(newValue) => setToDate(newValue)}
+                        format="MM/DD/YY"
+                        slotProps={datePickerSlotProps('MM/DD/YY')}
+                      />
+                    </Stack>
+                    <Stack spacing={0.5} sx={{ flex: 1 }}>
+                      <Typography variant="subtitle2" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
+                        From
+                      </Typography>
+                      <DatePicker
+                        value={fromDate}
+                        onChange={(newValue) => setFromDate(newValue)}
+                        format="MM/DD/YY"
+                        slotProps={datePickerSlotProps('MM/DD/YY')}
+                      />
+                    </Stack>
+                  </Stack>
+                </LocalizationProvider>
+
+                <TableContainer
+                  sx={{
+                    maxHeight: 360,
+                    backgroundColor: 'transparent',
+                    border: '1px solid var(--reflected-light)',
+                    borderRadius: 1,
+                    boxShadow: '0 11px 19px 1px #0000002e',
+                    '& .MuiTable-root': { backgroundColor: 'transparent' },
+                    '& .MuiTableHead-root': { backgroundColor: 'transparent', borderTop: 'none', borderBottom: 'none' },
+                    '& .MuiTableBody-root': { backgroundColor: 'transparent' }
+                  }}
+                >
+                  <Table stickyHeader aria-label="imaging table">
+                    <TableHead>
+                      <TableRow
+                        sx={{
+                          '& th': {
+                            position: 'sticky',
+                            top: 0,
+                            zIndex: 1,
+                            backgroundColor: 'transparent',
+                            color: 'var(--blue)',
+                            borderBottom: '1px solid var(--reflected-light)'
+                          }
+                        }}
+                      >
+                        <TableCell padding="checkbox">
+                          <Checkbox
+                            checked={allSelected}
+                            indeterminate={someSelected}
+                            onChange={handleToggleAllRows}
+                            sx={{
+                              color: 'var(--blue)',
+                              '&.Mui-checked': { color: 'var(--green)' },
+                              '&.MuiCheckbox-indeterminate': { color: 'var(--green)' }
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>Image Name</TableCell>
+                        <TableCell>Date</TableCell>
+                        <TableCell>Time</TableCell>
+                        <TableCell align="right">Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {paginatedRows.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} align="center" sx={{ color: 'var(--blue)' }}>
+                            No images found for the selected range.
                           </TableCell>
                         </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-              <Divider sx={{ borderColor: 'rgba(118, 76, 235, 0.16)' }} />
+                      ) : (
+                        paginatedRows.map((row) => {
+                          const isSelected = selectedRows.includes(row.id);
+
+                          return (
+                            <TableRow
+                              key={row.id}
+                              hover
+                              selected={isSelected}
+                              sx={{
+                                '& .MuiTableCell-root': {
+                                  borderBottom: '1px solid rgba(118, 76, 235, 0.12)'
+                                },
+                                '&:hover': {
+                                  backgroundColor: 'rgba(72, 247, 245, 0.04)'
+                                },
+                                '&.Mui-selected': {
+                                  backgroundColor: 'rgba(72, 247, 245, 0.08)'
+                                },
+                                '&.Mui-selected:hover': {
+                                  backgroundColor: 'rgba(72, 247, 245, 0.1)'
+                                }
+                              }}
+                            >
+                              <TableCell padding="checkbox">
+                                <Checkbox
+                                  checked={isSelected}
+                                  onChange={() => handleToggleRow(row.id)}
+                                  sx={{
+                                    color: 'var(--blue)',
+                                    '&.Mui-checked': { color: 'var(--green)' }
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell sx={{ color: 'var(--green)' }}>{row.imageName}</TableCell>
+                              <TableCell sx={{ color: 'var(--green)' }}>{row.date}</TableCell>
+                              <TableCell sx={{ color: 'var(--green)' }}>{row.time}</TableCell>
+                              <TableCell align="right">
+                                <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end', alignItems: 'center' }}>
+                                  <Button variant="text" sx={{ minWidth: 0, px: 0, color: 'var(--blue)', textTransform: 'none' }}>
+                                    View
+                                  </Button>
+                                  <Typography component="span" sx={{ color: 'var(--medium-grey)' }}>
+                                    |
+                                  </Typography>
+                                  <Button variant="text" sx={{ minWidth: 0, px: 0, color: 'var(--orange)', textTransform: 'none' }}>
+                                    Delete
+                                  </Button>
+                                </Stack>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+                <Divider sx={{ borderColor: 'rgba(118, 76, 235, 0.16)' }} />
+                <Stack
+                  direction={{ xs: 'column', sm: 'row' }}
+                  spacing={1.25}
+                  sx={{ justifyContent: 'space-between', alignItems: 'center' }}
+                >
+                  <Typography variant="caption" sx={{ color: 'var(--blue)' }}>
+                    {filteredRows.length === 0
+                      ? 'Showing 0 images'
+                      : `Showing ${pageStartIndex}-${pageEndIndex} of ${filteredRows.length} images`}
+                  </Typography>
+                  <Pagination
+                    page={page}
+                    count={pageCount}
+                    onChange={(_, value) => setPage(value)}
+                    shape="rounded"
+                    size="small"
+                    sx={{
+                      '& .MuiPaginationItem-root': {
+                        color: 'var(--blue)',
+                        borderColor: 'var(--reflected-light)'
+                      },
+                      '& .MuiPaginationItem-root.Mui-selected': {
+                        color: 'var(--green)',
+                        backgroundColor: 'rgba(72, 247, 245, 0.14)'
+                      }
+                    }}
+                  />
+                </Stack>
+              </Stack>
             </Card>
           </Grid>
         </Grid>

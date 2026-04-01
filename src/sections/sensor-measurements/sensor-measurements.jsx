@@ -98,7 +98,7 @@ const sensorMeasurementCharts = [
 
 export default function SensorMeasurements() {
   const [timeRange, setTimeRange] = useState('Last 24 hours');
-  const [chartLayout, setChartLayout] = useState('column');
+  const [chartLayout, setChartLayout] = useState('row');
   const chartCards = useMemo(() => sensorMeasurementCharts, []);
 
   return (
