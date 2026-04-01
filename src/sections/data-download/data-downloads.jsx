@@ -172,6 +172,7 @@ const datePickerSlotProps = (placeholder) => ({
 });
 
 const DATA_TYPES = ['Environmental Data', 'PheNode Images', 'System Diagnostics Data', 'Wireless Sensor Data'];
+const PHENODE_ENABLED_DATA_TYPES = ['Environmental Data', 'PheNode Images', 'System Diagnostics Data'];
 
 const PHENODE_OPTIONS = ['PheNode 020', 'PheNode 017', 'PheNode 031', 'PheNode 105', 'PheNode 214'];
 
@@ -285,6 +286,7 @@ export default function DataDownloads() {
   const [selectedWirelessSensors, setSelectedWirelessSensors] = useState([]);
 
   const isWirelessDataType = selectedDataType === 'Wireless Sensor Data';
+  const isPheNodeDataType = PHENODE_ENABLED_DATA_TYPES.includes(selectedDataType);
 
   useEffect(() => {
     if (!isWirelessDataType) {
@@ -292,10 +294,17 @@ export default function DataDownloads() {
     }
   }, [isWirelessDataType]);
 
+  useEffect(() => {
+    if (!isPheNodeDataType) {
+      setSelectedPheNodes([]);
+    }
+  }, [isPheNodeDataType]);
+
   const fromDateLabel = fromDate ? dayjs(fromDate).format('MM/DD/YYYY') : 'Not selected';
   const toDateLabel = toDate ? dayjs(toDate).format('MM/DD/YYYY') : 'Not selected';
 
-  const canDownload = selectedDataType && selectedPheNodes.length > 0 && (!isWirelessDataType || selectedWirelessSensors.length > 0);
+  const canDownload =
+    selectedDataType && (!isPheNodeDataType || selectedPheNodes.length > 0) && (!isWirelessDataType || selectedWirelessSensors.length > 0);
 
   return (
     <MainCard content={false} sx={{ overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
@@ -479,8 +488,14 @@ export default function DataDownloads() {
                     options={PHENODE_OPTIONS}
                     value={selectedPheNodes}
                     onChange={setSelectedPheNodes}
+                    disabled={!isPheNodeDataType}
                     limitTags={4}
                   />
+                  {!isPheNodeDataType && (
+                    <Typography variant="caption" sx={{ color: 'var(--med-grey)' }}>
+                      PheNode selection is enabled only for Environmental Data, PheNode Images, or System Diagnostics Data.
+                    </Typography>
+                  )}
 
                   <Typography variant="subtitle1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
                     Wireless Sensor
