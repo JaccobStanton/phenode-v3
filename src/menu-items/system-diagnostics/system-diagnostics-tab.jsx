@@ -10,7 +10,7 @@ const icons = {
 
 const systemDiagnosticsTab = {
   id: 'group-system-diagnostics',
-  // title: 'System Diagnostics',
+  title: 'System Diagnostics',
   type: 'group',
   children: [
     {

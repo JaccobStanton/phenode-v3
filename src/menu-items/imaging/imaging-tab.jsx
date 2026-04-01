@@ -10,7 +10,7 @@ const icons = {
 
 const imagingTab = {
   id: 'group-imaging',
-  // title: 'Imaging',
+  title: 'Imaging',
   type: 'group',
   children: [
     {

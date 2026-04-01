@@ -9,7 +9,18 @@ export function useLocalStorage(key, defaultValue) {
 
     try {
       const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) : defaultValue;
+      if (!item) return defaultValue;
+
+      const parsedItem = JSON.parse(item);
+      const isObjectDefault = defaultValue && typeof defaultValue === 'object' && !Array.isArray(defaultValue);
+      const isObjectParsed = parsedItem && typeof parsedItem === 'object' && !Array.isArray(parsedItem);
+
+      // Merge stored config with new defaults so newly added config keys remain configurable.
+      if (isObjectDefault && isObjectParsed) {
+        return { ...defaultValue, ...parsedItem };
+      }
+
+      return parsedItem;
     } catch (err) {
       console.warn(`Error reading localStorage key “${key}”:`, err);
       return defaultValue;

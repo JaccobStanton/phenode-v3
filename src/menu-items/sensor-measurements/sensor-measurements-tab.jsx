@@ -10,7 +10,7 @@ const icons = {
 
 const sensorMeasurementsTab = {
   id: 'group-sensor-measurements',
-  // title: 'Sensor Measurements',
+  title: 'Sensor Measurements',
   type: 'group',
   children: [
     {

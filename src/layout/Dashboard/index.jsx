@@ -13,12 +13,15 @@ import Loader from 'components/Loader';
 import Breadcrumbs from 'components/@extended/Breadcrumbs';
 
 import { handlerDrawerOpen, useGetMenuMaster } from 'api/menu';
+import useConfig from 'hooks/useConfig';
 
 // ==============================|| MAIN LAYOUT ||============================== //
 
 export default function DashboardLayout() {
   const { menuMasterLoading } = useGetMenuMaster();
+  const { state } = useConfig();
   const downXL = useMediaQuery((theme) => theme.breakpoints.down('xl'));
+  const showPageTitleAndBreadcrumbs = state.showPageTitleAndBreadcrumbs ?? false;
 
   // set media wise responsive drawer
   useEffect(() => {
@@ -32,10 +35,7 @@ export default function DashboardLayout() {
       <Header />
       <Drawer />
 
-      <Box
-        component="main"
-        sx={{ width: 'calc(100% - 260px)', flexGrow: 1, p: { xs: 2, sm: 3 }, backgroundColor: 'transparent' }}
-      >
+      <Box component="main" sx={{ width: 'calc(100% - 260px)', flexGrow: 1, p: { xs: 2, sm: 3 }, backgroundColor: 'transparent' }}>
         <Toolbar sx={{ mt: 'inherit' }} />
         <Box
           sx={{
@@ -46,7 +46,7 @@ export default function DashboardLayout() {
             flexDirection: 'column'
           }}
         >
-          <Breadcrumbs />
+          {showPageTitleAndBreadcrumbs && <Breadcrumbs />}
           <Outlet />
           <Footer />
         </Box>

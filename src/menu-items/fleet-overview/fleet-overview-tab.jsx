@@ -9,7 +9,7 @@ function PheNodeMenuIcon(props) {
 
 const fleetOverviewTab = {
   id: 'group-fleet-overview',
-  // title: 'Fleet Overview',
+  title: 'Fleet Overview',
   type: 'group',
   children: [
     {
