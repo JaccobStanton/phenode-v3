@@ -5,15 +5,17 @@ import Drawer from '@mui/material/Drawer';
 // project imports
 import { DRAWER_WIDTH } from 'config';
 
-const SHELL_BORDER_COLOR = 'rgb(64, 102, 140)';
-const SHELL_GLASS_FILL = 'linear-gradient(rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.06))';
+const SHELL_SURFACE_GRADIENT = 'radial-gradient(circle at 50% 15%, #00438f, #00102f)';
 
 const openedMixin = (theme) => ({
   width: DRAWER_WIDTH,
-  borderRight: '1px solid',
-  borderRightColor: SHELL_BORDER_COLOR,
-  backgroundColor: 'rgba(0, 17, 48, 0.06)',
-  backgroundImage: SHELL_GLASS_FILL,
+  borderRight: '1.5px solid var(--box-outline-blue)',
+  backgroundColor: '#00102f',
+  backgroundImage: SHELL_SURFACE_GRADIENT,
+  backgroundSize: '100vw 100vh',
+  backgroundPosition: 'center top',
+  backgroundRepeat: 'no-repeat',
+  backgroundAttachment: 'fixed',
 
   transition: theme.transitions.create('width', {
     easing: theme.transitions.easing.sharp,
@@ -21,7 +23,7 @@ const openedMixin = (theme) => ({
   }),
 
   overflowX: 'hidden',
-  boxShadow: 'none',
+  boxShadow: 'none'
 });
 
 const closedMixin = (theme) => ({
@@ -32,10 +34,13 @@ const closedMixin = (theme) => ({
 
   overflowX: 'hidden',
   width: theme.spacing(7.5),
-  borderRight: '1px solid',
-  borderRightColor: SHELL_BORDER_COLOR,
-  backgroundColor: 'rgba(0, 17, 48, 0.06)',
-  backgroundImage: SHELL_GLASS_FILL,
+  borderRight: '1.5px solid var(--box-outline-blue)',
+  backgroundColor: '#00102f',
+  backgroundImage: SHELL_SURFACE_GRADIENT,
+  backgroundSize: '100vw 100vh',
+  backgroundPosition: 'center top',
+  backgroundRepeat: 'no-repeat',
+  backgroundAttachment: 'fixed',
   boxShadow: theme.vars.customShadows.z1
 });
 

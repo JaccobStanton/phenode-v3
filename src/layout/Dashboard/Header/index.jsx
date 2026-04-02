@@ -17,8 +17,7 @@ import { DRAWER_WIDTH, MINI_DRAWER_WIDTH } from 'config';
 import MenuFoldOutlined from '@ant-design/icons/MenuFoldOutlined';
 import MenuUnfoldOutlined from '@ant-design/icons/MenuUnfoldOutlined';
 
-const SHELL_BORDER_COLOR = 'rgb(64, 102, 140)';
-const SHELL_GLASS_FILL = 'linear-gradient(rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.06))';
+const SHELL_SURFACE_GRADIENT = 'radial-gradient(circle at 50% 15%, #00438f, #00102f)';
 const NAVBAR_TOOLBAR_HEIGHT = { xs: 56, sm: 64 };
 
 // ==============================|| MAIN LAYOUT - HEADER ||============================== //
@@ -59,12 +58,13 @@ export default function Header() {
     color: 'inherit',
     elevation: 0,
     sx: {
-      borderBottom: '1px solid',
-      borderBottomColor: SHELL_BORDER_COLOR,
-      backgroundColor: 'rgba(0, 17, 48, 0.06)',
-      backgroundImage: SHELL_GLASS_FILL,
-      backdropFilter: 'blur(10px)',
-      WebkitBackdropFilter: 'blur(10px)',
+      borderBottom: '1.5px solid var(--box-outline-blue)',
+      backgroundColor: '#00102f',
+      backgroundImage: SHELL_SURFACE_GRADIENT,
+      backgroundSize: '100vw 100vh',
+      backgroundPosition: 'center top',
+      backgroundRepeat: 'no-repeat',
+      backgroundAttachment: 'fixed',
       overflow: 'hidden',
       '& .MuiToolbar-root': {
         position: 'relative',

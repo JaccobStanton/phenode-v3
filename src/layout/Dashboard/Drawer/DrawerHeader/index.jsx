@@ -11,7 +11,7 @@ import logoFull from 'assets/logo/Logo.svg';
 import logoIcon from 'assets/logo/logo_icon.svg';
 
 const DRAWER_HEADER_HEIGHT = { xs: 56, sm: 64 };
-const DRAWER_DIVIDER_NUDGE_PX = 1;
+const DRAWER_DIVIDER_NUDGE_PX = 1.4;
 
 // ==============================|| DRAWER HEADER ||============================== //
 
@@ -26,7 +26,7 @@ export default function DrawerHeader({ open }) {
         },
         py: 0,
         width: 'initial',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.16)'
+        borderBottom: '1.5px solid var(--box-outline-blue)'
       }}
     >
       <ButtonBase disableRipple component={Link} to={APP_DEFAULT_PATH} aria-label="Logo">
