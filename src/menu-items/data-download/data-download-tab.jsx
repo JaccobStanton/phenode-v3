@@ -1,9 +1,5 @@
-import Box from '@mui/material/Box';
 import downloadIconInactive from 'assets/toggle_buttons/Download_Icon_Inactive.svg';
-
-function DataDownloadMenuIcon(props) {
-  return <Box component="img" src={downloadIconInactive} alt="Data Downloads" sx={{ width: 18, height: 18 }} {...props} />;
-}
+import downloadDataIconActive from 'assets/toggle_buttons/Download_Icon_Active.svg';
 
 // ==============================|| MENU ITEMS - DATA DOWNLOAD ||============================== //
 
@@ -17,7 +13,8 @@ const dataDownloadTab = {
       title: 'Data Downloads',
       type: 'item',
       url: '/dashboard/data-download',
-      icon: DataDownloadMenuIcon,
+      iconInactive: downloadIconInactive,
+      iconActive: downloadDataIconActive,
       breadcrumbs: true
     }
   ]
