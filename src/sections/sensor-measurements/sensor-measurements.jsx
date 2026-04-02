@@ -256,7 +256,7 @@ export default function SensorMeasurements() {
                   color: 'var(--green)',
                   border: '1px solid var(--reflected-light)',
                   borderRadius: 1,
-                  backgroundColor: 'rgba(0, 20, 61, 0.72)',
+                  backgroundColor: 'var(--drf)',
                   boxShadow: '0 11px 19px 1px #0000002e',
                   '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
                   '& .MuiSelect-icon': { color: 'var(--blue)' }

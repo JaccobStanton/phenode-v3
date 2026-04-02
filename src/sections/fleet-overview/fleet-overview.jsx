@@ -18,12 +18,12 @@ import SortAscendingOutlined from '@ant-design/icons/SortAscendingOutlined';
 import MainCard from 'components/MainCard';
 
 const glassSurfaceSx = {
-  backgroundColor: 'rgba(0, 17, 48, 0.03)',
+  backgroundColor: 'rgba(12, 35, 80, 0.359)',
   backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))'
 };
 
 const reflectedCardChromeSx = {
-  border: '1px solid var(--reflected-light)',
+  border: '0.5px solid var(--box-outline-blue)',
   boxShadow: '0 11px 19px 1px #0000002e'
 };
 
@@ -199,6 +199,11 @@ export default function FleetOverview() {
                   width: 40,
                   height: 40,
                   ...controlBaseSx,
+                  '&:hover': {
+                    borderColor: 'var(--green)',
+                    color: 'var(--green)',
+                    backgroundColor: 'rgba(0, 20, 61, 0.72)'
+                  },
                   ...(isSearchOpen && {
                     borderColor: 'var(--green)',
                     color: 'var(--green)'
@@ -262,6 +267,11 @@ export default function FleetOverview() {
                   minWidth: 40,
                   gap: 0.75,
                   ...controlBaseSx,
+                  '&:hover': {
+                    color: 'var(--green)',
+                    borderColor: 'var(--green)',
+                    backgroundColor: 'rgba(0, 20, 61, 0.72)'
+                  },
                   '&.Mui-selected': {
                     color: 'var(--green)',
                     borderColor: 'var(--green)',
@@ -292,6 +302,11 @@ export default function FleetOverview() {
                   minWidth: 40,
                   gap: 0.75,
                   ...controlBaseSx,
+                  '&:hover': {
+                    color: 'var(--green)',
+                    borderColor: 'var(--green)',
+                    backgroundColor: 'rgba(0, 20, 61, 0.72)'
+                  },
                   '&.Mui-selected': {
                     color: 'var(--green)',
                     borderColor: 'var(--green)',

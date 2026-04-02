@@ -383,6 +383,7 @@ export default function SystemDiagnostics() {
                     onChange={(event) => setTimeRange(event.target.value)}
                     sx={{
                       color: 'var(--blue)',
+                      backgroundColor: 'var(--drf)',
                       '& .MuiSelect-icon': { color: 'var(--blue)' }
                     }}
                     renderValue={(selected) => (

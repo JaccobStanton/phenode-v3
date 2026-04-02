@@ -28,7 +28,7 @@ const reflectedCardChromeSx = {
 };
 
 const neonControlSx = {
-  backgroundColor: 'rgba(0, 20, 61, 0.72)',
+  backgroundColor: 'var(--drf)',
   border: '1px solid var(--reflected-light)',
   borderRadius: 1,
   minHeight: 40,

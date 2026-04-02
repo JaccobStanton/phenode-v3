@@ -44,13 +44,10 @@ body,
 
 html,
 body {
-  background-color: var(--bg-dark-color);
-  background-image: radial-gradient(circle farthest-corner at 50% 0%, #043e83, var(--bg-dark-color) 65%, #7b00ff24 102%);
-  background-repeat: no-repeat;
-  background-size: cover;
-  background-attachment: fixed;
+  background-color: var(--midnight-blue);
+  background-image: none;
 }
 
 #root {
-  background: transparent;
+  background-color: var(--midnight-blue);
 }
