@@ -239,8 +239,13 @@ export default function FleetOverview() {
                 }
                 sx={{
                   minHeight: 40,
-                  color: 'var(--green)',
-                  ...controlBaseSx,
+                  borderStyle: 'none none solid',
+                  borderWidth: '1px 1px 2px',
+                  borderColor: 'var(--dark-blue) var(--dark-blue) var(--reflected-light)',
+                  color: 'var(--blue)',
+                  backgroundColor: '#00143642',
+                  boxShadow: 'inset 1px 4px 5px #0003',
+                  borderRadius: 1,
                   '& .MuiOutlinedInput-notchedOutline': {
                     border: 'none'
                   },
