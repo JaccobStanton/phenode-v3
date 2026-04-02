@@ -1,16 +1,11 @@
-import Box from '@mui/material/Box';
-
 import pheNodeToggleIcon from 'assets/drawer-icons/PheNode_Fleet.svg';
+import pheNodeToggleIconActive from 'assets/drawer-icons/PheNode_Fleet_Active.svg';
 import realTimeIconActive from 'assets/drawer-icons/Real_Time_Icon_Active.svg';
 import realTimeIconInactive from 'assets/drawer-icons/Real_Time_Icon_Inactive.svg';
 import imagingIconActive from 'assets/drawer-icons/Imaging_Icon_Active.svg';
 import imagingIconInactive from 'assets/drawer-icons/Imaging_Icon_Inactive.svg';
 import diagnosticsIconActive from 'assets/drawer-icons/Diagnostics_Icon_Active.svg';
 import diagnosticsIconInactive from 'assets/drawer-icons/Diagnostics-Icon_Inactive.svg';
-
-function PheNodeMenuIcon(props) {
-  return <Box component="img" src={pheNodeToggleIcon} alt="PheNode" sx={{ width: 18, height: 18 }} {...props} />;
-}
 
 // ==============================|| MENU ITEMS - PHENODE ||============================== //
 
@@ -24,7 +19,8 @@ const pheNodeTab = {
       title: 'Fleet Overview',
       type: 'item',
       url: '/dashboard/fleet-overview',
-      icon: PheNodeMenuIcon,
+      iconInactive: pheNodeToggleIcon,
+      iconActive: pheNodeToggleIconActive,
       breadcrumbs: true
     },
     {
