@@ -30,9 +30,11 @@ export default function MainCard({
     <Card
       elevation={elevation || 0}
       sx={(theme) => ({
+        ...(typeof sx === 'function' ? sx(theme) : sx || {}),
         position: 'relative',
-        ...(border && { border: '1px solid rgb(48, 67, 87)' }),
-        backgroundColor: 'rgb(5, 13, 18)',
+        ...(border && { border: '1.5px solid var(--box-outline-blue)' }),
+        backgroundColor: '#00102f',
+        backgroundImage: 'radial-gradient(circle at 50% 15%, #00438f, #00102f)',
         borderRadius: 1,
         boxShadow: boxShadow && !border ? shadow || theme.vars.customShadows.z1 : 'inherit',
         ...(boxShadow &&
@@ -49,8 +51,7 @@ export default function MainCard({
           transform: 'translate(-50%, -50%)',
           width: { xs: `calc(100% - 50px)`, sm: 'auto' },
           maxWidth: 768
-        }),
-        ...(typeof sx === 'function' ? sx(theme) : sx || {})
+        })
       })}
       ref={ref}
       {...others}
@@ -58,7 +59,7 @@ export default function MainCard({
       {/* card header and action */}
       {!darkTitle && title && (
         <CardHeader
-          sx={{ p: 2.5, backgroundColor: 'rgb(14, 26, 35)' }}
+          sx={{ p: 2.5, backgroundColor: 'transparent' }}
           slotProps={{
             title: { variant: darkTitle ? 'h4' : 'subtitle1' },
             action: { sx: { m: '0px auto', alignSelf: 'center' } }
@@ -73,7 +74,7 @@ export default function MainCard({
       {title && divider && <Divider />}
 
       {/* card content */}
-      {content && <CardContent sx={{ backgroundColor: 'rgb(14, 26, 35)', ...contentSX }}>{children}</CardContent>}
+      {content && <CardContent sx={{ backgroundColor: 'transparent', ...contentSX }}>{children}</CardContent>}
       {!content && children}
     </Card>
   );
