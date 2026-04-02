@@ -21,7 +21,7 @@ import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
 import ZoomInOutlined from '@ant-design/icons/ZoomInOutlined';
 
 const glassSurfaceSx = {
-  backgroundColor: 'rgba(0, 17, 48, 0.03)',
+  backgroundColor: 'var(--drf)',
   backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))'
 };
 
@@ -156,23 +156,36 @@ export default function SensorMeasurements() {
             {circleMetrics.map((metric) => (
               <Box key={metric.id} sx={{ flex: 1, minWidth: 290, display: 'flex', justifyContent: 'center' }}>
                 <Box
-                  sx={{
-                    width: { xs: 290, sm: 300, md: 315 },
-                    height: { xs: 290, sm: 300, md: 315 },
-                    borderRadius: '50%',
-                    border: '0.5px solid var(--box-outline-blue)',
-                    backgroundColor: '#022452',
-                    backgroundImage:
-                      'radial-gradient(circle at 50% 24%, rgba(72, 247, 245, 0.12), rgba(2, 36, 82, 0.1) 45%, rgba(1, 30, 69, 0.45) 100%)',
-                    boxShadow: 'inset 0 14px 26px #011e45, inset 0 -8px 20px rgba(1, 30, 69, 0.75)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    gap: 1.1
-                  }}
-                >
-                  <Box component="img" src={metric.icon} alt={metric.iconAlt} sx={{ width: { xs: 78, sm: 84, md: 90 }, height: 'auto' }} />
+  sx={{
+    width: { xs: 290, sm: 300, md: 315 },
+    height: { xs: 290, sm: 300, md: 315 },
+    borderRadius: '50%',
+    border: '1px solid var(--dark-blue)',
+    backgroundColor: '#00143642',
+    backgroundImage:
+      'radial-gradient(circle at 30% 28%, rgba(255,255,255,0.06), rgba(255,255,255,0.01) 38%, transparent 55%)',
+    boxShadow: `
+      inset -12px 0 18px rgba(0, 0, 0, 0.22),
+      inset -24px 0 30px rgba(0, 20, 54, 0.28),
+      inset 1px 4px 5px rgba(0, 0, 0, 0.2)
+    `,
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 1.1
+  }}
+>
+                 <Box
+  component="img"
+  src={metric.icon}
+  alt={metric.iconAlt}
+  sx={{
+    width: { xs: 78, sm: 84, md: 90 },
+    height: { xs: 78, sm: 84, md: 90 },
+    objectFit: 'contain'
+  }}
+/>
                   {metric.direction && (
                     <Typography variant="caption" sx={{ color: 'var(--blue)', fontWeight: 600, letterSpacing: '0.04em', lineHeight: 1 }}>
                       {metric.direction}
