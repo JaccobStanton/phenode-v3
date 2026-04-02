@@ -61,7 +61,7 @@ export default function TablePagination({ getPageCount, setPageIndex, setPageSiz
                 value={getState().pagination.pageSize}
                 onChange={handleChange}
                 size="small"
-                sx={{ '& .MuiSelect-select': { py: 0.75, px: 1.25 } }}
+                sx={{ backgroundColor: 'var(--drf)', '& .MuiSelect-select': { py: 0.75, px: 1.25 } }}
               >
                 {options.map((option) => (
                   <MenuItem key={option} value={option}>
