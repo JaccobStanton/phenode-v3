@@ -74,7 +74,15 @@ const preferenceSelectSx = {
 
 function PreferenceBox({ title, children }) {
   return (
-    <Card sx={{ p: 1.75, height: '100%', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
+    <Card
+      sx={{
+        p: 1.75,
+        height: '100%',
+        ...reflectedCardChromeSx,
+        backgroundColor: 'var(--drf)',
+        backgroundImage: 'none'
+      }}
+    >
       <Stack spacing={1.25}>
         <Typography variant="subtitle1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
           {title}
@@ -384,10 +392,11 @@ export default function DownloadPreferences() {
           <Button
             variant="outlined"
             sx={{
-              borderColor: 'var(--orange)',
+              borderColor: 'var(--blue)',
               color: 'var(--green)',
               backgroundColor: 'rgba(0, 20, 61, 0.72)',
               boxShadow: '0 11px 19px 1px #0000002e',
+              transition: 'none',
               '&:hover': {
                 borderColor: 'var(--green)',
                 boxShadow: '0 0 7px -5px var(--green)',

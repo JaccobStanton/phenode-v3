@@ -34,6 +34,13 @@ const reflectedCardChromeSx = {
   boxShadow: '0 11px 19px 1px #0000002e'
 };
 
+const downloadPanelSx = {
+  border: '1px solid var(--reflected-light)',
+  boxShadow: '0 11px 19px 1px #0000002e',
+  backgroundColor: 'transparent',
+  backgroundImage: 'none'
+};
+
 const neonControlSx = {
   backgroundColor: 'var(--drf)',
   border: '1px solid var(--reflected-light)',
@@ -70,15 +77,10 @@ const datePickerTextFieldSx = {
   '& .MuiOutlinedInput-root, & .MuiPickersOutlinedInput-root': {
     ...neonControlSx,
     '& .MuiOutlinedInput-notchedOutline, & .MuiPickersOutlinedInput-notchedOutline': {
-      border: '1px solid var(--reflected-light)'
-    },
-    '&:hover .MuiOutlinedInput-notchedOutline, &:hover .MuiPickersOutlinedInput-notchedOutline': {
-      borderColor: 'var(--reflected-light)'
-    },
-    '&.Mui-focused .MuiOutlinedInput-notchedOutline, &.Mui-focused .MuiPickersOutlinedInput-notchedOutline': {
-      borderColor: 'var(--blue)'
+      border: 'none'
     },
     '&.Mui-focused': {
+      borderColor: 'var(--blue)',
       boxShadow: '0 11px 19px 1px #0000002e'
     }
   },
@@ -399,7 +401,7 @@ export default function DataDownloads() {
       <Box sx={{ p: { xs: 2, sm: 3 } }}>
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, lg: 6 }}>
-            <Card sx={{ p: { xs: 1.5, sm: 2 }, ...glassSurfaceSx, ...reflectedCardChromeSx }}>
+            <Card sx={{ p: { xs: 1.5, sm: 2 }, ...downloadPanelSx }}>
               <LocalizationProvider dateAdapter={AdapterDayjs}>
                 <Stack spacing={1.5}>
                   <Typography variant="subtitle1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
@@ -519,7 +521,7 @@ export default function DataDownloads() {
           </Grid>
 
           <Grid size={{ xs: 12, lg: 6 }}>
-            <Card sx={{ p: { xs: 1.5, sm: 2 }, minHeight: 260, ...glassSurfaceSx, ...reflectedCardChromeSx }}>
+            <Card sx={{ p: { xs: 1.5, sm: 2 }, minHeight: 260, ...downloadPanelSx }}>
               <Stack spacing={1}>
                 <Typography variant="subtitle1" sx={{ color: '#646cff', fontWeight: 600 }}>
                   Download Summary
@@ -584,10 +586,11 @@ export default function DataDownloads() {
                     disabled={!canDownload}
                     startIcon={<DownloadOutlined />}
                     sx={{
-                      borderColor: 'var(--orange)',
+                      borderColor: 'var(--blue)',
                       color: 'var(--green)',
                       backgroundColor: 'rgba(0, 20, 61, 0.72)',
                       boxShadow: '0 11px 19px 1px #0000002e',
+                      transition: 'none',
                       '&.Mui-disabled': {
                         color: 'var(--med-grey)',
                         borderColor: 'var(--med-grey)',
@@ -595,6 +598,13 @@ export default function DataDownloads() {
                       },
                       '&.Mui-disabled:hover': {
                         backgroundColor: 'rgba(0, 20, 61, 0.4)'
+                      },
+                      '&:hover': {
+                        borderColor: 'var(--green)',
+                        boxShadow: '0 0 7px -5px var(--green)',
+                        color: 'var(--green)',
+                        textShadow: '0 1px 5px #007bff',
+                        backgroundColor: 'rgba(72, 247, 245, 0.08)'
                       }
                     }}
                   >
