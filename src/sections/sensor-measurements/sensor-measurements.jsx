@@ -367,7 +367,7 @@ export default function SensorMeasurements() {
                         scaleType: 'point',
                         data: chartTimeLabels,
                         tickLabelInterval: (_, index) => index === 0 || index === chartTimeLabels.length - 1 || index % 4 === 0,
-                        tickLabelStyle: { fontSize: 11 }
+                        tickLabelStyle: { fontSize: 11, fill: 'var(--green)' }
                       }
                     ]}
                     yAxis={[
@@ -376,6 +376,7 @@ export default function SensorMeasurements() {
                         min: minVal - pad,
                         max: maxVal + pad,
                         width: 30,
+                        tickLabelStyle: { fill: 'var(--green)' },
                         valueFormatter: (value) => (Math.abs(value) >= 1000 ? `${(value / 1000).toFixed(1)}k` : `${value}`)
                       }
                     ]}
