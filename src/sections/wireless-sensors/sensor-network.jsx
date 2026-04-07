@@ -38,6 +38,11 @@ const reflectedCardChromeSx = {
   boxShadow: '0 11px 19px 1px #0000002e'
 };
 
+const drfSurfaceSx = {
+  backgroundColor: 'var(--drf)',
+  backgroundImage: 'none'
+};
+
 const chartSurfaceSx = {
   backgroundColor: 'rgba(0, 18, 55, 0.6)'
 };
@@ -48,6 +53,11 @@ const neonControlSx = {
   borderRadius: 1,
   minHeight: 40,
   boxShadow: '0 11px 19px 1px #0000002e'
+};
+
+const drawerNavButtonSurfaceSx = {
+  backgroundColor: 'rgba(0, 17, 48, 0.03)',
+  backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))'
 };
 
 const neonMenuPaperSx = {
@@ -308,7 +318,7 @@ export default function SensorNetwork() {
               sx={{
                 border: '1px solid var(--reflected-light)',
                 color: 'var(--blue)',
-                backgroundColor: 'rgba(0, 20, 61, 0.72)',
+                ...drawerNavButtonSurfaceSx,
                 boxShadow: '0 11px 19px 1px #0000002e'
               }}
             >
@@ -336,7 +346,7 @@ export default function SensorNetwork() {
                     p: { xs: 1.5, sm: 2 },
                     width: '100%',
                     height: '100%',
-                    ...glassSurfaceSx,
+                    ...drfSurfaceSx,
                     ...reflectedCardChromeSx
                   }}
                 >
@@ -388,7 +398,7 @@ export default function SensorNetwork() {
                     sx={{
                       borderRadius: 1,
                       p: { xs: 1.5, sm: 2 },
-                      ...glassSurfaceSx,
+                      ...drfSurfaceSx,
                       ...reflectedCardChromeSx,
                       '& .info-card-green-text': {
                         color: 'var(--green)',
@@ -447,7 +457,7 @@ export default function SensorNetwork() {
                               border: '1px solid var(--reflected-light) !important',
                               borderRadius: '6px !important',
                               color: 'var(--blue)',
-                              backgroundColor: 'rgba(0, 20, 61, 0.72)',
+                              ...drawerNavButtonSurfaceSx,
                               textTransform: 'none',
                               fontWeight: 600
                             },
@@ -522,7 +532,7 @@ export default function SensorNetwork() {
                     )}
                   </Box>
 
-                  <Box sx={{ borderRadius: 1, p: { xs: 1.5, sm: 2 }, flexGrow: 1, ...glassSurfaceSx, ...reflectedCardChromeSx }}>
+                  <Box sx={{ borderRadius: 1, p: { xs: 1.5, sm: 2 }, flexGrow: 1, ...drfSurfaceSx, ...reflectedCardChromeSx }}>
                     <Stack sx={{ height: '100%', justifyContent: 'center', alignItems: 'center' }} spacing={2}>
                       <Typography variant="h5" sx={{ textAlign: 'center', color: 'var(--blue)' }}>
                         Rename this Sensor:
@@ -534,22 +544,15 @@ export default function SensorNetwork() {
                         sx={{
                           maxWidth: 320,
                           '& .MuiOutlinedInput-root': {
-                            boxShadow: 'none !important',
-                            backgroundColor: '#00143642',
+                            minHeight: 40,
                             borderStyle: 'none none solid',
                             borderWidth: '1px 1px 2px',
                             borderColor: 'var(--dark-blue) var(--dark-blue) var(--reflected-light)',
+                            color: 'var(--blue)',
+                            backgroundColor: '#00143642',
+                            boxShadow: 'inset 1px 4px 5px #0003',
                             borderRadius: 1,
-                            '&.Mui-focused': {
-                              boxShadow: 'none !important'
-                            },
-                            '& fieldset': {
-                              border: 'none'
-                            },
-                            '&:hover fieldset': {
-                              border: 'none'
-                            },
-                            '&.Mui-focused fieldset': {
+                            '& .MuiOutlinedInput-notchedOutline': {
                               border: 'none'
                             }
                           },
@@ -569,7 +572,6 @@ export default function SensorNetwork() {
                         sx={{
                           minWidth: 140,
                           color: 'var(--green)',
-
                           borderColor: 'var(--orange)',
                           '&:hover': {
                             borderColor: 'var(--green)',
@@ -594,7 +596,7 @@ export default function SensorNetwork() {
               sx={{
                 borderRadius: 1,
                 p: { xs: 1.5, sm: 2 },
-                ...glassSurfaceSx,
+                ...drfSurfaceSx,
                 ...reflectedCardChromeSx
               }}
             >
@@ -729,7 +731,7 @@ export default function SensorNetwork() {
                             scaleType: 'point',
                             data: chartTimeLabels,
                             tickLabelInterval: (_, index) => index === 0 || index === chartTimeLabels.length - 1 || index % 4 === 0,
-                            tickLabelStyle: { fontSize: 11 }
+                            tickLabelStyle: { fontSize: 11, fill: 'var(--green)' }
                           }
                         ]}
                         yAxis={[
@@ -738,6 +740,7 @@ export default function SensorNetwork() {
                             min: minVal - pad,
                             max: maxVal + pad,
                             width: 30,
+                            tickLabelStyle: { fill: 'var(--green)' },
                             valueFormatter: (value) => (Math.abs(value) >= 1000 ? `${(value / 1000).toFixed(1)}k` : `${value}`)
                           }
                         ]}
