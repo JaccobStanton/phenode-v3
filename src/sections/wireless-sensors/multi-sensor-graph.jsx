@@ -761,14 +761,16 @@ export default function MultiSensorGraph() {
                   {
                     id: 'time-axis',
                     scaleType: 'point',
-                    data: chartTimeLabels
+                    data: chartTimeLabels,
+                    tickLabelStyle: { fill: 'var(--green)' }
                   }
                 ]}
                 yAxis={[
                   {
                     id: 'measurement-axis',
                     min: axisRange.min,
-                    max: axisRange.max
+                    max: axisRange.max,
+                    tickLabelStyle: { fill: 'var(--green)' }
                   }
                 ]}
                 series={chartSeries}
