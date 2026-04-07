@@ -31,7 +31,9 @@ const reflectedCardChromeSx = {
 };
 
 const chartSurfaceSx = {
-  backgroundColor: 'rgba(0, 18, 55, 0.6)'
+  backgroundColor: '#07143f',
+  backgroundImage: 'linear-gradient(180deg, #06102a 0%, #07143f 100%)',
+  border: '1px solid #0e346a'
 };
 
 const circleMetrics = [
@@ -102,7 +104,7 @@ export default function SensorMeasurements() {
   const chartCards = useMemo(() => sensorMeasurementCharts, []);
 
   return (
-    <MainCard content={false} sx={{ overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
+    <MainCard content={false} sx={{ width: '100%', minWidth: 0, overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
       <Box sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 2.5 } }}>
         <Stack
           direction={{ xs: 'column', md: 'row' }}
@@ -156,36 +158,36 @@ export default function SensorMeasurements() {
             {circleMetrics.map((metric) => (
               <Box key={metric.id} sx={{ flex: 1, minWidth: 290, display: 'flex', justifyContent: 'center' }}>
                 <Box
-  sx={{
-    width: { xs: 290, sm: 300, md: 315 },
-    height: { xs: 290, sm: 300, md: 315 },
-    borderRadius: '50%',
-    border: '1px solid var(--dark-blue)',
-    backgroundColor: '#00143642',
-    backgroundImage:
-      'radial-gradient(circle at 30% 28%, rgba(255,255,255,0.06), rgba(255,255,255,0.01) 38%, transparent 55%)',
-    boxShadow: `
+                  sx={{
+                    width: { xs: 290, sm: 300, md: 315 },
+                    height: { xs: 290, sm: 300, md: 315 },
+                    borderRadius: '50%',
+                    backgroundColor: '#00143642',
+                    backgroundImage:
+                      'radial-gradient(circle at 30% 28%, rgba(255,255,255,0.06), rgba(255,255,255,0.01) 38%, transparent 55%)',
+                    boxShadow: `
       inset -12px 0 18px rgba(0, 0, 0, 0.22),
       inset -24px 0 30px rgba(0, 20, 54, 0.28),
       inset 1px 4px 5px rgba(0, 0, 0, 0.2)
     `,
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 1.1
-  }}
->
-                 <Box
-  component="img"
-  src={metric.icon}
-  alt={metric.iconAlt}
-  sx={{
-    width: { xs: 78, sm: 84, md: 90 },
-    height: { xs: 78, sm: 84, md: 90 },
-    objectFit: 'contain'
-  }}
-/>
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: 1.1
+                  }}
+                >
+                  <Box
+                    component="img"
+                    src={metric.icon}
+                    alt={metric.iconAlt}
+                    sx={{
+                      width: metric.id === 'metric-1' ? { xs: 68, sm: 74, md: 80 } : { xs: 78, sm: 84, md: 90 },
+                      height: metric.id === 'metric-1' ? { xs: 68, sm: 74, md: 80 } : { xs: 78, sm: 84, md: 90 },
+                      border: 'none',
+                      objectFit: 'contain'
+                    }}
+                  />
                   {metric.direction && (
                     <Typography variant="caption" sx={{ color: 'var(--blue)', fontWeight: 600, letterSpacing: '0.04em', lineHeight: 1 }}>
                       {metric.direction}
@@ -227,8 +229,10 @@ export default function SensorMeasurements() {
           sx={{
             borderRadius: 1,
             p: { xs: 1.5, sm: 2 },
-            ...glassSurfaceSx,
-            ...reflectedCardChromeSx
+            ...reflectedCardChromeSx,
+            backgroundColor: 'var(--drf)',
+            backgroundImage: 'none',
+            boxShadow: '0 14px 26px rgba(1, 13, 50, 1)'
           }}
         >
           <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
@@ -342,8 +346,9 @@ export default function SensorMeasurements() {
                     minHeight: { xs: 260, sm: 286 },
                     display: 'flex',
                     flexDirection: 'column',
+                    ...reflectedCardChromeSx,
                     ...chartSurfaceSx,
-                    ...reflectedCardChromeSx
+                    border: '1px solid #0e346a'
                   }}
                 >
                   <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 0.25 }}>

@@ -44,12 +44,18 @@ export default function NavItem({ item, level, isParents = false, setSelectedID 
   const isSelected = !!matchPath({ path: item?.link ? item.link : item.url, end: false }, pathname);
 
   const textColor = 'var(--blue)';
-  const iconSelectedColor = 'var(--blue)';
+  const iconSelectedColor = 'var(--green)';
   const drawerHoverCardSx = {
     backgroundColor: 'rgba(56, 152, 236, 0.1)',
     borderLeft: '0.5px solid var(--green)',
     borderRight: '0.5px solid var(--green)',
     cursor: 'pointer'
+  };
+  const drawerActiveCardSx = {
+    backgroundColor: 'rgba(72, 247, 245, 0.18)',
+    borderLeft: '1.5px solid var(--green)',
+    borderRight: '1.5px solid var(--green)',
+    boxShadow: 'inset 0 0 0 1px rgba(72, 247, 245, 0.25), 0 0 10px rgba(72, 247, 245, 0.18)'
   };
 
   const Icon = item.icon;
@@ -90,14 +96,14 @@ export default function NavItem({ item, level, isParents = false, setSelectedID 
         ...(drawerOpen && {
           '&:hover': { ...drawerHoverCardSx },
           '&.Mui-selected': {
-            bgcolor: 'rgba(56, 152, 236, 0.04)',
+            ...drawerActiveCardSx,
             color: iconSelectedColor,
-            '&:hover': { color: iconSelectedColor, ...drawerHoverCardSx }
+            '&:hover': { color: iconSelectedColor, ...drawerActiveCardSx }
           }
         }),
         ...(!drawerOpen && {
           '&:hover': { ...drawerHoverCardSx },
-          '&.Mui-selected': { '&:hover': { ...drawerHoverCardSx }, bgcolor: 'transparent' }
+          '&.Mui-selected': { '&:hover': { ...drawerActiveCardSx }, ...drawerActiveCardSx }
         })
       })}
       onClick={() => itemHandler()}

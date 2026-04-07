@@ -271,7 +271,7 @@ function SearchableMultiSelect({ placeholder, options, value, onChange, disabled
           sx: {
             color: disabled ? 'var(--med-grey)' : 'var(--green)',
             borderColor: disabled ? 'var(--med-grey)' : 'var(--box-outline-blue)',
-            backgroundColor: disabled ? 'rgba(0, 20, 61, 0.4)' : 'rgba(0, 20, 61, 0.72)'
+            backgroundColor: disabled ? '#01113d' : 'rgba(0, 20, 61, 0.72)'
           },
           variant: 'outlined'
         }
@@ -309,7 +309,7 @@ export default function DataDownloads() {
     selectedDataType && (!isPheNodeDataType || selectedPheNodes.length > 0) && (!isWirelessDataType || selectedWirelessSensors.length > 0);
 
   return (
-    <MainCard content={false} sx={{ overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
+    <MainCard content={false} sx={{ width: '100%', minWidth: 0, overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
       <Box sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 2.5 } }}>
         <Stack
           direction="row"
@@ -467,7 +467,7 @@ export default function DataDownloads() {
                         '&.Mui-disabled': {
                           color: 'var(--med-grey)',
                           border: '1px solid var(--med-grey)',
-                          backgroundColor: 'rgba(0, 20, 61, 0.4)',
+                          backgroundColor: '#01113d',
                           '& .MuiSelect-select': { color: 'var(--med-grey)' },
                           '& .MuiSelect-icon': { color: 'var(--med-grey)' }
                         }
@@ -594,10 +594,10 @@ export default function DataDownloads() {
                       '&.Mui-disabled': {
                         color: 'var(--med-grey)',
                         borderColor: 'var(--med-grey)',
-                        backgroundColor: 'rgba(0, 20, 61, 0.4)'
+                        backgroundColor: '#01113d'
                       },
                       '&.Mui-disabled:hover': {
-                        backgroundColor: 'rgba(0, 20, 61, 0.4)'
+                        backgroundColor: '#01113d'
                       },
                       '&:hover': {
                         borderColor: 'var(--green)',

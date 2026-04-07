@@ -148,7 +148,7 @@ export default function SensorFleetOverview() {
   }, [searchValue, sortMode]);
 
   return (
-    <MainCard content={false} sx={{ overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
+    <MainCard content={false} sx={{ width: '100%', minWidth: 0, overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
       <Box sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 2.5 } }}>
         <Stack
           direction="row"
@@ -333,7 +333,7 @@ export default function SensorFleetOverview() {
 
         <Box
           sx={{
-            maxHeight: { xs: 'calc(100vh - 280px)', md: 560 },
+            maxHeight: { xs: 'calc(100vh - 280px)', md: 635 },
             overflowY: 'auto',
             overflowX: { xs: 'auto', md: 'hidden' },
             pr: { xs: 0, sm: 1 },

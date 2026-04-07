@@ -468,7 +468,7 @@ export default function MultiSensorGraph() {
   };
 
   return (
-    <MainCard content={false} sx={{ overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
+    <MainCard content={false} sx={{ width: '100%', minWidth: 0, overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
       <Box sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 2.5 } }}>
         <Stack
           direction={{ xs: 'column', md: 'row' }}
@@ -542,7 +542,15 @@ export default function MultiSensorGraph() {
             </Grid>
           </Grid>
 
-          <Card sx={{ p: { xs: 1.5, sm: 2 }, ...glassSurfaceSx, ...reflectedCardChromeSx }}>
+          <Card
+            sx={{
+              p: { xs: 1.5, sm: 2 },
+              ...reflectedCardChromeSx,
+              backgroundColor: '#01113d',
+              backgroundImage: 'linear-gradient(180deg, #01113d 0%, #01113d 100%)',
+              boxShadow: '0 16px 28px rgba(1, 13, 50, 1)'
+            }}
+          >
             <Stack
               direction={{ xs: 'column', lg: 'row' }}
               spacing={1.25}
@@ -738,8 +746,10 @@ export default function MultiSensorGraph() {
                 pb: { xs: 1.25, sm: 1.75 },
                 pl: { xs: 1.25, sm: 1.75 },
                 pr: { xs: 1.25, sm: 1.75 },
-                backgroundColor: 'rgba(0, 18, 55, 0.6)',
-                ...reflectedCardChromeSx
+                backgroundColor: '#07143f',
+                backgroundImage: 'linear-gradient(180deg, #06102a 0%, #07143f 100%)',
+                border: '1px solid #0e346a',
+                boxShadow: '0 11px 19px 1px #0000002e'
               }}
             >
               <Typography variant="h3" sx={{ color: 'var(--blue)', mb: 2, textAlign: 'center' }}>

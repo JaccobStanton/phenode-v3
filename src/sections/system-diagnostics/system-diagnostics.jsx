@@ -186,7 +186,8 @@ export default function SystemDiagnostics() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 ...glassSurfaceSx,
-                ...reflectedCardChromeSx
+                ...reflectedCardChromeSx,
+                border: 'none'
               }}
             >
               <Stack spacing={0.9} sx={{ width: '100%', alignItems: 'center' }}>
