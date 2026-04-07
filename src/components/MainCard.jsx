@@ -34,7 +34,8 @@ export default function MainCard({
         position: 'relative',
         ...(border && { border: '1.5px solid var(--box-outline-blue)' }),
         backgroundColor: '#00102f',
-        backgroundImage: 'radial-gradient(circle at 50% 15%, #00438f, #00102f)',
+        // backgroundImage: 'radial-gradient(circle at 50% 15%, #0b2c5d, #00102F )',
+         backgroundImage: 'radial-gradient(circle at 50% 15%, #00438f, #00102f)',
         borderRadius: 1,
         boxShadow: boxShadow && !border ? shadow || theme.vars.customShadows.z1 : 'inherit',
         ...(boxShadow &&
