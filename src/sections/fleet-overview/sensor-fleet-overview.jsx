@@ -36,7 +36,8 @@ const controlBaseSx = {
   border: '1px solid var(--reflected-light)',
   borderRadius: 1,
   color: 'var(--blue)',
-  backgroundColor: 'rgba(0, 20, 61, 0.72)',
+  backgroundColor: 'rgba(0, 17, 48, 0.03)',
+  backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))',
   boxShadow: '0 11px 19px 1px #0000002e'
 };
 
@@ -202,7 +203,8 @@ export default function SensorFleetOverview() {
                   '&:hover': {
                     borderColor: 'var(--green)',
                     color: 'var(--green)',
-                    backgroundColor: 'rgba(0, 20, 61, 0.72)'
+                    backgroundColor: 'rgba(0, 17, 48, 0.03)',
+                    backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))'
                   },
                   ...(isSearchOpen && {
                     borderColor: 'var(--green)',
@@ -275,7 +277,8 @@ export default function SensorFleetOverview() {
                   '&:hover': {
                     color: 'var(--green)',
                     borderColor: 'var(--green)',
-                    backgroundColor: 'rgba(0, 20, 61, 0.72)'
+                    backgroundColor: 'rgba(0, 17, 48, 0.03)',
+                    backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))'
                   },
                   '&.Mui-selected': {
                     color: 'var(--green)',
@@ -310,7 +313,8 @@ export default function SensorFleetOverview() {
                   '&:hover': {
                     color: 'var(--green)',
                     borderColor: 'var(--green)',
-                    backgroundColor: 'rgba(0, 20, 61, 0.72)'
+                    backgroundColor: 'rgba(0, 17, 48, 0.03)',
+                    backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))'
                   },
                   '&.Mui-selected': {
                     color: 'var(--green)',
