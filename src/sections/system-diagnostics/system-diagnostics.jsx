@@ -28,6 +28,11 @@ const reflectedCardChromeSx = {
   boxShadow: '0 11px 19px 1px #0000002e'
 };
 
+const drfSurfaceSx = {
+  backgroundColor: 'var(--drf)',
+  backgroundImage: 'none'
+};
+
 export default function SystemDiagnostics() {
   const [timeRange, setTimeRange] = useState('Last 24 hours');
   const [chartLayout, setChartLayout] = useState('row');
@@ -123,7 +128,7 @@ export default function SystemDiagnostics() {
                 borderRadius: 1,
                 minHeight: { xs: 180, md: 320 },
                 height: '100%',
-                ...glassSurfaceSx,
+                ...drfSurfaceSx,
                 ...reflectedCardChromeSx
               }}
             >
@@ -185,9 +190,8 @@ export default function SystemDiagnostics() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                ...glassSurfaceSx,
-                ...reflectedCardChromeSx,
-                border: 'none'
+                ...drfSurfaceSx,
+                ...reflectedCardChromeSx
               }}
             >
               <Stack spacing={0.9} sx={{ width: '100%', alignItems: 'center' }}>
@@ -223,7 +227,7 @@ export default function SystemDiagnostics() {
                 borderRadius: 1,
                 minHeight: { xs: 180, md: 320 },
                 height: '100%',
-                ...glassSurfaceSx,
+                ...drfSurfaceSx,
                 ...reflectedCardChromeSx
               }}
             >
@@ -304,7 +308,7 @@ export default function SystemDiagnostics() {
           </Grid>
 
           <Grid size={{ xs: 12 }}>
-            <Box sx={{ borderRadius: 1, p: { xs: 1.5, sm: 2 }, ...glassSurfaceSx, ...reflectedCardChromeSx }}>
+            <Box sx={{ borderRadius: 1, p: { xs: 1.5, sm: 2 }, ...drfSurfaceSx, ...reflectedCardChromeSx }}>
               <Box
                 sx={{
                   display: 'grid',
@@ -330,7 +334,7 @@ export default function SystemDiagnostics() {
                       justifyContent: 'center',
                       textAlign: 'center',
                       gap: 0.5,
-                      ...glassSurfaceSx,
+                      ...drfSurfaceSx,
                       ...reflectedCardChromeSx
                     }}
                   >
