@@ -22,6 +22,7 @@ export default function DashboardLayout() {
   const { state } = useConfig();
   const downXL = useMediaQuery((theme) => theme.breakpoints.down('xl'));
   const showPageTitleAndBreadcrumbs = state.showPageTitleAndBreadcrumbs ?? false;
+  const MAIN_CARD_MIN_HEIGHT = 'calc(100vh - 206px)';
 
   // set media wise responsive drawer
   useEffect(() => {
@@ -39,7 +40,7 @@ export default function DashboardLayout() {
         <Toolbar sx={{ mt: 'inherit' }} />
         <Box
           sx={{
-            ...{ px: { xs: 0, sm: 2 } },
+            ...{ px: 0 },
             position: 'relative',
             minHeight: 'calc(100vh - 110px)',
             display: 'flex',
@@ -47,7 +48,18 @@ export default function DashboardLayout() {
           }}
         >
           {showPageTitleAndBreadcrumbs && <Breadcrumbs />}
-          <Outlet />
+          <Box
+            sx={{
+              flex: 1,
+              minHeight: 0,
+              display: 'flex',
+              '& > .MuiCard-root': {
+                minHeight: MAIN_CARD_MIN_HEIGHT
+              }
+            }}
+          >
+            <Outlet />
+          </Box>
           <Footer />
         </Box>
       </Box>
