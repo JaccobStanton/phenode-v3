@@ -63,7 +63,7 @@ export default function NavItem({ item, level, isParents = false, setSelectedID 
   const itemIcon = hasDrawerHoverIcons ? (
     <Box
       component="img"
-      src={isHovered ? item.iconActive || item.iconInactive : item.iconInactive}
+      src={isSelected || isHovered ? item.iconActive || item.iconInactive : item.iconInactive}
       alt={item.title}
       sx={{
         width: isParents ? 20 : drawerOpen ? 18 : 20,
