@@ -6,7 +6,9 @@ import CardContent from '@mui/material/CardContent';
 import CardHeader from '@mui/material/CardHeader';
 import Divider from '@mui/material/Divider';
 
-const MAIN_CARD_GRADIENT = 'radial-gradient(circle at 50% 15%, #00438f, #00102f)';
+const MAIN_CARD_BASE_COLOR = '#00102f';
+const MAIN_CARD_GRADIENT =
+  'radial-gradient(circle at 50% 15%, #00438f 0%, #003679 34%, #001f53 58%, rgba(0, 16, 47, 0.72) 80%, rgba(0, 16, 47, 0) 100%)';
 const MAIN_CARD_GRADIENT_CUTOFF_HEIGHT = '900px';
 
 export default function MainCard({
@@ -36,12 +38,12 @@ export default function MainCard({
         ...(typeof sx === 'function' ? sx(theme) : sx || {}),
         position: 'relative',
         ...(border && { border: '1.5px solid var(--box-outline-blue)' }),
-        backgroundColor: '#00102f',
-        // Keep gradient visually consistent across pages by decoupling it from card content height.
-        backgroundImage: MAIN_CARD_GRADIENT,
-        backgroundRepeat: 'no-repeat',
-        backgroundPosition: 'top center',
-        backgroundSize: `100% ${MAIN_CARD_GRADIENT_CUTOFF_HEIGHT}`,
+        backgroundColor: MAIN_CARD_BASE_COLOR,
+        // Keep the top glow fixed while smoothly fading into the shared base color below the cutoff.
+        backgroundImage: `${MAIN_CARD_GRADIENT}, linear-gradient(${MAIN_CARD_BASE_COLOR}, ${MAIN_CARD_BASE_COLOR})`,
+        backgroundRepeat: 'no-repeat, no-repeat',
+        backgroundPosition: 'top center, top left',
+        backgroundSize: `100% ${MAIN_CARD_GRADIENT_CUTOFF_HEIGHT}, 100% 100%`,
         borderRadius: 1,
         boxShadow: boxShadow && !border ? shadow || theme.vars.customShadows.z1 : 'inherit',
         ...(boxShadow &&
