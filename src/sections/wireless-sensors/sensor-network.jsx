@@ -18,13 +18,14 @@ import { LineChart } from '@mui/x-charts/LineChart';
 
 import MainCard from 'components/MainCard';
 import MapView from 'sections/wireless-sensors/map-view';
-import soilProbeDiagramIcon from 'assets/diagrams/Soil_Probe.svg';
-import wsToggleIcon from 'assets/drawer-icons/WS_Fleet.svg';
 import wirelessSensorsDiagram from 'assets/diagrams/Wireless-Sensors-v4.svg';
+import mapIconActive from 'assets/toggle_buttons/Map_Icon_Active.svg';
+import mapIconInactive from 'assets/toggle_buttons/Map_Icon_Inactive.svg';
+import soilProbeIconActive from 'assets/toggle_buttons/Soil_Probe_Icon_Active.svg';
+import soilProbeIconInactive from 'assets/toggle_buttons/Soil_Probe_Icon_Inactive.svg';
 
 import AppstoreOutlined from '@ant-design/icons/AppstoreOutlined';
 import ClockCircleOutlined from '@ant-design/icons/ClockCircleOutlined';
-import EnvironmentOutlined from '@ant-design/icons/EnvironmentOutlined';
 import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
 import ZoomInOutlined from '@ant-design/icons/ZoomInOutlined';
 
@@ -150,11 +151,20 @@ export default function SensorNetwork() {
   const [selectedNetworkSensor, setSelectedNetworkSensor] = useState(null);
   const [infoCardMode, setInfoCardMode] = useState('sensor');
   const [selectedSoilProbe, setSelectedSoilProbe] = useState('probe-1');
+  const [isMapToggleHovered, setIsMapToggleHovered] = useState(false);
+  const [isInfoToggleHovered, setIsInfoToggleHovered] = useState(false);
   const chartCards = useMemo(() => sensorMeasurementCharts, []);
   const isSoilDataMode = infoCardMode === 'soil';
   const infoCardTitle = isSoilDataMode ? 'Soil Data' : 'Sensor Information';
   const infoCardTooltipTitle = isSoilDataMode ? 'Sensor Info.' : 'Soil Data';
-  const infoCardToggleIcon = isSoilDataMode ? wsToggleIcon : soilProbeDiagramIcon;
+  const infoCardToggleIcon = isInfoToggleHovered ? soilProbeIconActive : soilProbeIconInactive;
+  const mapToggleIcon = isMapView
+    ? isMapToggleHovered
+      ? soilProbeIconActive
+      : soilProbeIconInactive
+    : isMapToggleHovered
+      ? mapIconActive
+      : mapIconInactive;
   const activeSoilReadings = soilProbeReadings[selectedSoilProbe];
   const diagramWidthSx = { xs: '84%', sm: '80%', md: '76%', lg: '74%' };
   const sectionTitle = isMapView ? 'Sensor Overview' : 'Wireless Sensor Measurements';
@@ -315,6 +325,10 @@ export default function SensorNetwork() {
             <IconButton
               aria-label={isMapView ? 'sensor overview' : 'map view'}
               onClick={() => setIsMapView((prev) => !prev)}
+              onMouseEnter={() => setIsMapToggleHovered(true)}
+              onMouseLeave={() => setIsMapToggleHovered(false)}
+              onFocus={() => setIsMapToggleHovered(true)}
+              onBlur={() => setIsMapToggleHovered(false)}
               sx={{
                 border: '1px solid var(--reflected-light)',
                 color: 'var(--blue)',
@@ -322,7 +336,7 @@ export default function SensorNetwork() {
                 boxShadow: '0 11px 19px 1px #0000002e'
               }}
             >
-              {isMapView ? <Box component="img" src={wsToggleIcon} alt="" sx={{ width: 21, height: 21 }} /> : <EnvironmentOutlined />}
+              <Box component="img" src={mapToggleIcon} alt="" sx={{ width: 21, height: 21 }} />
             </IconButton>
           </Tooltip>
         </Stack>
@@ -428,10 +442,14 @@ export default function SensorNetwork() {
                         <IconButton
                           aria-label={isSoilDataMode ? 'show sensor info' : 'show soil data'}
                           onClick={() => setInfoCardMode((prev) => (prev === 'soil' ? 'sensor' : 'soil'))}
+                          onMouseEnter={() => setIsInfoToggleHovered(true)}
+                          onMouseLeave={() => setIsInfoToggleHovered(false)}
+                          onFocus={() => setIsInfoToggleHovered(true)}
+                          onBlur={() => setIsInfoToggleHovered(false)}
                           sx={{
                             border: '1px solid var(--reflected-light)',
                             color: 'var(--blue)',
-                            backgroundColor: 'rgba(0, 20, 61, 0.72)',
+                            ...drawerNavButtonSurfaceSx,
                             boxShadow: '0 11px 19px 1px #0000002e'
                           }}
                         >
@@ -457,7 +475,7 @@ export default function SensorNetwork() {
                               border: '1px solid var(--reflected-light) !important',
                               borderRadius: '6px !important',
                               color: 'var(--blue)',
-                              ...drawerNavButtonSurfaceSx,
+                              backgroundColor: 'rgba(0, 20, 61, 0.72)',
                               textTransform: 'none',
                               fontWeight: 600
                             },
