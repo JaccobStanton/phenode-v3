@@ -760,7 +760,7 @@ export default function Imaging() {
                                       textTransform: 'none',
                                       borderRadius: 0.75,
                                       '&:hover': {
-                                        backgroundColor: 'rgba(72, 247, 245, 0.08)',
+                                        backgroundColor: 'transparent',
                                         color: 'var(--green)'
                                       }
                                     }}
@@ -781,7 +781,7 @@ export default function Imaging() {
                                       textTransform: 'none',
                                       borderRadius: 0.75,
                                       '&:hover': {
-                                        backgroundColor: 'rgba(72, 247, 245, 0.08)',
+                                        backgroundColor: 'transparent',
                                         color: 'var(--critical)'
                                       }
                                     }}
