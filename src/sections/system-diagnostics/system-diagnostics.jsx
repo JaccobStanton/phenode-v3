@@ -219,7 +219,8 @@ export default function SystemDiagnostics() {
                   sx={{
                     width: { xs: '90%', sm: '88%', md: '88%', lg: '92%', xl: '94%' },
                     maxHeight: { md: 390, lg: 490, xl: 590 },
-                    objectFit: 'contain'
+                    objectFit: 'contain',
+                    transform: { xs: 'translateX(6px)', md: 'translateX(12px)', xl: 'translateX(42px)' }
                   }}
                 />
               </Stack>
