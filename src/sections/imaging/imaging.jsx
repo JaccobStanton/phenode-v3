@@ -167,13 +167,6 @@ const carouselImages = [
   { id: 'capture-004', name: 'D3_1F_20_E1_49_B7-1771270350213.jpg', src: mockImage4 },
   { id: 'capture-005', name: 'D3_1F_20_E1_49_B7-1772221035999.jpg', src: mockImage5 },
   { id: 'capture-006', name: 'D3_1F_20_E1_49_B7-1772989423177.jpg', src: mockImage6 },
-  { id: 'capture-006', name: 'D3_1F_20_E1_49_B7-1772989423177.jpg', src: mockImage6 },
-  { id: 'capture-006', name: 'D3_1F_20_E1_49_B7-1772989423177.jpg', src: mockImage6 },
-  { id: 'capture-006', name: 'D3_1F_20_E1_49_B7-1772989423177.jpg', src: mockImage6 },
-  { id: 'capture-006', name: 'D3_1F_20_E1_49_B7-1772989423177.jpg', src: mockImage6 },
-  { id: 'capture-006', name: 'D3_1F_20_E1_49_B7-1772989423177.jpg', src: mockImage6 },
-  { id: 'capture-006', name: 'D3_1F_20_E1_49_B7-1772989423177.jpg', src: mockImage6 },
-  { id: 'capture-007', name: 'D3_1F_20_E1_49_B7-1773344559031.jpg', src: mockImage7 }
 ];
 
 const imagingTableBorder = '1px solid var(--reflected-light)';
