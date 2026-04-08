@@ -57,10 +57,31 @@ export default function ThemeCustomization({ children }) {
 
   const themes = createTheme(themeOptions);
   themes.components = componentsOverride(themes);
+  themes.components.MuiCssBaseline = {
+    ...(themes.components.MuiCssBaseline || {}),
+    styleOverrides: {
+      ...(themes.components.MuiCssBaseline?.styleOverrides || {}),
+      '*, *::before, *::after': {
+        scrollbarColor: 'rgba(0, 68, 143, 0.8) transparent',
+        scrollbarWidth: 'thin'
+      },
+      '*::-webkit-scrollbar': {
+        width: '13px',
+        height: '10px'
+      },
+      '*::-webkit-scrollbar-thumb': {
+        backgroundColor: 'rgba(0, 68, 143, 0.8)',
+        borderRadius: '999px'
+      },
+      '*::-webkit-scrollbar-track': {
+        backgroundColor: 'transparent'
+      }
+    }
+  };
 
   return (
     <StyledEngineProvider injectFirst>
-      <ThemeProvider disableTransitionOnChange theme={themes} modeStorageKey="theme-mode" defaultMode='light'>
+      <ThemeProvider disableTransitionOnChange theme={themes} modeStorageKey="theme-mode" defaultMode="light">
         <CssBaseline enableColorScheme />
         {children}
       </ThemeProvider>
