@@ -167,8 +167,17 @@ const carouselImages = [
   { id: 'capture-004', name: 'D3_1F_20_E1_49_B7-1771270350213.jpg', src: mockImage4 },
   { id: 'capture-005', name: 'D3_1F_20_E1_49_B7-1772221035999.jpg', src: mockImage5 },
   { id: 'capture-006', name: 'D3_1F_20_E1_49_B7-1772989423177.jpg', src: mockImage6 },
+  { id: 'capture-006', name: 'D3_1F_20_E1_49_B7-1772989423177.jpg', src: mockImage6 },
+  { id: 'capture-006', name: 'D3_1F_20_E1_49_B7-1772989423177.jpg', src: mockImage6 },
+  { id: 'capture-006', name: 'D3_1F_20_E1_49_B7-1772989423177.jpg', src: mockImage6 },
+  { id: 'capture-006', name: 'D3_1F_20_E1_49_B7-1772989423177.jpg', src: mockImage6 },
+  { id: 'capture-006', name: 'D3_1F_20_E1_49_B7-1772989423177.jpg', src: mockImage6 },
+  { id: 'capture-006', name: 'D3_1F_20_E1_49_B7-1772989423177.jpg', src: mockImage6 },
   { id: 'capture-007', name: 'D3_1F_20_E1_49_B7-1773344559031.jpg', src: mockImage7 }
 ];
+
+const imagingTableBorder = '1px solid var(--reflected-light)';
+const imagingTableHeaderBg = 'rgb(8, 36, 82)';
 
 const parseTimestampFromImageName = (name) => {
   const match = name.match(/-(\d+)\.jpg$/i);
@@ -203,7 +212,7 @@ export default function Imaging() {
   const [selectedRows, setSelectedRows] = useState([]);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadedCount, setDownloadedCount] = useState(0);
-  const rowsPerPage = 5;
+  const rowsPerPage = 10;
 
   const currentImage = carouselImageEntries[currentImageIndex] || carouselImageEntries[0];
   const lastCapturedImage = carouselImageEntries[carouselImageEntries.length - 1];
@@ -629,11 +638,20 @@ export default function Imaging() {
                   sx={{
                     maxHeight: 360,
                     backgroundColor: 'transparent',
-                    border: '1px solid var(--reflected-light)',
+                    border: imagingTableBorder,
                     borderRadius: 1,
                     boxShadow: '0 11px 19px 1px #0000002e',
                     '& .MuiTable-root': { backgroundColor: 'transparent' },
-                    '& .MuiTableHead-root': { backgroundColor: 'transparent', borderTop: 'none', borderBottom: 'none' },
+                    '& .MuiTableHead-root': {
+                      backgroundColor: imagingTableHeaderBg,
+                      borderTop: 'none',
+                      borderBottom: 'none'
+                    },
+                    '& .MuiTableCell-stickyHeader': {
+                      backgroundColor: `${imagingTableHeaderBg} !important`,
+                      borderBottom: '1px solid var(--reflected-light) !important'
+                      // boxShadow: 'inset 0 -1px 0 red'
+                    },
                     '& .MuiTableBody-root': { backgroundColor: 'transparent' }
                   }}
                 >
@@ -645,9 +663,11 @@ export default function Imaging() {
                             position: 'sticky',
                             top: 0,
                             zIndex: 1,
-                            backgroundColor: 'transparent',
-                            color: 'var(--blue)',
-                            borderBottom: '1px solid var(--reflected-light)'
+                            backgroundColor: imagingTableHeaderBg,
+                            color: 'var(--blue)'
+                          },
+                          '& th:not(:first-of-type)': {
+                            textAlign: 'center'
                           }
                         }}
                       >
@@ -656,17 +676,21 @@ export default function Imaging() {
                             checked={allSelected}
                             indeterminate={someSelected}
                             onChange={handleToggleAllRows}
+                            disableRipple
                             sx={{
                               color: 'var(--blue)',
                               '&.Mui-checked': { color: 'var(--green)' },
-                              '&.MuiCheckbox-indeterminate': { color: 'var(--green)' }
+                              '&.MuiCheckbox-indeterminate': { color: 'var(--green)' },
+                              '&:hover': {
+                                backgroundColor: 'rgba(72, 247, 245, 0.08)'
+                              }
                             }}
                           />
                         </TableCell>
-                        <TableCell>Image Name</TableCell>
-                        <TableCell>Date</TableCell>
-                        <TableCell>Time</TableCell>
-                        <TableCell align="right">Actions</TableCell>
+                        <TableCell align="center">Image Name</TableCell>
+                        <TableCell align="center">Date</TableCell>
+                        <TableCell align="center">Time</TableCell>
+                        <TableCell align="center">Actions</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -704,24 +728,64 @@ export default function Imaging() {
                                 <Checkbox
                                   checked={isSelected}
                                   onChange={() => handleToggleRow(row.id)}
+                                  disableRipple
                                   sx={{
                                     color: 'var(--blue)',
-                                    '&.Mui-checked': { color: 'var(--green)' }
+                                    '&.Mui-checked': { color: 'var(--green)' },
+                                    '&:hover': {
+                                      backgroundColor: 'rgba(72, 247, 245, 0.08)'
+                                    }
                                   }}
                                 />
                               </TableCell>
-                              <TableCell sx={{ color: 'var(--green)' }}>{row.imageName}</TableCell>
-                              <TableCell sx={{ color: 'var(--green)' }}>{row.date}</TableCell>
-                              <TableCell sx={{ color: 'var(--green)' }}>{row.time}</TableCell>
-                              <TableCell align="right">
-                                <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end', alignItems: 'center' }}>
-                                  <Button variant="text" sx={{ minWidth: 0, px: 0, color: 'var(--blue)', textTransform: 'none' }}>
+                              <TableCell align="center" sx={{ color: 'var(--green)' }}>
+                                {row.imageName}
+                              </TableCell>
+                              <TableCell align="center" sx={{ color: 'var(--green)' }}>
+                                {row.date}
+                              </TableCell>
+                              <TableCell align="center" sx={{ color: 'var(--green)' }}>
+                                {row.time}
+                              </TableCell>
+                              <TableCell align="center">
+                                <Stack direction="row" spacing={1} sx={{ justifyContent: 'center', alignItems: 'center' }}>
+                                  <Button
+                                    variant="text"
+                                    disableRipple
+                                    sx={{
+                                      minWidth: 0,
+                                      px: 0.75,
+                                      py: 0.25,
+                                      color: 'var(--blue)',
+                                      textTransform: 'none',
+                                      borderRadius: 0.75,
+                                      '&:hover': {
+                                        backgroundColor: 'rgba(72, 247, 245, 0.08)',
+                                        color: 'var(--green)'
+                                      }
+                                    }}
+                                  >
                                     View
                                   </Button>
                                   <Typography component="span" sx={{ color: 'var(--medium-grey)' }}>
                                     |
                                   </Typography>
-                                  <Button variant="text" sx={{ minWidth: 0, px: 0, color: 'var(--orange)', textTransform: 'none' }}>
+                                  <Button
+                                    variant="text"
+                                    disableRipple
+                                    sx={{
+                                      minWidth: 0,
+                                      px: 0.75,
+                                      py: 0.25,
+                                      color: 'var(--blue)',
+                                      textTransform: 'none',
+                                      borderRadius: 0.75,
+                                      '&:hover': {
+                                        backgroundColor: 'rgba(72, 247, 245, 0.08)',
+                                        color: 'var(--critical)'
+                                      }
+                                    }}
+                                  >
                                     Delete
                                   </Button>
                                 </Stack>
