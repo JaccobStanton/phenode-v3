@@ -6,6 +6,9 @@ import CardContent from '@mui/material/CardContent';
 import CardHeader from '@mui/material/CardHeader';
 import Divider from '@mui/material/Divider';
 
+const MAIN_CARD_GRADIENT = 'radial-gradient(circle at 50% 15%, #00438f, #00102f)';
+const MAIN_CARD_GRADIENT_CUTOFF_HEIGHT = '900px';
+
 export default function MainCard({
   border = true,
   boxShadow,
@@ -34,8 +37,11 @@ export default function MainCard({
         position: 'relative',
         ...(border && { border: '1.5px solid var(--box-outline-blue)' }),
         backgroundColor: '#00102f',
-        // backgroundImage: 'radial-gradient(circle at 50% 15%, #0b2c5d, #00102F )',
-         backgroundImage: 'radial-gradient(circle at 50% 15%, #00438f, #00102f)',
+        // Keep gradient visually consistent across pages by decoupling it from card content height.
+        backgroundImage: MAIN_CARD_GRADIENT,
+        backgroundRepeat: 'no-repeat',
+        backgroundPosition: 'top center',
+        backgroundSize: `100% ${MAIN_CARD_GRADIENT_CUTOFF_HEIGHT}`,
         borderRadius: 1,
         boxShadow: boxShadow && !border ? shadow || theme.vars.customShadows.z1 : 'inherit',
         ...(boxShadow &&
