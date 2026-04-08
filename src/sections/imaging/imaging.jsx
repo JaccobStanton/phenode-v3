@@ -332,32 +332,13 @@ export default function Imaging() {
             <Card
               sx={{
                 position: 'relative',
-                minHeight: { xs: 340, sm: 420, lg: 500 },
+                minHeight: { xs: 380, sm: 480, lg: 560 },
                 overflow: 'hidden',
-                ...glassSurfaceSx,
+                backgroundColor: 'var(--drf)',
+                backgroundImage: 'none',
                 ...reflectedCardChromeSx
               }}
             >
-              <Box
-                sx={{
-                  position: 'absolute',
-                  inset: 0,
-                  backgroundImage: `url(${currentImage.src})`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  filter: 'blur(18px)',
-                  transform: 'scale(1.08)',
-                  opacity: 0.28
-                }}
-              />
-              <Box
-                sx={{
-                  position: 'absolute',
-                  inset: 0,
-                  background: 'linear-gradient(180deg, rgba(1, 20, 74, 0.26) 0%, rgba(1, 14, 49, 0.62) 100%)'
-                }}
-              />
-
               <IconButton
                 aria-label="previous image"
                 onClick={handlePreviousImage}
@@ -408,8 +389,8 @@ export default function Imaging() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  px: { xs: 7.5, sm: 9 },
-                  pt: { xs: 4, sm: 4.5 },
+                  px: { xs: 6, sm: 7 },
+                  pt: { xs: 3, sm: 3.5 },
                   pb: { xs: 11, sm: 12 }
                 }}
               >
@@ -420,7 +401,7 @@ export default function Imaging() {
                   sx={{
                     width: '100%',
                     height: '100%',
-                    maxHeight: { xs: 260, sm: 340, lg: 420 },
+                    maxHeight: { xs: 320, sm: 430, lg: 520 },
                     objectFit: 'contain',
                     filter: 'drop-shadow(0 12px 24px rgba(0, 0, 0, 0.35))'
                   }}
