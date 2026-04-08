@@ -184,7 +184,7 @@ const timeRangeOptions = [
   'Last 2 years'
 ];
 
-const sensorOptions = ['WS-1234568', 'WS-1234569', 'WS-1234570', 'WS-1234571', 'SOIL-2031', 'AIR-4412', 'RAIN-7722', 'WIND-9901'];
+const sensorOptions = ['WS-1234568', 'WS-1234569', 'WS-1234570', 'WS-1234571', 'WS-1234572', 'WS-1234573', 'WS-1234574', 'WS-1234575'];
 const pheNodeOptions = ['PheNode 020', 'PheNode 017', 'PheNode 031', 'PheNode 105', 'PheNode 214'];
 
 const linePalette = [
@@ -407,7 +407,7 @@ export default function MultiSensorGraph() {
       sensorSeries.flatMap((series) => [
         {
           id: `${series.seriesId}-glow`,
-          label: `${series.sensorName} glow`,
+          label: series.sensorName,
           data: series.values,
           color: hexToRgba(series.glow, 0.75),
           area: false,
