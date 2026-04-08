@@ -153,7 +153,8 @@ export default function SystemDiagnostics() {
                       backgroundColor: '#00143642',
                       borderStyle: 'none none solid',
                       borderWidth: '1px 1px 2px',
-                      borderColor: 'var(--dark-blue) var(--dark-blue) var(--reflected-light)'
+                      borderColor: 'var(--dark-blue) var(--dark-blue) var(--reflected-light)',
+                      boxShadow: 'inset 1px 4px 5px #0003'
                     }}
                   >
                     <Typography variant="h3" sx={{ color: 'var(--green)', lineHeight: 1 }}>
