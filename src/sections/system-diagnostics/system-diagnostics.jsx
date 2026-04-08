@@ -388,19 +388,44 @@ export default function SystemDiagnostics() {
                     value={timeRange}
                     onChange={(event) => setTimeRange(event.target.value)}
                     sx={{
-                      color: 'var(--blue)',
-                      backgroundColor: 'var(--drf)',
+                      color: 'var(--green)',
+                      border: '1px solid var(--reflected-light)',
+                      borderRadius: 1,
+                      backgroundColor: 'rgba(0, 20, 61, 0.72)',
+                      boxShadow: '0 11px 19px 1px #0000002e',
+                      '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                      '& .MuiSelect-select': { color: 'var(--green)' },
                       '& .MuiSelect-icon': { color: 'var(--blue)' }
+                    }}
+                    MenuProps={{
+                      PaperProps: {
+                        sx: {
+                          backgroundColor: 'rgba(0, 20, 61, 0.96)',
+                          border: '1px solid var(--reflected-light)',
+                          boxShadow: '0 11px 19px 1px #0000002e',
+                          color: 'var(--green)'
+                        }
+                      }
                     }}
                     renderValue={(selected) => (
                       <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                         <ClockCircleOutlined style={{ color: 'var(--blue)' }} />
-                        <Box component="span">{selected}</Box>
+                        <Box component="span" sx={{ color: 'var(--green)' }}>
+                          {selected}
+                        </Box>
                       </Stack>
                     )}
                   >
                     {timeRangeOptions.map((option) => (
-                      <MenuItem key={option} value={option}>
+                      <MenuItem
+                        key={option}
+                        value={option}
+                        sx={{
+                          color: 'var(--green)',
+                          '&:hover': { backgroundColor: 'rgba(72, 247, 245, 0.12)' },
+                          '&.Mui-selected': { backgroundColor: 'rgba(72, 247, 245, 0.18)' }
+                        }}
+                      >
                         {option}
                       </MenuItem>
                     ))}
