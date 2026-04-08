@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Grid from '@mui/material/Grid';
@@ -9,8 +11,8 @@ import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 
-import soilProbeDiagramIcon from 'assets/diagrams/Soil_Probe.svg';
-import wsToggleIcon from 'assets/drawer-icons/WS_Fleet.svg';
+import soilProbeIconActive from 'assets/toggle_buttons/Soil_Probe_Icon_Active.svg';
+import soilProbeIconInactive from 'assets/toggle_buttons/Soil_Probe_Icon_Inactive.svg';
 
 const glassSurfaceSx = {
   backgroundColor: 'rgba(0, 17, 48, 0.03)',
@@ -62,10 +64,11 @@ function sensorInfoTooltipSx() {
 }
 
 export default function MapView({ infoCardMode, setInfoCardMode, selectedSoilProbe, setSelectedSoilProbe }) {
+  const [isInfoToggleHovered, setIsInfoToggleHovered] = useState(false);
   const isSoilDataMode = infoCardMode === 'soil';
   const infoCardTitle = isSoilDataMode ? 'Soil Data' : 'Sensor Information';
   const infoCardTooltipTitle = isSoilDataMode ? 'Sensor Info.' : 'Soil Data';
-  const infoCardToggleIcon = isSoilDataMode ? wsToggleIcon : soilProbeDiagramIcon;
+  const infoCardToggleIcon = isInfoToggleHovered ? soilProbeIconActive : soilProbeIconInactive;
   const activeSoilReadings = soilProbeReadings[selectedSoilProbe] ?? soilProbeReadings['probe-1'];
   const activeReadings = isSoilDataMode ? activeSoilReadings : sensorInfoReadings;
 
@@ -178,10 +181,15 @@ export default function MapView({ infoCardMode, setInfoCardMode, selectedSoilPro
                 <IconButton
                   aria-label={isSoilDataMode ? 'show sensor info' : 'show soil data'}
                   onClick={() => setInfoCardMode((prev) => (prev === 'soil' ? 'sensor' : 'soil'))}
+                  onMouseEnter={() => setIsInfoToggleHovered(true)}
+                  onMouseLeave={() => setIsInfoToggleHovered(false)}
+                  onFocus={() => setIsInfoToggleHovered(true)}
+                  onBlur={() => setIsInfoToggleHovered(false)}
                   sx={{
                     border: '1px solid var(--reflected-light)',
                     color: 'var(--blue)',
-                    backgroundColor: 'rgba(0, 20, 61, 0.72)',
+                    backgroundColor: 'rgba(0, 17, 48, 0.03)',
+                    backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))',
                     boxShadow: '0 11px 19px 1px #0000002e'
                   }}
                 >
@@ -273,23 +281,21 @@ export default function MapView({ infoCardMode, setInfoCardMode, selectedSoilPro
                   placeholder="Enter new sensor name"
                   sx={{
                     '& .MuiOutlinedInput-root': {
+                      minHeight: 40,
+                      color: 'var(--blue)',
                       backgroundColor: '#00143642',
                       borderStyle: 'none none solid',
                       borderWidth: '1px 1px 2px',
                       borderColor: 'var(--dark-blue) var(--dark-blue) var(--reflected-light)',
+                      boxShadow: 'inset 1px 4px 5px #0003',
                       borderRadius: 1,
-                      '& fieldset': {
-                        border: 'none'
-                      },
-                      '&:hover fieldset': {
-                        border: 'none'
-                      },
-                      '&.Mui-focused fieldset': {
+                      '& .MuiOutlinedInput-notchedOutline': {
                         border: 'none'
                       }
                     },
                     '& .MuiInputBase-input': {
                       color: 'var(--blue)',
+                      textAlign: 'left',
                       '&::placeholder': {
                         color: 'var(--blue)',
                         opacity: 1
