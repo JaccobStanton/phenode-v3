@@ -241,15 +241,19 @@ function SearchableMultiSelect({ placeholder, options, value, onChange, disabled
               '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
             },
             '& .MuiInputBase-input': {
-              color: 'var(--green)',
-              WebkitTextFillColor: 'var(--green)',
+              color: disabled ? 'var(--med-grey)' : 'var(--green)',
+              WebkitTextFillColor: disabled ? 'var(--med-grey)' : 'var(--green)',
               '&::placeholder': {
                 color: disabled ? 'var(--med-grey)' : 'var(--green)',
                 opacity: 1
               }
             },
+            '& .MuiInputBase-input.Mui-disabled': {
+              color: 'var(--med-grey)',
+              WebkitTextFillColor: 'var(--med-grey)'
+            },
             '& .MuiChip-root': {
-              color: 'var(--green)',
+              color: disabled ? 'var(--med-grey)' : 'var(--green)',
               borderColor: 'var(--box-outline-blue)',
               backgroundColor: 'rgba(0, 20, 61, 0.72)'
             },
@@ -497,7 +501,7 @@ export default function DataDownloads() {
                     limitTags={4}
                   />
                   {!isPheNodeDataType && (
-                    <Typography variant="caption" sx={{ color: 'var(--med-grey)' }}>
+                    <Typography variant="caption" sx={{ color: 'var(--blue)' }}>
                       PheNode selection is enabled only for Environmental Data, PheNode Images, or System Diagnostics Data.
                     </Typography>
                   )}
@@ -514,7 +518,7 @@ export default function DataDownloads() {
                     limitTags={4}
                   />
                   {!isWirelessDataType && (
-                    <Typography variant="caption" sx={{ color: 'var(--med-grey)' }}>
+                    <Typography variant="caption" sx={{ color: 'var(--blue)' }}>
                       Wireless Sensor selection is enabled only when 'Download Type' is Wireless Sensor Data.
                     </Typography>
                   )}
