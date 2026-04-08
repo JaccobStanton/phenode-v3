@@ -231,26 +231,29 @@ function SearchableMultiSelect({ placeholder, options, value, onChange, disabled
           sx={{
             '& .MuiOutlinedInput-root': {
               ...neonControlSx,
-              border: disabled ? '1px solid var(--med-grey)' : '1px solid var(--reflected-light)',
+              border: '1px solid var(--reflected-light)',
+              '&.Mui-disabled': {
+                opacity: 1
+              },
               '&.Mui-focused': {
-                borderColor: disabled ? 'var(--med-grey)' : 'var(--blue)'
+                borderColor: 'var(--blue)'
               },
               '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
             },
             '& .MuiInputBase-input': {
-              color: disabled ? 'var(--med-grey)' : 'var(--green)',
+              color: 'var(--green)',
+              WebkitTextFillColor: 'var(--green)',
               '&::placeholder': {
                 color: disabled ? 'var(--med-grey)' : 'var(--green)',
                 opacity: 1
               }
             },
-            '& .MuiChip-root': disabled
-              ? {
-                  color: 'var(--med-grey)',
-                  borderColor: 'var(--med-grey)'
-                }
-              : {},
-            '& .MuiSvgIcon-root': { color: disabled ? 'var(--med-grey)' : 'var(--blue)' }
+            '& .MuiChip-root': {
+              color: 'var(--green)',
+              borderColor: 'var(--box-outline-blue)',
+              backgroundColor: 'rgba(0, 20, 61, 0.72)'
+            },
+            '& .MuiSvgIcon-root': { color: 'var(--blue)' }
           }}
         />
       )}
@@ -269,8 +272,8 @@ function SearchableMultiSelect({ placeholder, options, value, onChange, disabled
         chip: {
           size: 'small',
           sx: {
-            color: disabled ? 'var(--med-grey)' : 'var(--green)',
-            borderColor: disabled ? 'var(--med-grey)' : 'var(--box-outline-blue)',
+            color: 'var(--green)',
+            borderColor: 'var(--box-outline-blue)',
             backgroundColor: disabled ? '#01113d' : 'rgba(0, 20, 61, 0.72)'
           },
           variant: 'outlined'
