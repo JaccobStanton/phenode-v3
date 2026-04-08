@@ -8,6 +8,7 @@ import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
+import { LineChart } from '@mui/x-charts/LineChart';
 
 import MainCard from 'components/MainCard';
 import phenodeDiagram from 'assets/diagrams/Phenode-Diagram.svg';
@@ -31,6 +32,12 @@ const reflectedCardChromeSx = {
 const drfSurfaceSx = {
   backgroundColor: 'var(--drf)',
   backgroundImage: 'none'
+};
+
+const chartSurfaceSx = {
+  backgroundColor: '#07143f',
+  backgroundImage: 'linear-gradient(180deg, #06102a 0%, #07143f 100%)',
+  border: '1px solid #0e346a'
 };
 
 export default function SystemDiagnostics() {
@@ -63,24 +70,22 @@ export default function SystemDiagnostics() {
   const graphCards = [
     {
       title: 'Cellular Signal (RSSI)',
-      xUnits: ['0h', '6h', '12h', '18h', '24h'],
-      yUnits: ['-110', '-95', '-80', '-65'],
-      linePoints: '6,88 18,70 31,74 44,56 57,62 70,48 83,41 96,28'
+      lineColor: '#48f7f5',
+      data: [-105, -97, -98, -90, -92, -86, -83, -78]
     },
     {
       title: 'Internal Temperature',
-      xUnits: ['0h', '6h', '12h', '18h', '24h'],
-      yUnits: ['80', '95', '110', '125'],
-      linePoints: '6,80 18,72 31,60 44,58 57,46 70,52 83,36 96,24'
+      lineColor: '#c96cfc',
+      data: [85, 94, 92, 100, 97, 103, 107, 112]
     },
     {
       title: 'Battery Charge',
-      xUnits: ['0h', '6h', '12h', '18h', '24h'],
-      yUnits: ['40', '55', '70', '85', '100'],
-      linePoints: '6,30 18,34 31,38 44,42 57,48 70,54 83,58 96,62'
+      lineColor: '#f47568',
+      data: [82, 80, 77, 75, 71, 68, 65, 63]
     }
   ];
-  const chartGridTicks = [0, 20, 40, 60, 80, 100];
+  const chartTimeLabels = ['0h', '3h', '6h', '9h', '12h', '15h', '18h', '24h'];
+  const chartHeight = chartLayout === 'row' ? 228 : 258;
 
   return (
     <MainCard content={false} sx={{ overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
@@ -369,7 +374,15 @@ export default function SystemDiagnostics() {
           </Grid>
 
           <Grid size={{ xs: 12 }}>
-            <Box sx={{ borderRadius: 1, p: { xs: 1.5, sm: 2 }, ...reflectedCardChromeSx }}>
+            <Box
+              sx={{
+                borderRadius: 1,
+                p: { xs: 1.5, sm: 2 },
+                ...drfSurfaceSx,
+                ...reflectedCardChromeSx,
+                boxShadow: '0 14px 26px rgba(1, 13, 50, 1)'
+              }}
+            >
               <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
                 <Typography variant="h5" sx={{ color: 'var(--blue)' }}>
                   Diagnostics Over Time
@@ -391,10 +404,9 @@ export default function SystemDiagnostics() {
                       color: 'var(--green)',
                       border: '1px solid var(--reflected-light)',
                       borderRadius: 1,
-                      backgroundColor: 'rgba(0, 20, 61, 0.72)',
+                      backgroundColor: 'var(--drf)',
                       boxShadow: '0 11px 19px 1px #0000002e',
                       '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                      '& .MuiSelect-select': { color: 'var(--green)' },
                       '& .MuiSelect-icon': { color: 'var(--blue)' }
                     }}
                     MenuProps={{
@@ -436,7 +448,9 @@ export default function SystemDiagnostics() {
                   sx={{
                     alignSelf: { xs: 'flex-start', sm: 'center' },
                     border: '1px solid var(--reflected-light)',
-                    color: 'var(--purple)'
+                    color: 'var(--purple)',
+                    backgroundColor: 'rgba(0, 20, 61, 0.72)',
+                    boxShadow: '0 11px 19px 1px #0000002e'
                   }}
                 >
                   <ReloadOutlined />
@@ -451,69 +465,104 @@ export default function SystemDiagnostics() {
                     chartLayout === 'row' ? { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' } : '1fr'
                 }}
               >
-                {graphCards.map((graph) => (
-                  <Box key={graph.title} sx={{ borderRadius: 1, p: { xs: 1.25, sm: 1.5 }, ...glassSurfaceSx, ...reflectedCardChromeSx }}>
-                    <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                      <Typography variant="subtitle1" sx={{ color: 'var(--blue)' }}>
-                        {graph.title}
-                      </Typography>
-                      <IconButton aria-label={`zoom ${graph.title}`} size="small" sx={{ color: 'var(--blue)' }}>
-                        <ZoomInOutlined />
-                      </IconButton>
-                    </Stack>
+                {graphCards.map((graph) => {
+                  const minVal = Math.min(...graph.data);
+                  const maxVal = Math.max(...graph.data);
+                  const pad = Math.max(0.1, (maxVal - minVal) * 0.04);
 
-                    <Box sx={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 1 }}>
-                      <Stack sx={{ justifyContent: 'space-between', minHeight: 130 }}>
-                        {graph.yUnits.map((unit) => (
-                          <Typography key={`${graph.title}-${unit}`} variant="caption" sx={{ color: 'var(--green)' }}>
-                            {unit}
-                          </Typography>
-                        ))}
+                  return (
+                    <Box
+                      key={graph.title}
+                      sx={{
+                        borderRadius: 1,
+                        p: { xs: 0.45, sm: 0.65 },
+                        minHeight: { xs: 260, sm: 286 },
+                        display: 'flex',
+                        flexDirection: 'column',
+                        ...reflectedCardChromeSx,
+                        ...chartSurfaceSx
+                      }}
+                    >
+                      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 0.25 }}>
+                        <Typography variant="subtitle1" sx={{ color: 'var(--blue)', ml: 1.25 }}>
+                          {graph.title}
+                        </Typography>
+                        <IconButton aria-label={`zoom ${graph.title}`} size="small" sx={{ color: 'var(--blue)' }}>
+                          <ZoomInOutlined />
+                        </IconButton>
                       </Stack>
-                      <Box>
-                        <Box
-                          component="svg"
-                          viewBox="0 0 100 100"
-                          preserveAspectRatio="none"
-                          sx={{ width: '100%', height: 130, display: 'block' }}
-                        >
-                          {chartGridTicks.map((tick) => (
-                            <line
-                              key={`${graph.title}-x-grid-${tick}`}
-                              x1={tick}
-                              y1="0"
-                              x2={tick}
-                              y2="100"
-                              stroke="var(--blue)"
-                              strokeOpacity="0.35"
-                              strokeWidth="0.6"
-                            />
-                          ))}
-                          {chartGridTicks.map((tick) => (
-                            <line
-                              key={`${graph.title}-y-grid-${tick}`}
-                              x1="0"
-                              y1={tick}
-                              x2="100"
-                              y2={tick}
-                              stroke="var(--blue)"
-                              strokeOpacity="0.35"
-                              strokeWidth="0.6"
-                            />
-                          ))}
-                          <polyline fill="none" stroke="var(--green)" strokeWidth="2.2" points={graph.linePoints} />
-                        </Box>
-                        <Stack direction="row" sx={{ justifyContent: 'space-between', mt: 0.5 }}>
-                          {graph.xUnits.map((unit) => (
-                            <Typography key={`${graph.title}-x-${unit}`} variant="caption" sx={{ color: 'var(--green)' }}>
-                              {unit}
-                            </Typography>
-                          ))}
-                        </Stack>
-                      </Box>
+
+                      <LineChart
+                        xAxis={[
+                          {
+                            id: `${graph.title}-x`,
+                            scaleType: 'point',
+                            data: chartTimeLabels,
+                            tickLabelInterval: (_, index) => index === 0 || index === chartTimeLabels.length - 1 || index % 2 === 0,
+                            tickLabelStyle: { fontSize: 11, fill: 'var(--green)' }
+                          }
+                        ]}
+                        yAxis={[
+                          {
+                            id: `${graph.title}-y`,
+                            min: minVal - pad,
+                            max: maxVal + pad,
+                            width: 30,
+                            tickLabelStyle: { fill: 'var(--green)' },
+                            valueFormatter: (value) => `${Math.round(value)}`
+                          }
+                        ]}
+                        series={[
+                          {
+                            id: `${graph.title}-line`,
+                            data: graph.data,
+                            color: graph.lineColor,
+                            area: true,
+                            showMark: false,
+                            curve: 'linear'
+                          }
+                        ]}
+                        grid={{ horizontal: true, vertical: true }}
+                        height={chartHeight}
+                        margin={{ top: 2, right: 16, bottom: 10, left: 10 }}
+                        hideLegend
+                        sx={{
+                          width: '100%',
+                          overflow: 'visible',
+                          '& .MuiChartsSurface-root': {
+                            overflow: 'visible'
+                          },
+                          '& .MuiChartsGrid-line': {
+                            stroke: 'var(--blue)',
+                            strokeOpacity: 0.38,
+                            strokeWidth: 0.65
+                          },
+                          '& .MuiLineElement-root': {
+                            strokeWidth: 0.95,
+                            strokeLinecap: 'round',
+                            strokeLinejoin: 'round',
+                            filter: `drop-shadow(0 0 8px ${graph.lineColor})`
+                          },
+                          '& .MuiAreaElement-root': {
+                            fillOpacity: 0.16
+                          },
+                          '& .MuiChartsAxis-line, & .MuiChartsAxis-tick': {
+                            stroke: 'rgba(232, 232, 232, 0.45)'
+                          },
+                          '& .MuiChartsAxis-tickLabel': {
+                            fill: 'var(--green)',
+                            fontWeight: 600
+                          },
+                          '& .MuiChartsAxis-left .MuiChartsAxis-line, & .MuiChartsAxis-bottom .MuiChartsAxis-line': {
+                            stroke: 'rgba(232, 232, 232, 0.55)'
+                          },
+                          background: 'transparent',
+                          borderRadius: 1
+                        }}
+                      />
                     </Box>
-                  </Box>
-                ))}
+                  );
+                })}
               </Box>
             </Box>
           </Grid>
