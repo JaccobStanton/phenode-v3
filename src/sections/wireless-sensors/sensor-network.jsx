@@ -166,7 +166,7 @@ export default function SensorNetwork() {
       ? mapIconActive
       : mapIconInactive;
   const activeSoilReadings = soilProbeReadings[selectedSoilProbe];
-  const diagramWidthSx = { xs: '84%', sm: '80%', md: '76%', lg: '74%' };
+  const diagramWidthSx = { xs: '92%', sm: '88%', md: '90%', lg: '92%' };
   const sectionTitle = isMapView ? 'Sensor Overview' : 'Wireless Sensor Measurements';
   const mapToggleTooltip = isMapView ? 'Sensor Overview' : 'Map View';
 
@@ -391,11 +391,11 @@ export default function SensorNetwork() {
                         component="img"
                         src={wirelessSensorsDiagram}
                         alt="Wireless sensor network diagram"
-                        sx={{
-                          width: '100%',
-                          maxHeight: { xs: 210, sm: 280, md: 340, lg: 360 },
-                          objectFit: 'contain',
-                          display: 'block',
+	                        sx={{
+	                          width: '100%',
+	                          maxHeight: { xs: 250, sm: 330, md: 400, lg: 430 },
+	                          objectFit: 'contain',
+	                          display: 'block',
                           transform: { xs: 'translateY(8px)', sm: 'translateY(10px)' },
                           mb: 0,
                           pb: 0
@@ -671,13 +671,15 @@ export default function SensorNetwork() {
                         }
                       }
                     }}
-                    renderValue={(selected) => (
-                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                        <ClockCircleOutlined style={{ color: 'var(--blue)' }} />
-                        <Box component="span">{selected}</Box>
-                      </Stack>
-                    )}
-                  >
+	                    renderValue={(selected) => (
+	                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+	                        <ClockCircleOutlined style={{ color: 'var(--blue)' }} />
+	                        <Box component="span" sx={{ color: 'var(--green)' }}>
+	                          {selected}
+	                        </Box>
+	                      </Stack>
+	                    )}
+	                  >
                     {timeRangeOptions.map((option) => (
                       <MenuItem
                         key={option}
