@@ -79,6 +79,7 @@ function PreferenceBox({ title, children }) {
         p: 1.75,
         height: '100%',
         ...reflectedCardChromeSx,
+        boxShadow: 'none',
         backgroundColor: 'var(--drf)',
         backgroundImage: 'none'
       }}
