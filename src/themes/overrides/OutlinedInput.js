@@ -1,18 +1,26 @@
 // project imports
-import getColors from 'utils/getColors';
 import getShadow from 'utils/getShadow';
 
 // ==============================|| OVERRIDES - INPUT BORDER & SHADOWS ||============================== //
 
 function getColor({ variant, theme }) {
-  const colors = getColors(theme, variant);
-  const { light } = colors;
-
   const shadows = getShadow(theme, `${variant}`);
+  const hoverBorderColor = 'var(--green)';
 
   return {
-    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: light },
-    '&.Mui-focused': { boxShadow: shadows, '& .MuiOutlinedInput-notchedOutline': { border: '1px solid', borderColor: light } }
+    '&:hover:not(.Mui-disabled)': {
+      borderColor: hoverBorderColor,
+      '& .MuiOutlinedInput-notchedOutline': { borderColor: hoverBorderColor },
+      '& .MuiSelect-icon': { color: hoverBorderColor },
+      '& .MuiAutocomplete-popupIndicator .MuiSvgIcon-root': { color: hoverBorderColor }
+    },
+    '&.Mui-focused:not(.Mui-disabled)': {
+      boxShadow: shadows,
+      borderColor: hoverBorderColor,
+      '& .MuiOutlinedInput-notchedOutline': { border: '1px solid', borderColor: hoverBorderColor },
+      '& .MuiSelect-icon': { color: hoverBorderColor },
+      '& .MuiAutocomplete-popupIndicator .MuiSvgIcon-root': { color: hoverBorderColor }
+    }
   };
 }
 

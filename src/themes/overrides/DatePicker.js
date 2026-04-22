@@ -4,6 +4,7 @@ export default function DatePicker() {
   const surface = 'rgba(0, 20, 61, 0.94)';
   const innerSurface = 'rgba(0, 20, 61, 0.42)';
   const border = '1px solid var(--reflected-light)';
+  const hoverBorderColor = 'var(--green)';
 
   return {
     MuiPickersPopper: {
@@ -39,6 +40,36 @@ export default function DatePicker() {
       styleOverrides: {
         root: {
           color: 'var(--blue)'
+        }
+      }
+    },
+    MuiPickersOutlinedInput: {
+      styleOverrides: {
+        root: {
+          '&:hover:not(.Mui-disabled)': {
+            borderColor: hoverBorderColor,
+            '& .MuiPickersOutlinedInput-notchedOutline, & .MuiOutlinedInput-notchedOutline': {
+              borderColor: hoverBorderColor
+            },
+            '& .MuiSvgIcon-root': {
+              color: hoverBorderColor
+            },
+            '& .MuiSelect-icon': {
+              color: hoverBorderColor
+            }
+          },
+          '&.Mui-focused:not(.Mui-disabled)': {
+            borderColor: hoverBorderColor,
+            '& .MuiPickersOutlinedInput-notchedOutline, & .MuiOutlinedInput-notchedOutline': {
+              borderColor: hoverBorderColor
+            },
+            '& .MuiSvgIcon-root': {
+              color: hoverBorderColor
+            },
+            '& .MuiSelect-icon': {
+              color: hoverBorderColor
+            }
+          }
         }
       }
     },
