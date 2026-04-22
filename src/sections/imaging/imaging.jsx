@@ -32,6 +32,7 @@ import mockImage5 from 'assets/mock-images/D3_1F_20_E1_49_B7-1772221035999.jpg';
 import mockImage6 from 'assets/mock-images/D3_1F_20_E1_49_B7-1772989423177.jpg';
 
 import DownloadOutlined from '@ant-design/icons/DownloadOutlined';
+import InfoCircleOutlined from '@ant-design/icons/InfoCircleOutlined';
 import LeftOutlined from '@ant-design/icons/LeftOutlined';
 import RightOutlined from '@ant-design/icons/RightOutlined';
 
@@ -318,7 +319,7 @@ export default function Imaging() {
 
       <Box sx={{ p: { xs: 2, sm: 3 } }}>
         <Grid container spacing={2.5}>
-          <Grid size={{ xs: 12, lg: 8 }}>
+          <Grid size={{ xs: 12, lg: 12 }}>
             <Card
               sx={{
                 position: 'relative',
@@ -392,7 +393,7 @@ export default function Imaging() {
                     width: 'auto',
                     height: 'auto',
                     maxWidth: '100%',
-                    maxHeight: { xs: 320, sm: 430, lg: 520 },
+                    maxHeight: { xs: 320, sm: 430, lg: 820 },
                     objectFit: 'contain',
                     border: '1px solid var(--reflected-light)',
                     borderRadius: 1,
@@ -467,7 +468,7 @@ export default function Imaging() {
             </Card>
           </Grid>
 
-          <Grid size={{ xs: 12, lg: 4 }}>
+          <Grid size={{ xs: 12, lg: 12 }} sx={{ order: { xs: 3, lg: 3 } }}>
             <Card sx={{ p: { xs: 1.5, sm: 2 }, height: 'fit-content', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
               <Stack spacing={1}>
                 <Typography variant="subtitle1" sx={{ color: '#646cff', fontWeight: 600 }}>
@@ -504,13 +505,39 @@ export default function Imaging() {
                   </Typography>
                 </Box>
 
-                <Box
+                {/* <Box
                   sx={{
                     mt: 2,
                     mx: 0.5,
                     borderTop: '1px solid var(--box-outline-blue)'
                   }}
-                />
+                /> */}
+                 <Box sx={{ pt: 1 }}>
+                  <LinearProgress
+                    variant="determinate"
+                    value={downloadProgress}
+                    sx={{
+                      height: 8,
+                      borderRadius: 999,
+                      backgroundColor: 'rgba(0, 20, 61, 0.45)',
+                      border: '1px solid var(--reflected-light)',
+                      '& .MuiLinearProgress-bar': {
+                        backgroundColor: 'var(--green)',
+                        boxShadow: '0 0 8px rgba(72, 247, 245, 0.65)'
+                      }
+                    }}
+                  />
+                  <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mt: 0.75 }}>
+                    <Typography variant="caption" sx={{ color: 'var(--blue)' }}>
+                      {totalImagesToDownload === 0
+                        ? 'Select image rows to enable download.'
+                        : `Downloaded ${downloadedCount}/${totalImagesToDownload} image${totalImagesToDownload === 1 ? '' : 's'}`}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'var(--green)', fontWeight: 600 }}>
+                      {totalImagesToDownload === 0 ? '-- MB' : `${estimatedDownloadSizeMb} MB`}
+                    </Typography>
+                  </Stack>
+                </Box>
 
                 <Box sx={{ pt: 2, display: 'flex', justifyContent: 'flex-end' }}>
                   <Button
@@ -544,7 +571,7 @@ export default function Imaging() {
                   </Button>
                 </Box>
 
-                <Box sx={{ pt: 1 }}>
+                {/* <Box sx={{ pt: 1 }}>
                   <LinearProgress
                     variant="determinate"
                     value={downloadProgress}
@@ -569,17 +596,47 @@ export default function Imaging() {
                       {totalImagesToDownload === 0 ? '-- MB' : `${estimatedDownloadSizeMb} MB`}
                     </Typography>
                   </Stack>
-                </Box>
+                </Box> */}
               </Stack>
             </Card>
           </Grid>
 
-          <Grid size={{ xs: 12 }}>
+          <Grid size={{ xs: 12, lg: 12 }} sx={{ order: { xs: 2, lg: 2 } }}>
             <Card sx={{ p: { xs: 1.5, sm: 2 }, overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
               <Stack spacing={2}>
-                <Typography variant="h5" sx={{ color: 'var(--blue)' }}>
-                  PheNode Images
-                </Typography>
+                <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+                  <Typography variant="h5" sx={{ color: 'var(--blue)' }}>
+                    PheNode Images
+                  </Typography>
+                  <Tooltip
+                    title="Images are defaulted to load the last 5 taken by your PheNode."
+                    arrow={false}
+                    slotProps={{
+                      tooltip: {
+                        sx: {
+                          backgroundColor: 'rgba(0, 20, 61, 0.96)',
+                          color: 'var(--green)',
+                          border: '1px solid var(--reflected-light)',
+                          boxShadow: '0 11px 19px 1px #0000002e',
+                          fontSize: '0.78rem'
+                        }
+                      }
+                    }}
+                  >
+                    <Box
+                      component="span"
+                      sx={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--blue)',
+                        cursor: 'help'
+                      }}
+                    >
+                      <InfoCircleOutlined />
+                    </Box>
+                  </Tooltip>
+                </Stack>
 
                 <LocalizationProvider dateAdapter={AdapterDayjs}>
                   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
