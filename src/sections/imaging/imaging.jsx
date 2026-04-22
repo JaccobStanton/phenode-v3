@@ -30,7 +30,6 @@ import mockImage3 from 'assets/mock-images/D3_1F_20_E1_49_B7-1770138236808.jpg';
 import mockImage4 from 'assets/mock-images/D3_1F_20_E1_49_B7-1771270350213.jpg';
 import mockImage5 from 'assets/mock-images/D3_1F_20_E1_49_B7-1772221035999.jpg';
 import mockImage6 from 'assets/mock-images/D3_1F_20_E1_49_B7-1772989423177.jpg';
-import mockImage7 from 'assets/mock-images/D3_1F_20_E1_49_B7-1773344559031.jpg';
 
 import DownloadOutlined from '@ant-design/icons/DownloadOutlined';
 import LeftOutlined from '@ant-design/icons/LeftOutlined';
@@ -59,15 +58,13 @@ const datePickerTextFieldSx = {
   '& .MuiOutlinedInput-root, & .MuiPickersOutlinedInput-root': {
     ...neonControlSx,
     '& .MuiOutlinedInput-notchedOutline, & .MuiPickersOutlinedInput-notchedOutline': {
-      border: '1px solid var(--reflected-light)'
+      border: 'none'
     },
-    '&:hover .MuiOutlinedInput-notchedOutline, &:hover .MuiPickersOutlinedInput-notchedOutline': {
-      borderColor: 'var(--reflected-light)'
-    },
-    '&.Mui-focused .MuiOutlinedInput-notchedOutline, &.Mui-focused .MuiPickersOutlinedInput-notchedOutline': {
-      borderColor: 'var(--blue)'
+    '&:hover:not(.Mui-disabled)': {
+      borderColor: 'var(--green)'
     },
     '&.Mui-focused': {
+      borderColor: 'var(--blue)',
       boxShadow: '0 11px 19px 1px #0000002e'
     }
   },
@@ -166,7 +163,7 @@ const carouselImages = [
   { id: 'capture-003', name: 'D3_1F_20_E1_49_B7-1770138236808.jpg', src: mockImage3 },
   { id: 'capture-004', name: 'D3_1F_20_E1_49_B7-1771270350213.jpg', src: mockImage4 },
   { id: 'capture-005', name: 'D3_1F_20_E1_49_B7-1772221035999.jpg', src: mockImage5 },
-  { id: 'capture-006', name: 'D3_1F_20_E1_49_B7-1772989423177.jpg', src: mockImage6 },
+  { id: 'capture-006', name: 'D3_1F_20_E1_49_B7-1772989423177.jpg', src: mockImage6 }
 ];
 
 const imagingTableBorder = '1px solid var(--reflected-light)';
@@ -392,10 +389,13 @@ export default function Imaging() {
                   src={currentImage.src}
                   alt={currentImage.name}
                   sx={{
-                    width: '100%',
-                    height: '100%',
+                    width: 'auto',
+                    height: 'auto',
+                    maxWidth: '100%',
                     maxHeight: { xs: 320, sm: 430, lg: 520 },
                     objectFit: 'contain',
+                    border: '1px solid var(--reflected-light)',
+                    borderRadius: 1,
                     filter: 'drop-shadow(0 12px 24px rgba(0, 0, 0, 0.35))'
                   }}
                 />
