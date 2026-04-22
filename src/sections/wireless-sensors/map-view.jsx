@@ -11,6 +11,8 @@ import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 
+import wsFleetIcon from 'assets/drawer-icons/WS_Fleet.svg';
+import wsFleetIconActive from 'assets/drawer-icons/WS_Fleet_Active.svg';
 import soilProbeIconActive from 'assets/toggle_buttons/Soil_Probe_Icon_Active.svg';
 import soilProbeIconInactive from 'assets/toggle_buttons/Soil_Probe_Icon_Inactive.svg';
 
@@ -68,7 +70,13 @@ export default function MapView({ infoCardMode, setInfoCardMode, selectedSoilPro
   const isSoilDataMode = infoCardMode === 'soil';
   const infoCardTitle = isSoilDataMode ? 'Soil Data' : 'Sensor Information';
   const infoCardTooltipTitle = isSoilDataMode ? 'Sensor Info.' : 'Soil Data';
-  const infoCardToggleIcon = isInfoToggleHovered ? soilProbeIconActive : soilProbeIconInactive;
+  const infoCardToggleIcon = isSoilDataMode
+    ? isInfoToggleHovered
+      ? wsFleetIconActive
+      : wsFleetIcon
+    : isInfoToggleHovered
+      ? soilProbeIconActive
+      : soilProbeIconInactive;
   const activeSoilReadings = soilProbeReadings[selectedSoilProbe] ?? soilProbeReadings['probe-1'];
   const activeReadings = isSoilDataMode ? activeSoilReadings : sensorInfoReadings;
 
@@ -289,6 +297,14 @@ export default function MapView({ infoCardMode, setInfoCardMode, selectedSoilPro
                       borderColor: 'var(--dark-blue) var(--dark-blue) var(--reflected-light)',
                       boxShadow: 'inset 1px 4px 5px #0003',
                       borderRadius: 1,
+                      '&:hover:not(.Mui-disabled)': {
+                        borderColor: 'var(--dark-blue) var(--dark-blue) var(--reflected-light) !important',
+                        boxShadow: 'inset 1px 4px 5px #0003'
+                      },
+                      '&.Mui-focused': {
+                        borderColor: 'var(--dark-blue) var(--dark-blue) var(--reflected-light) !important',
+                        boxShadow: 'inset 1px 4px 5px #0003'
+                      },
                       '& .MuiOutlinedInput-notchedOutline': {
                         border: 'none'
                       }
@@ -310,6 +326,7 @@ export default function MapView({ infoCardMode, setInfoCardMode, selectedSoilPro
                     minWidth: 132,
                     color: 'var(--green)',
                     borderColor: 'var(--orange)',
+                    transition: 'none',
                     '&:hover': {
                       borderColor: 'var(--green)',
                       boxShadow: '0 0 7px -5px var(--green)',

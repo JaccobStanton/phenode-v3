@@ -19,6 +19,8 @@ import { LineChart } from '@mui/x-charts/LineChart';
 import MainCard from 'components/MainCard';
 import MapView from 'sections/wireless-sensors/map-view';
 import wirelessSensorsDiagram from 'assets/diagrams/Wireless-Sensors-v4.svg';
+import wsFleetIcon from 'assets/drawer-icons/WS_Fleet.svg';
+import wsFleetIconActive from 'assets/drawer-icons/WS_Fleet_Active.svg';
 import mapIconActive from 'assets/toggle_buttons/Map_Icon_Active.svg';
 import mapIconInactive from 'assets/toggle_buttons/Map_Icon_Inactive.svg';
 import soilProbeIconActive from 'assets/toggle_buttons/Soil_Probe_Icon_Active.svg';
@@ -59,6 +61,20 @@ const neonControlSx = {
 const drawerNavButtonSurfaceSx = {
   backgroundColor: 'rgba(0, 17, 48, 0.03)',
   backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))'
+};
+
+const orientationButtonSx = {
+  border: '1px solid var(--reflected-light)',
+  color: 'var(--blue)',
+  backgroundColor: 'rgba(0, 20, 61, 0.72)',
+  boxShadow: '0 11px 19px 1px #0000002e',
+  '&:hover': {
+    borderColor: 'var(--green)',
+    boxShadow: '0 0 7px -5px var(--green)',
+    color: 'var(--green)',
+    textShadow: '0 1px 5px #007bff',
+    backgroundColor: 'rgba(72, 247, 245, 0.08)'
+  }
 };
 
 const neonMenuPaperSx = {
@@ -157,7 +173,13 @@ export default function SensorNetwork() {
   const isSoilDataMode = infoCardMode === 'soil';
   const infoCardTitle = isSoilDataMode ? 'Soil Data' : 'Sensor Information';
   const infoCardTooltipTitle = isSoilDataMode ? 'Sensor Info.' : 'Soil Data';
-  const infoCardToggleIcon = isInfoToggleHovered ? soilProbeIconActive : soilProbeIconInactive;
+  const infoCardToggleIcon = isSoilDataMode
+    ? isInfoToggleHovered
+      ? wsFleetIconActive
+      : wsFleetIcon
+    : isInfoToggleHovered
+      ? soilProbeIconActive
+      : soilProbeIconInactive;
   const mapToggleIcon = isMapView
     ? isMapToggleHovered
       ? soilProbeIconActive
@@ -391,11 +413,11 @@ export default function SensorNetwork() {
                         component="img"
                         src={wirelessSensorsDiagram}
                         alt="Wireless sensor network diagram"
-	                        sx={{
-	                          width: '100%',
-	                          maxHeight: { xs: 250, sm: 330, md: 400, lg: 430 },
-	                          objectFit: 'contain',
-	                          display: 'block',
+                        sx={{
+                          width: '100%',
+                          maxHeight: { xs: 250, sm: 330, md: 400, lg: 430 },
+                          objectFit: 'contain',
+                          display: 'block',
                           transform: { xs: 'translateY(8px)', sm: 'translateY(10px)' },
                           mb: 0,
                           pb: 0
@@ -570,6 +592,14 @@ export default function SensorNetwork() {
                             backgroundColor: '#00143642',
                             boxShadow: 'inset 1px 4px 5px #0003',
                             borderRadius: 1,
+                            '&:hover:not(.Mui-disabled)': {
+                              borderColor: 'var(--dark-blue) var(--dark-blue) var(--reflected-light) !important',
+                              boxShadow: 'inset 1px 4px 5px #0003'
+                            },
+                            '&.Mui-focused': {
+                              borderColor: 'var(--dark-blue) var(--dark-blue) var(--reflected-light) !important',
+                              boxShadow: 'inset 1px 4px 5px #0003'
+                            },
                             '& .MuiOutlinedInput-notchedOutline': {
                               border: 'none'
                             }
@@ -591,6 +621,7 @@ export default function SensorNetwork() {
                           minWidth: 140,
                           color: 'var(--green)',
                           borderColor: 'var(--orange)',
+                          transition: 'none',
                           '&:hover': {
                             borderColor: 'var(--green)',
                             boxShadow: '0 0 7px -5px var(--green)',
@@ -640,15 +671,18 @@ export default function SensorNetwork() {
                   <IconButton
                     aria-label="toggle sensor chart layout"
                     onClick={() => setChartLayout((prev) => (prev === 'column' ? 'row' : 'column'))}
-                    sx={{ border: '1px solid var(--reflected-light)', color: 'var(--blue)' }}
+                    sx={orientationButtonSx}
                   >
                     <AppstoreOutlined />
                   </IconButton>
                 </Tooltip>
               </Stack>
 
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ alignItems: { xs: 'stretch', sm: 'center' }, mb: 2 }}>
-                <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 220 } }}>
+              <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', mb: 2 }}>
+                <FormControl
+                  size="small"
+                  sx={{ minWidth: { xs: 0, sm: 220 }, width: { xs: '100%', sm: 220 }, flex: { xs: 1, sm: '0 0 auto' } }}
+                >
                   <Select
                     value={timeRange}
                     onChange={(event) => setTimeRange(event.target.value)}
@@ -671,15 +705,15 @@ export default function SensorNetwork() {
                         }
                       }
                     }}
-	                    renderValue={(selected) => (
-	                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-	                        <ClockCircleOutlined style={{ color: 'var(--blue)' }} />
-	                        <Box component="span" sx={{ color: 'var(--green)' }}>
-	                          {selected}
-	                        </Box>
-	                      </Stack>
-	                    )}
-	                  >
+                    renderValue={(selected) => (
+                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                        <ClockCircleOutlined style={{ color: 'var(--blue)' }} />
+                        <Box component="span" sx={{ color: 'var(--green)' }}>
+                          {selected}
+                        </Box>
+                      </Stack>
+                    )}
+                  >
                     {timeRangeOptions.map((option) => (
                       <MenuItem
                         key={option}
@@ -695,18 +729,40 @@ export default function SensorNetwork() {
                     ))}
                   </Select>
                 </FormControl>
-                <IconButton
-                  aria-label="refresh sensor charts"
-                  sx={{
-                    alignSelf: { xs: 'flex-start', sm: 'center' },
-                    border: '1px solid var(--reflected-light)',
-                    color: 'var(--purple)',
-                    backgroundColor: 'rgba(0, 20, 61, 0.72)',
-                    boxShadow: '0 11px 19px 1px #0000002e'
+                <Tooltip
+                  title="Refresh"
+                  arrow={false}
+                  slotProps={{
+                    tooltip: {
+                      sx: {
+                        backgroundColor: 'rgba(0, 20, 61, 0.96)',
+                        color: 'var(--green)',
+                        border: '1px solid var(--reflected-light)',
+                        boxShadow: '0 11px 19px 1px #0000002e',
+                        fontSize: '0.78rem'
+                      }
+                    }
                   }}
                 >
-                  <ReloadOutlined />
-                </IconButton>
+                  <IconButton
+                    aria-label="refresh sensor charts"
+                    sx={{
+                      border: '1px solid var(--reflected-light)',
+                      color: 'var(--purple)',
+                      backgroundColor: 'rgba(0, 20, 61, 0.72)',
+                      boxShadow: '0 11px 19px 1px #0000002e',
+                      '&:hover': {
+                        borderColor: 'var(--green)',
+                        boxShadow: '0 0 7px -5px var(--green)',
+                        color: 'var(--green)',
+                        textShadow: '0 1px 5px #007bff',
+                        backgroundColor: 'rgba(72, 247, 245, 0.08)'
+                      }
+                    }}
+                  >
+                    <ReloadOutlined />
+                  </IconButton>
+                </Tooltip>
               </Stack>
 
               <Box

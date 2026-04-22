@@ -36,8 +36,30 @@ const chartSurfaceSx = {
   border: '1px solid #0e346a'
 };
 
+const orientationButtonSx = {
+  border: '1px solid var(--reflected-light)',
+  color: 'var(--blue)',
+  backgroundColor: 'rgba(0, 20, 61, 0.72)',
+  boxShadow: '0 11px 19px 1px #0000002e',
+  '&:hover': {
+    borderColor: 'var(--green)',
+    boxShadow: '0 0 7px -5px var(--green)',
+    color: 'var(--green)',
+    textShadow: '0 1px 5px #007bff',
+    backgroundColor: 'rgba(72, 247, 245, 0.08)'
+  }
+};
+
 const circleMetrics = [
-  { id: 'metric-1', icon: tempSensorIcon, iconAlt: 'Temperature sensor icon', value: '54.41°F', label: 'Current Air Temperature' },
+  {
+    id: 'metric-1',
+    icon: tempSensorIcon,
+    iconAlt: 'Temperature sensor icon',
+    value: '54.41°F',
+    label: 'Current Air Temperature',
+    gustLabel: 'Humidity:',
+    gustValue: '23%'
+  },
   { id: 'metric-2', icon: rainSensorIcon, iconAlt: 'Rain sensor icon', value: '0.53"', label: "Today's Rainfall" },
   {
     id: 'metric-3',
@@ -257,18 +279,22 @@ export default function SensorMeasurements() {
               <IconButton
                 aria-label="toggle sensor chart layout"
                 onClick={() => setChartLayout((prev) => (prev === 'column' ? 'row' : 'column'))}
-                sx={{ border: '1px solid var(--reflected-light)', color: 'var(--blue)' }}
+                sx={orientationButtonSx}
               >
                 <AppstoreOutlined />
               </IconButton>
             </Tooltip>
           </Stack>
 
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ alignItems: { xs: 'stretch', sm: 'center' }, mb: 2 }}>
-            <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 220 } }}>
+          <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', mb: 2 }}>
+            <FormControl
+              size="small"
+              sx={{ minWidth: { xs: 0, sm: 220 }, width: { xs: '100%', sm: 220 }, flex: { xs: 1, sm: '0 0 auto' } }}
+            >
               <Select
                 value={timeRange}
                 onChange={(event) => setTimeRange(event.target.value)}
+                displayEmpty
                 sx={{
                   color: 'var(--green)',
                   border: '1px solid var(--reflected-light)',
@@ -276,6 +302,7 @@ export default function SensorMeasurements() {
                   backgroundColor: 'var(--drf)',
                   boxShadow: '0 11px 19px 1px #0000002e',
                   '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                  '& .MuiSelect-select': { color: 'var(--green)' },
                   '& .MuiSelect-icon': { color: 'var(--blue)' }
                 }}
                 MenuProps={{
@@ -291,7 +318,9 @@ export default function SensorMeasurements() {
                 renderValue={(selected) => (
                   <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                     <ClockCircleOutlined style={{ color: 'var(--blue)' }} />
-                    <Box component="span">{selected}</Box>
+                    <Box component="span" sx={{ color: 'var(--green)' }}>
+                      {selected || 'Select Time Range...'}
+                    </Box>
                   </Stack>
                 )}
               >
@@ -310,18 +339,40 @@ export default function SensorMeasurements() {
                 ))}
               </Select>
             </FormControl>
-            <IconButton
-              aria-label="refresh sensor charts"
-              sx={{
-                alignSelf: { xs: 'flex-start', sm: 'center' },
-                border: '1px solid var(--reflected-light)',
-                color: 'var(--purple)',
-                backgroundColor: 'rgba(0, 20, 61, 0.72)',
-                boxShadow: '0 11px 19px 1px #0000002e'
+            <Tooltip
+              title="Refresh"
+              arrow={false}
+              slotProps={{
+                tooltip: {
+                  sx: {
+                    backgroundColor: 'rgba(0, 20, 61, 0.96)',
+                    color: 'var(--green)',
+                    border: '1px solid var(--reflected-light)',
+                    boxShadow: '0 11px 19px 1px #0000002e',
+                    fontSize: '0.78rem'
+                  }
+                }
               }}
             >
-              <ReloadOutlined />
-            </IconButton>
+              <IconButton
+                aria-label="refresh sensor charts"
+                sx={{
+                  border: '1px solid var(--reflected-light)',
+                  color: 'var(--purple)',
+                  backgroundColor: 'rgba(0, 20, 61, 0.72)',
+                  boxShadow: '0 11px 19px 1px #0000002e',
+                  '&:hover': {
+                    borderColor: 'var(--green)',
+                    boxShadow: '0 0 7px -5px var(--green)',
+                    color: 'var(--green)',
+                    textShadow: '0 1px 5px #007bff',
+                    backgroundColor: 'rgba(72, 247, 245, 0.08)'
+                  }
+                }}
+              >
+                <ReloadOutlined />
+              </IconButton>
+            </Tooltip>
           </Stack>
 
           <Box

@@ -91,8 +91,13 @@ const themedSelectSx = {
   },
   '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
   '& .MuiSelect-icon': { color: 'var(--blue)' },
-  '&.Mui-focused': {
-    borderColor: 'var(--blue)'
+  '&:hover:not(.Mui-disabled)': {
+    borderColor: 'var(--green)',
+    '& .MuiSelect-icon': { color: 'var(--green)' }
+  },
+  '&.Mui-focused:not(.Mui-disabled)': {
+    borderColor: 'var(--green)',
+    '& .MuiSelect-icon': { color: 'var(--green)' }
   }
 };
 
@@ -134,12 +139,12 @@ const dateTimePickerTextFieldSx = {
   '& .MuiOutlinedInput-root, & .MuiPickersOutlinedInput-root': {
     ...neonControlSx,
     '& .MuiOutlinedInput-notchedOutline, & .MuiPickersOutlinedInput-notchedOutline': {
-      border: '1px solid var(--reflected-light)'
+      border: 'none'
     },
-    '&:hover .MuiOutlinedInput-notchedOutline, &:hover .MuiPickersOutlinedInput-notchedOutline': {
-      borderColor: 'var(--reflected-light)'
+    '&:hover:not(.Mui-disabled)': {
+      borderColor: 'var(--green)'
     },
-    '&.Mui-focused .MuiOutlinedInput-notchedOutline, &.Mui-focused .MuiPickersOutlinedInput-notchedOutline': {
+    '&.Mui-focused': {
       borderColor: 'var(--blue)'
     }
   },
@@ -304,8 +309,11 @@ function SearchableMultiSelect({ placeholder, options, value, onChange, limitTag
           sx={{
             '& .MuiOutlinedInput-root': {
               ...neonControlSx,
-              '&.Mui-focused': {
-                borderColor: 'var(--blue)'
+              '&:hover:not(.Mui-disabled)': {
+                borderColor: 'var(--green)'
+              },
+              '&.Mui-focused:not(.Mui-disabled)': {
+                borderColor: 'var(--green)'
               },
               '& .MuiOutlinedInput-notchedOutline': {
                 border: 'none'
@@ -327,6 +335,12 @@ function SearchableMultiSelect({ placeholder, options, value, onChange, limitTag
             },
             '& .MuiSvgIcon-root': {
               color: 'var(--blue)'
+            },
+            '& .MuiOutlinedInput-root:hover:not(.Mui-disabled) .MuiSvgIcon-root': {
+              color: 'var(--green)'
+            },
+            '& .MuiOutlinedInput-root.Mui-focused:not(.Mui-disabled) .MuiSvgIcon-root': {
+              color: 'var(--green)'
             }
           }}
         />
@@ -667,7 +681,15 @@ export default function MultiSensorGraph() {
                     color: 'var(--green)',
                     backgroundColor: 'rgba(0, 20, 61, 0.72)',
                     minWidth: { xs: '100%', sm: 140, lg: 180 },
-                    boxShadow: '0 11px 19px 1px #0000002e'
+                    boxShadow: '0 11px 19px 1px #0000002e',
+                    transition: 'none',
+                    '&:hover': {
+                      borderColor: 'var(--green)',
+                      boxShadow: '0 0 7px -5px var(--green)',
+                      color: 'var(--green)',
+                      textShadow: '0 1px 5px #007bff',
+                      backgroundColor: 'rgba(72, 247, 245, 0.08)'
+                    }
                   }}
                 >
                   Generate Graph
