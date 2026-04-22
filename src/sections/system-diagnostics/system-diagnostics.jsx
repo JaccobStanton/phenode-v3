@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 
+import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import FormControl from '@mui/material/FormControl';
 import Grid from '@mui/material/Grid';
@@ -7,6 +8,8 @@ import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import Stack from '@mui/material/Stack';
+import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { LineChart } from '@mui/x-charts/LineChart';
 
@@ -40,9 +43,53 @@ const chartSurfaceSx = {
   border: '1px solid #0e346a'
 };
 
+const neonControlSx = {
+  backgroundColor: 'var(--drf)',
+  border: '1px solid var(--reflected-light)',
+  borderRadius: 1,
+  minHeight: 40,
+  boxShadow: '0 11px 19px 1px #0000002e'
+};
+
+const neonMenuPaperSx = {
+  backgroundColor: 'rgba(0, 20, 61, 0.96)',
+  backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))',
+  border: '1px solid var(--reflected-light)',
+  boxShadow: '0 11px 19px 1px #0000002e',
+  backdropFilter: 'blur(6px)',
+  color: 'var(--green)'
+};
+
+const neonMenuItemSx = {
+  color: 'var(--green)',
+  '&:hover': {
+    backgroundColor: 'rgba(72, 247, 245, 0.12)'
+  },
+  '&.Mui-focused': {
+    backgroundColor: 'rgba(72, 247, 245, 0.12)'
+  }
+};
+
+const orientationButtonSx = {
+  border: '1px solid var(--reflected-light)',
+  color: 'var(--blue)',
+  backgroundColor: 'rgba(0, 20, 61, 0.72)',
+  boxShadow: '0 11px 19px 1px #0000002e',
+  '&:hover': {
+    borderColor: 'var(--green)',
+    boxShadow: '0 0 7px -5px var(--green)',
+    color: 'var(--green)',
+    textShadow: '0 1px 5px #007bff',
+    backgroundColor: 'rgba(72, 247, 245, 0.08)'
+  }
+};
+
+const pheNodeSelectionOptions = ['PheNode 020', 'PheNode 017', 'PheNode 031', 'PheNode 105', 'PheNode 214'];
+
 export default function SystemDiagnostics() {
   const [timeRange, setTimeRange] = useState('Last 24 hours');
   const [chartLayout, setChartLayout] = useState('row');
+  const [selectedPheNode, setSelectedPheNode] = useState(null);
   const signalBarHeights = [12, 18, 24, 30];
   const sensorStatusCards = [
     { title: 'Rainfall', status: 'Inactive', statusColor: 'var(--purple)', notchColor: 'var(--purple)' },
@@ -186,7 +233,7 @@ export default function SystemDiagnostics() {
             </Box>
           </Grid>
 
-          <Grid size={{ xs: 12, lg: 8 }}>
+          <Grid size={{ xs: 12, lg: 8 }} sx={{ order: { xs: -1, sm: -1, md: 0 } }}>
             <Box
               sx={{
                 p: { xs: 1.5, sm: 2 },
@@ -200,8 +247,109 @@ export default function SystemDiagnostics() {
                 ...reflectedCardChromeSx
               }}
             >
-              <Stack spacing={0.9} sx={{ width: '100%', alignItems: 'center' }}>
-                <Typography variant="body1" sx={{ textAlign: 'center', fontWeight: 600 }}>
+              <Stack spacing={1.25} sx={{ width: '100%', height: '100%' }}>
+                <Stack
+                  direction={{ xs: 'column', sm: 'row' }}
+                  spacing={{ xs: 0, sm: 1.25 }}
+                  sx={{ width: '100%', alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between' }}
+                >
+                  <Box sx={{ width: { xs: '100%', sm: 'clamp(250px, 44%, 380px)' }, flex: '0 1 auto' }}>
+                    <Autocomplete
+                      options={pheNodeSelectionOptions}
+                      value={selectedPheNode}
+                      onChange={(_, newValue) => setSelectedPheNode(newValue)}
+                      sx={{ width: '100%' }}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          placeholder="Select PheNode..."
+                          size="small"
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              ...neonControlSx,
+                              '& .MuiOutlinedInput-notchedOutline': {
+                                border: 'none'
+                              },
+                              '&.Mui-focused': {
+                                borderColor: 'var(--blue)'
+                              }
+                            },
+                            '& .MuiInputBase-input': {
+                              color: 'var(--green)',
+                              '&::placeholder': {
+                                color: 'var(--green)',
+                                opacity: 1
+                              }
+                            },
+                            '& .MuiSvgIcon-root': {
+                              color: 'var(--blue)'
+                            }
+                          }}
+                        />
+                      )}
+                      slotProps={{
+                        paper: {
+                          sx: neonMenuPaperSx
+                        },
+                        listbox: {
+                          sx: {
+                            p: 0.5,
+                            '& .MuiAutocomplete-option': {
+                              ...neonMenuItemSx
+                            }
+                          }
+                        }
+                      }}
+                    />
+                  </Box>
+
+                  <Typography
+                    variant="body1"
+                    sx={{
+                      display: { xs: 'none', sm: 'block' },
+                      textAlign: 'right',
+                      fontWeight: 600,
+                      width: { sm: 'clamp(250px, 44%, 380px)' },
+                      flex: '0 1 auto'
+                    }}
+                  >
+                    <Box component="span" sx={{ color: 'var(--blue)' }}>
+                      [ MAC ADDR:
+                    </Box>{' '}
+                    <Box component="span" sx={{ color: 'var(--green)', textShadow: '0 1px 9px #1a75e0c9' }}>
+                      E3:45:2C:89:B6
+                    </Box>{' '}
+                    <Box component="span" sx={{ color: 'var(--blue)' }}>
+                      ]
+                    </Box>
+                  </Typography>
+                </Stack>
+
+                <Box
+                  sx={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <Box
+                    component="img"
+                    src={phenodeDiagram}
+                    alt="Phenode system diagram"
+                    sx={{
+                      width: { xs: '90%', sm: '88%', md: '88%', lg: '92%', xl: '94%' },
+                      maxHeight: { md: 390, lg: 490, xl: 590 },
+                      objectFit: 'contain',
+                      transform: { xs: 'translateX(20px)', md: 'translateX(12px)', xl: 'translateX(42px)' }
+                    }}
+                  />
+                </Box>
+
+                <Typography
+                  variant="body1"
+                  sx={{ display: { xs: 'block', sm: 'none' }, textAlign: 'center', fontWeight: 600, mt: 2.25, width: '100%' }}
+                >
                   <Box component="span" sx={{ color: 'var(--blue)' }}>
                     [ MAC ADDR:
                   </Box>{' '}
@@ -212,17 +360,6 @@ export default function SystemDiagnostics() {
                     ]
                   </Box>
                 </Typography>
-                <Box
-                  component="img"
-                  src={phenodeDiagram}
-                  alt="Phenode system diagram"
-                  sx={{
-                    width: { xs: '90%', sm: '88%', md: '88%', lg: '92%', xl: '94%' },
-                    maxHeight: { md: 390, lg: 490, xl: 590 },
-                    objectFit: 'contain',
-                    transform: { xs: 'translateX(6px)', md: 'translateX(12px)', xl: 'translateX(42px)' }
-                  }}
-                />
               </Stack>
             </Box>
           </Grid>
@@ -388,16 +525,35 @@ export default function SystemDiagnostics() {
                 <Typography variant="h5" sx={{ color: 'var(--blue)' }}>
                   Diagnostics Over Time
                 </Typography>
-                <IconButton
-                  aria-label="toggle chart layout"
-                  onClick={() => setChartLayout((prev) => (prev === 'column' ? 'row' : 'column'))}
-                  sx={{ border: '1px solid var(--reflected-light)', color: 'var(--blue)' }}
+                <Tooltip
+                  title="Orientation"
+                  arrow={false}
+                  slotProps={{
+                    tooltip: {
+                      sx: {
+                        backgroundColor: 'rgba(0, 20, 61, 0.96)',
+                        color: 'var(--green)',
+                        border: '1px solid var(--reflected-light)',
+                        boxShadow: '0 11px 19px 1px #0000002e',
+                        fontSize: '0.78rem'
+                      }
+                    }
+                  }}
                 >
-                  <AppstoreOutlined />
-                </IconButton>
+                  <IconButton
+                    aria-label="toggle chart layout"
+                    onClick={() => setChartLayout((prev) => (prev === 'column' ? 'row' : 'column'))}
+                    sx={orientationButtonSx}
+                  >
+                    <AppstoreOutlined />
+                  </IconButton>
+                </Tooltip>
               </Stack>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ alignItems: { xs: 'stretch', sm: 'center' }, mb: 2 }}>
-                <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 220 } }}>
+              <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', mb: 2 }}>
+                <FormControl
+                  size="small"
+                  sx={{ minWidth: { xs: 0, sm: 220 }, width: { xs: '100%', sm: 220 }, flex: { xs: 1, sm: '0 0 auto' } }}
+                >
                   <Select
                     value={timeRange}
                     onChange={(event) => setTimeRange(event.target.value)}
@@ -444,18 +600,40 @@ export default function SystemDiagnostics() {
                     ))}
                   </Select>
                 </FormControl>
-                <IconButton
-                  aria-label="refresh diagnostics charts"
-                  sx={{
-                    alignSelf: { xs: 'flex-start', sm: 'center' },
-                    border: '1px solid var(--reflected-light)',
-                    color: 'var(--purple)',
-                    backgroundColor: 'rgba(0, 20, 61, 0.72)',
-                    boxShadow: '0 11px 19px 1px #0000002e'
+                <Tooltip
+                  title="Refresh"
+                  arrow={false}
+                  slotProps={{
+                    tooltip: {
+                      sx: {
+                        backgroundColor: 'rgba(0, 20, 61, 0.96)',
+                        color: 'var(--green)',
+                        border: '1px solid var(--reflected-light)',
+                        boxShadow: '0 11px 19px 1px #0000002e',
+                        fontSize: '0.78rem'
+                      }
+                    }
                   }}
                 >
-                  <ReloadOutlined />
-                </IconButton>
+                  <IconButton
+                    aria-label="refresh diagnostics charts"
+                    sx={{
+                      border: '1px solid var(--reflected-light)',
+                      color: 'var(--purple)',
+                      backgroundColor: 'rgba(0, 20, 61, 0.72)',
+                      boxShadow: '0 11px 19px 1px #0000002e',
+                      '&:hover': {
+                        borderColor: 'var(--green)',
+                        boxShadow: '0 0 7px -5px var(--green)',
+                        color: 'var(--green)',
+                        textShadow: '0 1px 5px #007bff',
+                        backgroundColor: 'rgba(72, 247, 245, 0.08)'
+                      }
+                    }}
+                  >
+                    <ReloadOutlined />
+                  </IconButton>
+                </Tooltip>
               </Stack>
 
               <Box
