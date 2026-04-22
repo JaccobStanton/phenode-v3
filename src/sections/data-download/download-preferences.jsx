@@ -108,7 +108,7 @@ export default function DownloadPreferences() {
   const showBlankCustomInput = blankCellsStrategy === 'Flag with custom value';
 
   return (
-    <MainCard content={false} sx={{ overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
+    <MainCard content={false} sx={{ width: '100%', minWidth: 0, overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
       <Box sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 2.5 } }}>
         <Stack
           direction="row"

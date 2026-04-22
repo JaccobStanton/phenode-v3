@@ -235,8 +235,11 @@ function SearchableMultiSelect({ placeholder, options, value, onChange, disabled
               '&.Mui-disabled': {
                 opacity: 1
               },
-              '&.Mui-focused': {
-                borderColor: 'var(--blue)'
+              '&:hover:not(.Mui-disabled)': {
+                borderColor: 'var(--green)'
+              },
+              '&.Mui-focused:not(.Mui-disabled)': {
+                borderColor: 'var(--green)'
               },
               '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
             },
@@ -257,7 +260,13 @@ function SearchableMultiSelect({ placeholder, options, value, onChange, disabled
               borderColor: 'var(--box-outline-blue)',
               backgroundColor: 'rgba(0, 20, 61, 0.72)'
             },
-            '& .MuiSvgIcon-root': { color: 'var(--blue)' }
+            '& .MuiSvgIcon-root': { color: disabled ? 'var(--med-grey)' : 'var(--blue)' },
+            '& .MuiOutlinedInput-root:hover:not(.Mui-disabled) .MuiSvgIcon-root': {
+              color: 'var(--green)'
+            },
+            '& .MuiOutlinedInput-root.Mui-focused:not(.Mui-disabled) .MuiSvgIcon-root': {
+              color: 'var(--green)'
+            }
           }}
         />
       )}
@@ -463,8 +472,13 @@ export default function DataDownloads() {
                       sx={{
                         ...neonControlSx,
                         color: 'var(--green)',
-                        '&.Mui-focused': {
-                          borderColor: 'var(--blue)'
+                        '&:hover:not(.Mui-disabled)': {
+                          borderColor: 'var(--green)',
+                          '& .MuiSelect-icon': { color: 'var(--green)' }
+                        },
+                        '&.Mui-focused:not(.Mui-disabled)': {
+                          borderColor: 'var(--green)',
+                          '& .MuiSelect-icon': { color: 'var(--green)' }
                         },
                         '& .MuiSelect-select': {
                           color: 'var(--green)'
