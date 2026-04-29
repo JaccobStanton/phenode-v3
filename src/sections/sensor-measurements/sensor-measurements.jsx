@@ -20,34 +20,22 @@ import ClockCircleOutlined from '@ant-design/icons/ClockCircleOutlined';
 import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
 import ZoomInOutlined from '@ant-design/icons/ZoomInOutlined';
 
+import { reflectedCardChromeSx, orientationButtonSx, tooltipSlotProps, neonSelectMenuPaperProps } from 'themes/sx-tokens';
+import { timeRangeOptions, chartTimeLabels } from 'data/mocks/time-ranges';
+import { sensorMeasurementCharts } from 'data/mocks/sensor-measurements';
+
+// Sensor-measurements uses a slightly opaque "drf" base for its main panel;
+// keep this local variant rather than the more translucent shared one.
 const glassSurfaceSx = {
   backgroundColor: 'var(--drf)',
   backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))'
 };
 
-const reflectedCardChromeSx = {
-  border: '1px solid var(--reflected-light)',
-  boxShadow: '0 11px 19px 1px #0000002e'
-};
-
+// Chart panel surface – gradient with custom border, distinct from the shared chart surface.
 const chartSurfaceSx = {
   backgroundColor: '#07143f',
   backgroundImage: 'linear-gradient(180deg, #06102a 0%, #07143f 100%)',
   border: '1px solid #0e346a'
-};
-
-const orientationButtonSx = {
-  border: '1px solid var(--reflected-light)',
-  color: 'var(--blue)',
-  backgroundColor: 'rgba(0, 20, 61, 0.72)',
-  boxShadow: '0 11px 19px 1px #0000002e',
-  '&:hover': {
-    borderColor: 'var(--green)',
-    boxShadow: '0 0 7px -5px var(--green)',
-    color: 'var(--green)',
-    textShadow: '0 1px 5px #007bff',
-    backgroundColor: 'rgba(72, 247, 245, 0.08)'
-  }
 };
 
 const circleMetrics = [
@@ -73,52 +61,7 @@ const circleMetrics = [
   }
 ];
 
-const timeRangeOptions = [
-  'Last 6 hours',
-  'Last 12 hours',
-  'Last 24 hours',
-  'Last 5 days',
-  'Last 10 days',
-  'Last 30 days',
-  'Last 3 months',
-  'Last 6 months',
-  'Last year',
-  'Last 2 years'
-];
-
-const chartTimeLabels = [
-  '10:00',
-  '10:30',
-  '11:00',
-  '11:30',
-  '12:00',
-  '12:30',
-  '13:00',
-  '13:30',
-  '14:00',
-  '14:30',
-  '15:00',
-  '15:30',
-  '16:00'
-];
-
-const sensorMeasurementCharts = [
-  { title: 'Temperature', lineColor: '#48f7f5', data: [48, 52, 58, 63, 67, 73, 78, 82, 79, 75, 81, 86, 83] },
-  { title: 'Humidify', lineColor: '#c96cfc', data: [76, 73, 69, 64, 58, 53, 49, 45, 48, 54, 61, 67, 72] },
-  { title: 'LUX', lineColor: '#f47568', data: [80, 130, 240, 410, 560, 700, 860, 980, 930, 840, 760, 640, 520] },
-  { title: 'Soil Temperature', lineColor: '#940bf4', data: [42, 45, 49, 53, 57, 61, 65, 68, 66, 62, 59, 56, 54] },
-  {
-    title: 'Electrical Conductivity',
-    lineColor: '#f40b8f',
-    data: [0.72, 0.8, 0.94, 1.08, 1.2, 1.36, 1.52, 1.67, 1.61, 1.48, 1.34, 1.22, 1.1]
-  },
-  { title: 'Soil Moisture', lineColor: '#8539e0', data: [19, 22, 27, 33, 38, 45, 51, 57, 53, 47, 41, 36, 32] },
-  {
-    title: 'Battery Voltage (mV)',
-    lineColor: '#0043c2',
-    data: [4210, 4207, 4201, 4194, 4186, 4178, 4169, 4160, 4151, 4142, 4133, 4123, 4114]
-  }
-];
+// Time range options, chart time labels, and chart series come from data/mocks.
 
 export default function SensorMeasurements() {
   const [timeRange, setTimeRange] = useState('Last 24 hours');
@@ -264,17 +207,7 @@ export default function SensorMeasurements() {
             <Tooltip
               title="Orientation"
               arrow={false}
-              slotProps={{
-                tooltip: {
-                  sx: {
-                    backgroundColor: 'rgba(0, 20, 61, 0.96)',
-                    color: 'var(--green)',
-                    border: '1px solid var(--reflected-light)',
-                    boxShadow: '0 11px 19px 1px #0000002e',
-                    fontSize: '0.78rem'
-                  }
-                }
-              }}
+              slotProps={tooltipSlotProps}
             >
               <IconButton
                 aria-label="toggle sensor chart layout"
@@ -306,14 +239,7 @@ export default function SensorMeasurements() {
                   '& .MuiSelect-icon': { color: 'var(--blue)' }
                 }}
                 MenuProps={{
-                  PaperProps: {
-                    sx: {
-                      backgroundColor: 'rgba(0, 20, 61, 0.96)',
-                      border: '1px solid var(--reflected-light)',
-                      boxShadow: '0 11px 19px 1px #0000002e',
-                      color: 'var(--green)'
-                    }
-                  }
+                  PaperProps: neonSelectMenuPaperProps
                 }}
                 renderValue={(selected) => (
                   <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
@@ -342,17 +268,7 @@ export default function SensorMeasurements() {
             <Tooltip
               title="Refresh"
               arrow={false}
-              slotProps={{
-                tooltip: {
-                  sx: {
-                    backgroundColor: 'rgba(0, 20, 61, 0.96)',
-                    color: 'var(--green)',
-                    border: '1px solid var(--reflected-light)',
-                    boxShadow: '0 11px 19px 1px #0000002e',
-                    fontSize: '0.78rem'
-                  }
-                }
-              }}
+              slotProps={tooltipSlotProps}
             >
               <IconButton
                 aria-label="refresh sensor charts"

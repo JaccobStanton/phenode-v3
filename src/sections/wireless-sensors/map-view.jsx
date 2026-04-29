@@ -16,15 +16,8 @@ import wsFleetIconActive from 'assets/drawer-icons/WS_Fleet_Active.svg';
 import soilProbeIconActive from 'assets/toggle_buttons/Soil_Probe_Icon_Active.svg';
 import soilProbeIconInactive from 'assets/toggle_buttons/Soil_Probe_Icon_Inactive.svg';
 
-const glassSurfaceSx = {
-  backgroundColor: 'rgba(0, 17, 48, 0.03)',
-  backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))'
-};
-
-const reflectedCardChromeSx = {
-  border: '1px solid var(--reflected-light)',
-  boxShadow: '0 11px 19px 1px #0000002e'
-};
+import { glassSurfaceSx, reflectedCardChromeSx, tooltipSlotProps } from 'themes/sx-tokens';
+import { soilProbeReadings, sensorInfoReadings } from 'data/mocks/sensor-measurements';
 
 const mapPins = [
   { id: 'WS-1234568', top: '22%', left: '18%' },
@@ -33,37 +26,6 @@ const mapPins = [
   { id: 'SOIL-2031', top: '62%', left: '73%' },
   { id: 'WIND-9901', top: '71%', left: '27%' }
 ];
-
-const soilProbeReadings = {
-  'probe-1': [
-    { label: 'Soil Temperature', value: '61.84 °F' },
-    { label: 'Soil Moisture', value: '42.5 %' },
-    { label: 'Soil Salinity', value: '1.83 kPa' }
-  ],
-  'probe-2': [
-    { label: 'Soil Temperature', value: '59.12 °F' },
-    { label: 'Soil Moisture', value: '39.8 %' },
-    { label: 'Soil Salinity', value: '2.07 kPa' }
-  ]
-};
-
-const sensorInfoReadings = [
-  { label: 'Sensor ID', value: 'WS-1234568' },
-  { label: 'GPS', value: '32 42 23 43, 92 89' },
-  { label: 'Altitude', value: '793.95ft' },
-  { label: 'Battery', value: '87.52%' },
-  { label: 'Probes Connected', value: '2' }
-];
-
-function sensorInfoTooltipSx() {
-  return {
-    backgroundColor: 'rgba(0, 20, 61, 0.96)',
-    color: 'var(--green)',
-    border: '1px solid var(--reflected-light)',
-    boxShadow: '0 11px 19px 1px #0000002e',
-    fontSize: '0.78rem'
-  };
-}
 
 export default function MapView({ infoCardMode, setInfoCardMode, selectedSoilProbe, setSelectedSoilProbe }) {
   const [isInfoToggleHovered, setIsInfoToggleHovered] = useState(false);
@@ -185,7 +147,7 @@ export default function MapView({ infoCardMode, setInfoCardMode, selectedSoilPro
               <Typography variant="h5" sx={{ color: '#646cff' }}>
                 {infoCardTitle}
               </Typography>
-              <Tooltip title={infoCardTooltipTitle} arrow={false} slotProps={{ tooltip: { sx: sensorInfoTooltipSx() } }}>
+              <Tooltip title={infoCardTooltipTitle} arrow={false} slotProps={tooltipSlotProps}>
                 <IconButton
                   aria-label={isSoilDataMode ? 'show sensor info' : 'show soil data'}
                   onClick={() => setInfoCardMode((prev) => (prev === 'soil' ? 'sensor' : 'soil'))}

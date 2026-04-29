@@ -36,23 +36,7 @@ import InfoCircleOutlined from '@ant-design/icons/InfoCircleOutlined';
 import LeftOutlined from '@ant-design/icons/LeftOutlined';
 import RightOutlined from '@ant-design/icons/RightOutlined';
 
-const glassSurfaceSx = {
-  backgroundColor: 'rgba(0, 17, 48, 0.03)',
-  backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))'
-};
-
-const reflectedCardChromeSx = {
-  border: '1px solid var(--reflected-light)',
-  boxShadow: '0 11px 19px 1px #0000002e'
-};
-
-const neonControlSx = {
-  backgroundColor: 'var(--drf)',
-  border: '1px solid var(--reflected-light)',
-  borderRadius: 1,
-  minHeight: 40,
-  boxShadow: '0 11px 19px 1px #0000002e'
-};
+import { glassSurfaceSx, reflectedCardChromeSx, neonControlSx, tooltipSlotProps } from 'themes/sx-tokens';
 
 const datePickerTextFieldSx = {
   flex: 1,
@@ -434,17 +418,7 @@ export default function Imaging() {
                     key={image.id}
                     title={image.name}
                     arrow={false}
-                    slotProps={{
-                      tooltip: {
-                        sx: {
-                          backgroundColor: 'rgba(0, 20, 61, 0.96)',
-                          color: 'var(--green)',
-                          border: '1px solid var(--reflected-light)',
-                          boxShadow: '0 11px 19px 1px #0000002e',
-                          fontSize: '0.78rem'
-                        }
-                      }
-                    }}
+                    slotProps={tooltipSlotProps}
                   >
                     <Box
                       component="button"
@@ -611,17 +585,7 @@ export default function Imaging() {
                   <Tooltip
                     title="Images are defaulted to load the last 5 taken by your PheNode."
                     arrow={false}
-                    slotProps={{
-                      tooltip: {
-                        sx: {
-                          backgroundColor: 'rgba(0, 20, 61, 0.96)',
-                          color: 'var(--green)',
-                          border: '1px solid var(--reflected-light)',
-                          boxShadow: '0 11px 19px 1px #0000002e',
-                          fontSize: '0.78rem'
-                        }
-                      }
-                    }}
+                    slotProps={tooltipSlotProps}
                   >
                     <Box
                       component="span"

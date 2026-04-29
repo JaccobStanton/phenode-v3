@@ -1,11 +1,9 @@
 import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 
-import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
-import Checkbox from '@mui/material/Checkbox';
 import Chip from '@mui/material/Chip';
 import Divider from '@mui/material/Divider';
 import FormControl from '@mui/material/FormControl';
@@ -14,7 +12,6 @@ import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import Stack from '@mui/material/Stack';
-import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { LineChart } from '@mui/x-charts/LineChart';
@@ -23,38 +20,17 @@ import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 
 import MainCard from 'components/MainCard';
+import SearchableMultiSelect from 'components/inputs/SearchableMultiSelect';
 
 import ClockCircleOutlined from '@ant-design/icons/ClockCircleOutlined';
 import DownloadOutlined from '@ant-design/icons/DownloadOutlined';
 import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
 
-const glassSurfaceSx = {
-  backgroundColor: 'rgba(0, 17, 48, 0.03)',
-  backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))'
-};
+import { glassSurfaceSx, reflectedCardChromeSx, neonControlSx, neonMenuPaperSx, tooltipSlotProps } from 'themes/sx-tokens';
+import { timeRangeOptions, chartTimeLabels as sharedChartTimeLabels } from 'data/mocks/time-ranges';
+import { multiGraphSensorOptions as sensorOptions, pheNodeSelectionOptions as pheNodeOptions } from 'data/mocks/phenode-options';
 
-const reflectedCardChromeSx = {
-  border: '1px solid var(--reflected-light)',
-  boxShadow: '0 11px 19px 1px #0000002e'
-};
-
-const neonControlSx = {
-  backgroundColor: 'var(--drf)',
-  border: '1px solid var(--reflected-light)',
-  borderRadius: 1,
-  minHeight: 40,
-  boxShadow: '0 11px 19px 1px #0000002e'
-};
-
-const neonMenuPaperSx = {
-  backgroundColor: 'rgba(0, 20, 61, 0.96)',
-  backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))',
-  border: '1px solid var(--reflected-light)',
-  boxShadow: '0 11px 19px 1px #0000002e',
-  backdropFilter: 'blur(6px)',
-  color: 'var(--green)'
-};
-
+// Multi-sensor graph allows multi-select; needs the .Mui-selected variant.
 const neonMenuItemSx = {
   color: 'var(--green)',
   '&:hover': {
@@ -176,22 +152,6 @@ const dateTimePickerTextFieldSx = {
 
 const measurementOptions = ['Air Temperature', 'Humidity', 'LUX', 'Soil Moisture', 'Soil Water Potential'];
 
-const timeRangeOptions = [
-  'Last 6 hours',
-  'Last 12 hours',
-  'Last 24 hours',
-  'Last 5 days',
-  'Last 10 days',
-  'Last 30 days',
-  'Last 3 months',
-  'Last 6 months',
-  'Last year',
-  'Last 2 years'
-];
-
-const sensorOptions = ['WS-1234568', 'WS-1234569', 'WS-1234570', 'WS-1234571', 'WS-1234572', 'WS-1234573', 'WS-1234574', 'WS-1234575'];
-const pheNodeOptions = ['PheNode 020', 'PheNode 017', 'PheNode 031', 'PheNode 105', 'PheNode 214'];
-
 const linePalette = [
   { label: 'Cyan', line: '#48f7f5', glow: '#2b5bd5' },
   { label: 'Lavender', line: '#c96cfc', glow: '#940bf4' },
@@ -215,21 +175,7 @@ const mockSeriesPoints = [
 ];
 
 const GRAPH_HEIGHT = 420;
-const chartTimeLabels = [
-  '10:00',
-  '10:30',
-  '11:00',
-  '11:30',
-  '12:00',
-  '12:30',
-  '13:00',
-  '13:30',
-  '14:00',
-  '14:30',
-  '15:00',
-  '15:30',
-  '16:00'
-];
+const chartTimeLabels = sharedChartTimeLabels;
 const measurementAxisUnits = {
   'Air Temperature': ['50', '40', '30', '20', '10'],
   Humidity: ['100', '80', '60', '40', '20', '0'],
@@ -244,8 +190,6 @@ const measurementLineOffset = {
   'Soil Moisture': -4,
   'Soil Water Potential': 10
 };
-const SELECT_ALL_LABEL = 'Select All';
-
 function mapPointStringToSeriesValues(pointString, minValue, maxValue) {
   const valueRange = maxValue - minValue || 1;
   return pointString.split(' ').map((pointPair) => {
@@ -264,107 +208,7 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function SearchableMultiSelect({ placeholder, options, value, onChange, limitTags = 2 }) {
-  const allOptions = useMemo(() => [SELECT_ALL_LABEL, ...options], [options]);
-
-  return (
-    <Autocomplete
-      multiple
-      disableCloseOnSelect
-      limitTags={limitTags}
-      options={allOptions}
-      value={value}
-      onChange={(_, newValue) => {
-        if (newValue.includes(SELECT_ALL_LABEL)) {
-          const nextValue = value.length === options.length ? [] : options;
-          onChange(nextValue);
-          return;
-        }
-        onChange(newValue.filter((entry) => entry !== SELECT_ALL_LABEL));
-      }}
-      renderOption={(props, option, { selected }) => (
-        <li {...props}>
-          <Checkbox
-            checked={selected || (value.length === options.length && option === SELECT_ALL_LABEL)}
-            sx={{
-              p: 0.5,
-              mr: 1,
-              color: 'var(--blue)',
-              '&.Mui-checked': {
-                color: 'var(--green)'
-              },
-              '&:hover': {
-                backgroundColor: 'rgba(72, 247, 245, 0.12)'
-              }
-            }}
-          />
-          {option}
-        </li>
-      )}
-      renderInput={(params) => (
-        <TextField
-          {...params}
-          placeholder={placeholder}
-          size="small"
-          sx={{
-            '& .MuiOutlinedInput-root': {
-              ...neonControlSx,
-              '&:hover:not(.Mui-disabled)': {
-                borderColor: 'var(--green)'
-              },
-              '&.Mui-focused:not(.Mui-disabled)': {
-                borderColor: 'var(--green)'
-              },
-              '& .MuiOutlinedInput-notchedOutline': {
-                border: 'none'
-              }
-            },
-            '& .MuiInputBase-input': {
-              color: 'var(--green)',
-              '&::placeholder': {
-                color: 'var(--green)',
-                opacity: 1
-              }
-            },
-            '& .MuiChip-root': {
-              color: 'var(--green)',
-              borderColor: 'var(--box-outline-blue)',
-              backgroundColor: 'rgba(0, 20, 61, 0.72)',
-              borderRadius: 1,
-              boxShadow: '0 11px 19px 1px #0000002e'
-            },
-            '& .MuiSvgIcon-root': {
-              color: 'var(--blue)'
-            },
-            '& .MuiOutlinedInput-root:hover:not(.Mui-disabled) .MuiSvgIcon-root': {
-              color: 'var(--green)'
-            },
-            '& .MuiOutlinedInput-root.Mui-focused:not(.Mui-disabled) .MuiSvgIcon-root': {
-              color: 'var(--green)'
-            }
-          }}
-        />
-      )}
-      slotProps={{
-        paper: {
-          sx: neonMenuPaperSx
-        },
-        listbox: {
-          sx: {
-            p: 0.5,
-            '& .MuiAutocomplete-option': {
-              ...neonMenuItemSx
-            }
-          }
-        },
-        chip: {
-          size: 'small',
-          variant: 'outlined'
-        }
-      }}
-    />
-  );
-}
+// SearchableMultiSelect lives in components/inputs/ and is shared with data-downloads.
 
 export default function MultiSensorGraph() {
   const [selectedMeasurement, setSelectedMeasurement] = useState('');
@@ -598,17 +442,7 @@ export default function MultiSensorGraph() {
                 <Tooltip
                   title="Refresh"
                   arrow={false}
-                  slotProps={{
-                    tooltip: {
-                      sx: {
-                        backgroundColor: 'rgba(0, 20, 61, 0.96)',
-                        color: 'var(--green)',
-                        border: '1px solid var(--reflected-light)',
-                        boxShadow: '0 11px 19px 1px #0000002e',
-                        fontSize: '0.78rem'
-                      }
-                    }
-                  }}
+                  slotProps={tooltipSlotProps}
                 >
                   <IconButton
                     aria-label="refresh multi sensor graph"

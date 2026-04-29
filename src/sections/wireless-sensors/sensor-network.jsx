@@ -14,10 +14,11 @@ import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { LineChart } from '@mui/x-charts/LineChart';
 
 import MainCard from 'components/MainCard';
 import MapView from 'sections/wireless-sensors/map-view';
+import MeasurementsChartGrid from 'sections/wireless-sensors/MeasurementsChartGrid';
+import useInfoCard from 'hooks/useInfoCard';
 import wirelessSensorsDiagram from 'assets/diagrams/Wireless-Sensors-v4.svg';
 import wsFleetIcon from 'assets/drawer-icons/WS_Fleet.svg';
 import wsFleetIconActive from 'assets/drawer-icons/WS_Fleet_Active.svg';
@@ -29,135 +30,26 @@ import soilProbeIconInactive from 'assets/toggle_buttons/Soil_Probe_Icon_Inactiv
 import AppstoreOutlined from '@ant-design/icons/AppstoreOutlined';
 import ClockCircleOutlined from '@ant-design/icons/ClockCircleOutlined';
 import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
-import ZoomInOutlined from '@ant-design/icons/ZoomInOutlined';
 
-const glassSurfaceSx = {
-  backgroundColor: 'rgba(0, 17, 48, 0.03)',
-  backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))'
-};
+import {
+  glassSurfaceSx,
+  reflectedCardChromeSx,
+  drfSurfaceSx,
+  neonControlSx,
+  drawerNavButtonSurfaceSx,
+  orientationButtonSx,
+  neonMenuPaperSx,
+  neonMenuItemSx,
+  tooltipSlotProps,
+  neonSelectMenuPaperProps
+} from 'themes/sx-tokens';
 
-const reflectedCardChromeSx = {
-  border: '1px solid var(--reflected-light)',
-  boxShadow: '0 11px 19px 1px #0000002e'
-};
+import { timeRangeOptions, chartTimeLabels } from 'data/mocks/time-ranges';
+import { sensorMeasurementCharts, soilProbeReadings } from 'data/mocks/sensor-measurements';
+import { pheNodeSelectionOptions, sensorSelectionOptions } from 'data/mocks/phenode-options';
 
-const drfSurfaceSx = {
-  backgroundColor: 'var(--drf)',
-  backgroundImage: 'none'
-};
-
-const chartSurfaceSx = {
-  backgroundColor: 'rgba(0, 18, 55, 0.6)'
-};
-
-const neonControlSx = {
-  backgroundColor: 'var(--drf)',
-  border: '1px solid var(--reflected-light)',
-  borderRadius: 1,
-  minHeight: 40,
-  boxShadow: '0 11px 19px 1px #0000002e'
-};
-
-const drawerNavButtonSurfaceSx = {
-  backgroundColor: 'rgba(0, 17, 48, 0.03)',
-  backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))'
-};
-
-const orientationButtonSx = {
-  border: '1px solid var(--reflected-light)',
-  color: 'var(--blue)',
-  backgroundColor: 'rgba(0, 20, 61, 0.72)',
-  boxShadow: '0 11px 19px 1px #0000002e',
-  '&:hover': {
-    borderColor: 'var(--green)',
-    boxShadow: '0 0 7px -5px var(--green)',
-    color: 'var(--green)',
-    textShadow: '0 1px 5px #007bff',
-    backgroundColor: 'rgba(72, 247, 245, 0.08)'
-  }
-};
-
-const neonMenuPaperSx = {
-  backgroundColor: 'rgba(0, 20, 61, 0.96)',
-  backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))',
-  border: '1px solid var(--reflected-light)',
-  boxShadow: '0 11px 19px 1px #0000002e',
-  backdropFilter: 'blur(6px)',
-  color: 'var(--green)'
-};
-
-const neonMenuItemSx = {
-  color: 'var(--green)',
-  '&:hover': {
-    backgroundColor: 'rgba(72, 247, 245, 0.12)'
-  },
-  '&.Mui-focused': {
-    backgroundColor: 'rgba(72, 247, 245, 0.12)'
-  }
-};
-
-const timeRangeOptions = [
-  'Last 6 hours',
-  'Last 12 hours',
-  'Last 24 hours',
-  'Last 5 days',
-  'Last 10 days',
-  'Last 30 days',
-  'Last 3 months',
-  'Last 6 months',
-  'Last year',
-  'Last 2 years'
-];
-
-const chartTimeLabels = [
-  '10:00',
-  '10:30',
-  '11:00',
-  '11:30',
-  '12:00',
-  '12:30',
-  '13:00',
-  '13:30',
-  '14:00',
-  '14:30',
-  '15:00',
-  '15:30',
-  '16:00'
-];
-
-const sensorMeasurementCharts = [
-  { title: 'Temperature', lineColor: '#48f7f5', data: [48, 52, 58, 63, 67, 73, 78, 82, 79, 75, 81, 86, 83] },
-  { title: 'Humidify', lineColor: '#c96cfc', data: [76, 73, 69, 64, 58, 53, 49, 45, 48, 54, 61, 67, 72] },
-  { title: 'LUX', lineColor: '#f47568', data: [80, 130, 240, 410, 560, 700, 860, 980, 930, 840, 760, 640, 520] },
-  { title: 'Soil Temperature', lineColor: '#940bf4', data: [42, 45, 49, 53, 57, 61, 65, 68, 66, 62, 59, 56, 54] },
-  {
-    title: 'Electrical Conductivity',
-    lineColor: '#f40b8f',
-    data: [0.72, 0.8, 0.94, 1.08, 1.2, 1.36, 1.52, 1.67, 1.61, 1.48, 1.34, 1.22, 1.1]
-  },
-  { title: 'Soil Moisture', lineColor: '#8539e0', data: [19, 22, 27, 33, 38, 45, 51, 57, 53, 47, 41, 36, 32] },
-  {
-    title: 'Battery Voltage (mV)',
-    lineColor: '#0043c2',
-    data: [4210, 4207, 4201, 4194, 4186, 4178, 4169, 4160, 4151, 4142, 4133, 4123, 4114]
-  }
-];
-
-const soilProbeReadings = {
-  'probe-1': [
-    { label: 'Soil Temperature', value: '61.84 °F' },
-    { label: 'Soil Moisture', value: '42.5 %' },
-    { label: 'Soil Salinity', value: '1.83 kPa' }
-  ],
-  'probe-2': [
-    { label: 'Soil Temperature', value: '59.12 °F' },
-    { label: 'Soil Moisture', value: '39.8 %' },
-    { label: 'Soil Salinity', value: '2.07 kPa' }
-  ]
-};
-
-const sensorSelectionOptions = ['WS-1234568', 'WS-1234569', 'WS-1234570', 'WS-1234571', 'SOIL-2031', 'AIR-4412', 'RAIN-7722', 'WIND-9901'];
-const pheNodeSelectionOptions = ['PheNode 020', 'PheNode 017', 'PheNode 031', 'PheNode 105', 'PheNode 214'];
+// Hoisted to module scope so this object literal isn't recreated every render.
+const diagramWidthSx = { xs: '92%', sm: '88%', md: '90%', lg: '92%' };
 
 export default function SensorNetwork() {
   const [timeRange, setTimeRange] = useState('Last 24 hours');
@@ -165,12 +57,12 @@ export default function SensorNetwork() {
   const [isMapView, setIsMapView] = useState(false);
   const [selectedPheNode, setSelectedPheNode] = useState(null);
   const [selectedNetworkSensor, setSelectedNetworkSensor] = useState(null);
-  const [infoCardMode, setInfoCardMode] = useState('sensor');
-  const [selectedSoilProbe, setSelectedSoilProbe] = useState('probe-1');
+  // Info-card state (mode + soil-probe selection) lives in a hook so we can
+  // pass it directly to MapView without prop-drilling four setters.
+  const { infoCardMode, setInfoCardMode, selectedSoilProbe, setSelectedSoilProbe, isSoilDataMode } = useInfoCard();
   const [isMapToggleHovered, setIsMapToggleHovered] = useState(false);
   const [isInfoToggleHovered, setIsInfoToggleHovered] = useState(false);
   const chartCards = useMemo(() => sensorMeasurementCharts, []);
-  const isSoilDataMode = infoCardMode === 'soil';
   const infoCardTitle = isSoilDataMode ? 'Soil Data' : 'Sensor Information';
   const infoCardTooltipTitle = isSoilDataMode ? 'Sensor Info.' : 'Soil Data';
   const infoCardToggleIcon = isSoilDataMode
@@ -188,7 +80,6 @@ export default function SensorNetwork() {
       ? mapIconActive
       : mapIconInactive;
   const activeSoilReadings = soilProbeReadings[selectedSoilProbe];
-  const diagramWidthSx = { xs: '92%', sm: '88%', md: '90%', lg: '92%' };
   const sectionTitle = isMapView ? 'Sensor Overview' : 'Wireless Sensor Measurements';
   const mapToggleTooltip = isMapView ? 'Sensor Overview' : 'Map View';
 
@@ -329,21 +220,7 @@ export default function SensorNetwork() {
             />
           </Stack>
 
-          <Tooltip
-            title={mapToggleTooltip}
-            arrow={false}
-            slotProps={{
-              tooltip: {
-                sx: {
-                  backgroundColor: 'rgba(0, 20, 61, 0.96)',
-                  color: 'var(--green)',
-                  border: '1px solid var(--reflected-light)',
-                  boxShadow: '0 11px 19px 1px #0000002e',
-                  fontSize: '0.78rem'
-                }
-              }
-            }}
-          >
+          <Tooltip title={mapToggleTooltip} arrow={false} slotProps={tooltipSlotProps}>
             <IconButton
               aria-label={isMapView ? 'sensor overview' : 'map view'}
               onClick={() => setIsMapView((prev) => !prev)}
@@ -446,21 +323,7 @@ export default function SensorNetwork() {
                       <Typography variant="h5" sx={{ color: '#646cff' }}>
                         {infoCardTitle}
                       </Typography>
-                      <Tooltip
-                        title={infoCardTooltipTitle}
-                        arrow={false}
-                        slotProps={{
-                          tooltip: {
-                            sx: {
-                              backgroundColor: 'rgba(0, 20, 61, 0.96)',
-                              color: 'var(--green)',
-                              border: '1px solid var(--reflected-light)',
-                              boxShadow: '0 11px 19px 1px #0000002e',
-                              fontSize: '0.78rem'
-                            }
-                          }
-                        }}
-                      >
+                      <Tooltip title={infoCardTooltipTitle} arrow={false} slotProps={tooltipSlotProps}>
                         <IconButton
                           aria-label={isSoilDataMode ? 'show sensor info' : 'show soil data'}
                           onClick={() => setInfoCardMode((prev) => (prev === 'soil' ? 'sensor' : 'soil'))}
@@ -653,21 +516,7 @@ export default function SensorNetwork() {
                 <Typography variant="h5" sx={{ color: 'var(--blue)' }}>
                   Measurements Over Time
                 </Typography>
-                <Tooltip
-                  title="Orientation"
-                  arrow={false}
-                  slotProps={{
-                    tooltip: {
-                      sx: {
-                        backgroundColor: 'rgba(0, 20, 61, 0.96)',
-                        color: 'var(--green)',
-                        border: '1px solid var(--reflected-light)',
-                        boxShadow: '0 11px 19px 1px #0000002e',
-                        fontSize: '0.78rem'
-                      }
-                    }
-                  }}
-                >
+                <Tooltip title="Orientation" arrow={false} slotProps={tooltipSlotProps}>
                   <IconButton
                     aria-label="toggle sensor chart layout"
                     onClick={() => setChartLayout((prev) => (prev === 'column' ? 'row' : 'column'))}
@@ -695,16 +544,7 @@ export default function SensorNetwork() {
                       '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
                       '& .MuiSelect-icon': { color: 'var(--blue)' }
                     }}
-                    MenuProps={{
-                      PaperProps: {
-                        sx: {
-                          backgroundColor: 'rgba(0, 20, 61, 0.96)',
-                          border: '1px solid var(--reflected-light)',
-                          boxShadow: '0 11px 19px 1px #0000002e',
-                          color: 'var(--green)'
-                        }
-                      }
-                    }}
+                    MenuProps={{ PaperProps: neonSelectMenuPaperProps }}
                     renderValue={(selected) => (
                       <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                         <ClockCircleOutlined style={{ color: 'var(--blue)' }} />
@@ -729,21 +569,7 @@ export default function SensorNetwork() {
                     ))}
                   </Select>
                 </FormControl>
-                <Tooltip
-                  title="Refresh"
-                  arrow={false}
-                  slotProps={{
-                    tooltip: {
-                      sx: {
-                        backgroundColor: 'rgba(0, 20, 61, 0.96)',
-                        color: 'var(--green)',
-                        border: '1px solid var(--reflected-light)',
-                        boxShadow: '0 11px 19px 1px #0000002e',
-                        fontSize: '0.78rem'
-                      }
-                    }
-                  }}
-                >
+                <Tooltip title="Refresh" arrow={false} slotProps={tooltipSlotProps}>
                   <IconButton
                     aria-label="refresh sensor charts"
                     sx={{
@@ -765,113 +591,7 @@ export default function SensorNetwork() {
                 </Tooltip>
               </Stack>
 
-              <Box
-                sx={{
-                  display: 'grid',
-                  gap: 1.5,
-                  gridTemplateColumns:
-                    chartLayout === 'row' ? { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' } : '1fr'
-                }}
-              >
-                {chartCards.map((chart) => {
-                  const minVal = Math.min(...chart.data);
-                  const maxVal = Math.max(...chart.data);
-                  const pad = Math.max(0.1, (maxVal - minVal) * 0.04);
-
-                  return (
-                    <Box
-                      key={chart.title}
-                      sx={{
-                        borderRadius: 1,
-                        p: { xs: 0.45, sm: 0.65 },
-                        minHeight: { xs: 260, sm: 286 },
-                        display: 'flex',
-                        flexDirection: 'column',
-                        ...chartSurfaceSx,
-                        ...reflectedCardChromeSx
-                      }}
-                    >
-                      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 0.25 }}>
-                        <Typography variant="subtitle1" sx={{ color: 'var(--blue)', ml: 1.25 }}>
-                          {chart.title}
-                        </Typography>
-                        <IconButton aria-label={`zoom ${chart.title}`} size="small" sx={{ color: 'var(--blue)' }}>
-                          <ZoomInOutlined />
-                        </IconButton>
-                      </Stack>
-
-                      <LineChart
-                        xAxis={[
-                          {
-                            id: `${chart.title}-x`,
-                            scaleType: 'point',
-                            data: chartTimeLabels,
-                            tickLabelInterval: (_, index) => index === 0 || index === chartTimeLabels.length - 1 || index % 4 === 0,
-                            tickLabelStyle: { fontSize: 11, fill: 'var(--green)' }
-                          }
-                        ]}
-                        yAxis={[
-                          {
-                            id: `${chart.title}-y`,
-                            min: minVal - pad,
-                            max: maxVal + pad,
-                            width: 30,
-                            tickLabelStyle: { fill: 'var(--green)' },
-                            valueFormatter: (value) => (Math.abs(value) >= 1000 ? `${(value / 1000).toFixed(1)}k` : `${value}`)
-                          }
-                        ]}
-                        series={[
-                          {
-                            id: `${chart.title}-line`,
-                            data: chart.data,
-                            color: chart.lineColor,
-                            area: true,
-                            showMark: false,
-                            curve: 'linear'
-                          }
-                        ]}
-                        grid={{ horizontal: true, vertical: true }}
-                        height={chartLayout === 'row' ? 228 : 258}
-                        margin={{ top: 2, right: 16, bottom: 10, left: 10 }}
-                        hideLegend
-                        sx={{
-                          width: '100%',
-                          overflow: 'visible',
-                          '& .MuiChartsSurface-root': {
-                            overflow: 'visible'
-                          },
-                          '& .MuiChartsGrid-line': {
-                            stroke: 'var(--blue)',
-                            strokeOpacity: 0.38,
-                            strokeWidth: 0.65
-                          },
-                          '& .MuiLineElement-root': {
-                            strokeWidth: 0.95,
-                            strokeLinecap: 'round',
-                            strokeLinejoin: 'round',
-                            filter: `drop-shadow(0 0 8px ${chart.lineColor})`
-                          },
-                          '& .MuiAreaElement-root': {
-                            fillOpacity: 0.16
-                          },
-                          '& .MuiChartsAxis-line, & .MuiChartsAxis-tick': {
-                            stroke: 'rgba(232, 232, 232, 0.45)'
-                          },
-                          '& .MuiChartsAxis-tickLabel': {
-                            fill: 'var(--green)',
-                            fontWeight: 600
-                          },
-                          '& .MuiChartsAxis-left .MuiChartsAxis-line, & .MuiChartsAxis-bottom .MuiChartsAxis-line': {
-                            stroke: 'rgba(232, 232, 232, 0.55)'
-                          },
-                          background: 'transparent',
-                          borderRadius: 1
-                        }}
-                      />
-                    </Box>
-                  );
-                })}
-              </Box>
+              <MeasurementsChartGrid charts={chartCards} timeLabels={chartTimeLabels} layout={chartLayout} />
             </Box>
           </Grid>
         </Grid>

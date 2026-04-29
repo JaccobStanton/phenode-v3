@@ -1,12 +1,8 @@
 {
-  "name": "mantis-material-free-react",
-  "version": "2.0.1",
-  "homepage": "https://mantisdashboard.com/free",
-  "author": {
-    "name": "CodedThemes",
-    "email": "codedthemes@gmail.com",
-    "url": "https://codedthemes.com/"
-  },
+  "name": "phenode-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PheNode V3 dashboard frontend (built on top of the Mantis admin template).",
   "scripts": {
     "start": "vite",
     "build": "vite build",
@@ -37,13 +33,11 @@
     "react-device-detect": "2.2.3",
     "react-dom": "19.2.3",
     "react-number-format": "5.4.4",
-    "react-router": "7.11.0",
     "react-router-dom": "7.11.0",
     "simplebar-react": "3.3.2",
     "swr": "2.3.8",
     "vite": "7.3.0",
     "vite-jsconfig-paths": "2.0.1",
-    "web-vitals": "5.1.0",
     "yup": "1.7.1"
   },
   "eslintConfig": {

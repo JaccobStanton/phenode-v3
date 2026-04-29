@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
@@ -22,116 +22,63 @@ import AppstoreOutlined from '@ant-design/icons/AppstoreOutlined';
 import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
 import ZoomInOutlined from '@ant-design/icons/ZoomInOutlined';
 
-const glassSurfaceSx = {
-  backgroundColor: 'rgba(0, 17, 48, 0.03)',
-  backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))'
-};
+import {
+  glassSurfaceSx,
+  reflectedCardChromeSx,
+  drfSurfaceSx,
+  neonControlSx,
+  neonMenuPaperSx,
+  neonMenuItemSx,
+  orientationButtonSx,
+  tooltipSlotProps,
+  neonSelectMenuPaperProps
+} from 'themes/sx-tokens';
+import { timeRangeOptions } from 'data/mocks/time-ranges';
+import { pheNodeSelectionOptions } from 'data/mocks/phenode-options';
 
-const reflectedCardChromeSx = {
-  border: '1px solid var(--reflected-light)',
-  boxShadow: '0 11px 19px 1px #0000002e'
-};
-
-const drfSurfaceSx = {
-  backgroundColor: 'var(--drf)',
-  backgroundImage: 'none'
-};
-
+// System diagnostics uses a slightly different chart surface (gradient + custom border).
 const chartSurfaceSx = {
   backgroundColor: '#07143f',
   backgroundImage: 'linear-gradient(180deg, #06102a 0%, #07143f 100%)',
   border: '1px solid #0e346a'
 };
 
-const neonControlSx = {
-  backgroundColor: 'var(--drf)',
-  border: '1px solid var(--reflected-light)',
-  borderRadius: 1,
-  minHeight: 40,
-  boxShadow: '0 11px 19px 1px #0000002e'
-};
+// Module-scope constants - hoisted to avoid being re-created every render.
+const signalBarHeights = [12, 18, 24, 30];
 
-const neonMenuPaperSx = {
-  backgroundColor: 'rgba(0, 20, 61, 0.96)',
-  backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))',
-  border: '1px solid var(--reflected-light)',
-  boxShadow: '0 11px 19px 1px #0000002e',
-  backdropFilter: 'blur(6px)',
-  color: 'var(--green)'
-};
+const sensorStatusCards = [
+  { title: 'Rainfall', status: 'Inactive', statusColor: 'var(--purple)', notchColor: 'var(--purple)' },
+  { title: 'Camera', status: 'Active', statusColor: 'var(--green)', notchColor: 'var(--green)' },
+  { title: 'Solar Radiation', status: 'Inactive', statusColor: 'var(--purple)', notchColor: 'var(--purple)' },
+  { title: 'Soil', status: 'Inactive', statusColor: 'var(--purple)', notchColor: 'var(--purple)' },
+  { title: 'Air & Light', status: 'Active', statusColor: 'var(--green)', notchColor: 'var(--green)' },
+  { title: 'Wind', status: 'Inactive', statusColor: 'var(--purple)', notchColor: 'var(--purple)' }
+];
 
-const neonMenuItemSx = {
-  color: 'var(--green)',
-  '&:hover': {
-    backgroundColor: 'rgba(72, 247, 245, 0.12)'
+const graphCards = [
+  {
+    title: 'Cellular Signal (RSSI)',
+    lineColor: '#48f7f5',
+    data: [-105, -97, -98, -90, -92, -86, -83, -78]
   },
-  '&.Mui-focused': {
-    backgroundColor: 'rgba(72, 247, 245, 0.12)'
+  {
+    title: 'Internal Temperature',
+    lineColor: '#c96cfc',
+    data: [85, 94, 92, 100, 97, 103, 107, 112]
+  },
+  {
+    title: 'Battery Charge',
+    lineColor: '#f47568',
+    data: [82, 80, 77, 75, 71, 68, 65, 63]
   }
-};
+];
 
-const orientationButtonSx = {
-  border: '1px solid var(--reflected-light)',
-  color: 'var(--blue)',
-  backgroundColor: 'rgba(0, 20, 61, 0.72)',
-  boxShadow: '0 11px 19px 1px #0000002e',
-  '&:hover': {
-    borderColor: 'var(--green)',
-    boxShadow: '0 0 7px -5px var(--green)',
-    color: 'var(--green)',
-    textShadow: '0 1px 5px #007bff',
-    backgroundColor: 'rgba(72, 247, 245, 0.08)'
-  }
-};
-
-const pheNodeSelectionOptions = ['PheNode 020', 'PheNode 017', 'PheNode 031', 'PheNode 105', 'PheNode 214'];
+const chartTimeLabels = ['0h', '3h', '6h', '9h', '12h', '15h', '18h', '24h'];
 
 export default function SystemDiagnostics() {
   const [timeRange, setTimeRange] = useState('Last 24 hours');
   const [chartLayout, setChartLayout] = useState('row');
   const [selectedPheNode, setSelectedPheNode] = useState(null);
-  const signalBarHeights = [12, 18, 24, 30];
-  const sensorStatusCards = [
-    { title: 'Rainfall', status: 'Inactive', statusColor: 'var(--purple)', notchColor: 'var(--purple)' },
-    { title: 'Camera', status: 'Active', statusColor: 'var(--green)', notchColor: 'var(--green)' },
-    { title: 'Solar Radiation', status: 'Inactive', statusColor: 'var(--purple)', notchColor: 'var(--purple)' },
-    { title: 'Soil', status: 'Inactive', statusColor: 'var(--purple)', notchColor: 'var(--purple)' },
-    { title: 'Air & Light', status: 'Active', statusColor: 'var(--green)', notchColor: 'var(--green)' },
-    { title: 'Wind', status: 'Inactive', statusColor: 'var(--purple)', notchColor: 'var(--purple)' }
-  ];
-  const timeRangeOptions = useMemo(
-    () => [
-      'Last 6 hours',
-      'Last 12 hours',
-      'Last 24 hours',
-      'Last 5 days',
-      'Last 10 days',
-      'Last 30 days',
-      'Last 3 months',
-      'Last 6 months',
-      'Last year',
-      'Last 2 years'
-    ],
-    []
-  );
-  const graphCards = [
-    {
-      title: 'Cellular Signal (RSSI)',
-      lineColor: '#48f7f5',
-      data: [-105, -97, -98, -90, -92, -86, -83, -78]
-    },
-    {
-      title: 'Internal Temperature',
-      lineColor: '#c96cfc',
-      data: [85, 94, 92, 100, 97, 103, 107, 112]
-    },
-    {
-      title: 'Battery Charge',
-      lineColor: '#f47568',
-      data: [82, 80, 77, 75, 71, 68, 65, 63]
-    }
-  ];
-  const chartTimeLabels = ['0h', '3h', '6h', '9h', '12h', '15h', '18h', '24h'];
   const chartHeight = chartLayout === 'row' ? 228 : 258;
 
   return (
@@ -528,17 +475,7 @@ export default function SystemDiagnostics() {
                 <Tooltip
                   title="Orientation"
                   arrow={false}
-                  slotProps={{
-                    tooltip: {
-                      sx: {
-                        backgroundColor: 'rgba(0, 20, 61, 0.96)',
-                        color: 'var(--green)',
-                        border: '1px solid var(--reflected-light)',
-                        boxShadow: '0 11px 19px 1px #0000002e',
-                        fontSize: '0.78rem'
-                      }
-                    }
-                  }}
+                  slotProps={tooltipSlotProps}
                 >
                   <IconButton
                     aria-label="toggle chart layout"
@@ -567,14 +504,7 @@ export default function SystemDiagnostics() {
                       '& .MuiSelect-icon': { color: 'var(--blue)' }
                     }}
                     MenuProps={{
-                      PaperProps: {
-                        sx: {
-                          backgroundColor: 'rgba(0, 20, 61, 0.96)',
-                          border: '1px solid var(--reflected-light)',
-                          boxShadow: '0 11px 19px 1px #0000002e',
-                          color: 'var(--green)'
-                        }
-                      }
+                      PaperProps: neonSelectMenuPaperProps
                     }}
                     renderValue={(selected) => (
                       <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
@@ -603,17 +533,7 @@ export default function SystemDiagnostics() {
                 <Tooltip
                   title="Refresh"
                   arrow={false}
-                  slotProps={{
-                    tooltip: {
-                      sx: {
-                        backgroundColor: 'rgba(0, 20, 61, 0.96)',
-                        color: 'var(--green)',
-                        border: '1px solid var(--reflected-light)',
-                        boxShadow: '0 11px 19px 1px #0000002e',
-                        fontSize: '0.78rem'
-                      }
-                    }
-                  }}
+                  slotProps={tooltipSlotProps}
                 >
                   <IconButton
                     aria-label="refresh diagnostics charts"

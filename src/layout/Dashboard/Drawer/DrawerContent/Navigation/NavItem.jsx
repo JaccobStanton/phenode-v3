@@ -60,14 +60,15 @@ export default function NavItem({ item, level, isParents = false, setSelectedID 
 
   const Icon = item.icon;
   const hasDrawerHoverIcons = Boolean(item.iconInactive);
+  const isSystemDiagnosticsItem = item.id === 'system-diagnostics';
   const itemIcon = hasDrawerHoverIcons ? (
     <Box
       component="img"
       src={isSelected || isHovered ? item.iconActive || item.iconInactive : item.iconInactive}
       alt={item.title}
       sx={{
-        width: isParents ? 20 : drawerOpen ? 18 : 20,
-        height: isParents ? 20 : drawerOpen ? 18 : 20,
+        width: isSystemDiagnosticsItem ? (isParents ? 24 : drawerOpen ? 22 : 24) : isParents ? 20 : drawerOpen ? 18 : 20,
+        height: isSystemDiagnosticsItem ? (isParents ? 24 : drawerOpen ? 22 : 24) : isParents ? 20 : drawerOpen ? 18 : 20,
         display: 'block'
       }}
     />

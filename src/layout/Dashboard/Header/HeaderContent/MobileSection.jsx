@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 
 // material-ui
-import AppBar from '@mui/material/AppBar';
 import ClickAwayListener from '@mui/material/ClickAwayListener';
 import Paper from '@mui/material/Paper';
 import Popper from '@mui/material/Popper';
-import Toolbar from '@mui/material/Toolbar';
 import Box from '@mui/material/Box';
 
 // project imports
@@ -15,6 +13,8 @@ import Transitions from 'components/@extended/Transitions';
 
 // assets
 import MoreOutlined from '@ant-design/icons/MoreOutlined';
+
+const SHELL_SURFACE_GRADIENT = 'radial-gradient(circle at 50% 15%, #00438f, #00102f)';
 
 // ==============================|| HEADER CONTENT - MOBILE ||============================== //
 
@@ -47,10 +47,19 @@ export default function MobileSection() {
     <>
       <Box sx={{ flexShrink: 0, ml: 0.75 }}>
         <IconButton
-          sx={(theme) => ({
-            color: 'text.primary',
-            bgcolor: open ? 'grey.300' : 'grey.100',
-          })}
+          sx={{
+            border: '1px solid var(--reflected-light)',
+            color: open ? 'var(--green)' : 'var(--blue)',
+            backgroundColor: open ? 'rgba(72, 247, 245, 0.08)' : 'rgba(0, 20, 61, 0.72)',
+            boxShadow: open ? '0 0 7px -5px var(--green)' : '0 11px 19px 1px #0000002e',
+            '&:hover': {
+              borderColor: 'var(--green)',
+              boxShadow: '0 0 7px -5px var(--green)',
+              color: 'var(--green)',
+              textShadow: '0 1px 5px #007bff',
+              backgroundColor: 'rgba(72, 247, 245, 0.08)'
+            }
+          }}
           aria-label="open more menu"
           ref={anchorRef}
           aria-controls={open ? 'menu-list-grow' : undefined}
@@ -68,8 +77,7 @@ export default function MobileSection() {
         anchorEl={anchorRef.current}
         role={undefined}
         transition
-        disablePortal
-        sx={{ width: '100%' }}
+        sx={(theme) => ({ zIndex: theme.zIndex.modal + 1, minWidth: { xs: 280, sm: 290 }, maxWidth: 'calc(100vw - 24px)' })}
         popperOptions={{
           modifiers: [
             {
@@ -83,13 +91,25 @@ export default function MobileSection() {
       >
         {({ TransitionProps }) => (
           <Transitions type="fade" in={open} {...TransitionProps}>
-            <Paper sx={(theme) => ({ boxShadow: theme.customShadows.z1 })}>
+            <Paper
+              sx={{
+                backgroundColor: '#00102f',
+                backgroundImage: SHELL_SURFACE_GRADIENT,
+                backgroundSize: '100vw 100vh',
+                backgroundPosition: 'center top',
+                backgroundRepeat: 'no-repeat',
+                backgroundAttachment: 'fixed',
+                border: '1px solid var(--reflected-light)',
+                boxShadow: '0 11px 19px 1px #0000002e',
+                backdropFilter: 'blur(6px)',
+                width: '100%',
+                overflow: 'hidden'
+              }}
+            >
               <ClickAwayListener onClickAway={handleClose}>
-                <AppBar color="inherit">
-                  <Toolbar>
-                    <Profile />
-                  </Toolbar>
-                </AppBar>
+                <Box sx={{ width: '100%' }}>
+                  <Profile embedded />
+                </Box>
               </ClickAwayListener>
             </Paper>
           </Transitions>

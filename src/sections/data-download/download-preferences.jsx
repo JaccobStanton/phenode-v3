@@ -17,33 +17,9 @@ import MainCard from 'components/MainCard';
 import downloadIconActive from 'assets/toggle_buttons/Download_Icon_Active.svg';
 import downloadIconInactive from 'assets/toggle_buttons/Download_Icon_Inactive.svg';
 
-const glassSurfaceSx = {
-  backgroundColor: 'rgba(0, 17, 48, 0.03)',
-  backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))'
-};
+import { glassSurfaceSx, reflectedCardChromeSx, neonControlSx, neonMenuPaperSx, tooltipSlotProps } from 'themes/sx-tokens';
 
-const reflectedCardChromeSx = {
-  border: '1px solid var(--reflected-light)',
-  boxShadow: '0 11px 19px 1px #0000002e'
-};
-
-const neonControlSx = {
-  backgroundColor: 'var(--drf)',
-  border: '1px solid var(--reflected-light)',
-  borderRadius: 1,
-  minHeight: 40,
-  boxShadow: '0 11px 19px 1px #0000002e'
-};
-
-const neonMenuPaperSx = {
-  backgroundColor: 'rgba(0, 20, 61, 0.96)',
-  backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))',
-  border: '1px solid var(--reflected-light)',
-  boxShadow: '0 11px 19px 1px #0000002e',
-  backdropFilter: 'blur(6px)',
-  color: 'var(--green)'
-};
-
+// Multi-select variant (uses .Mui-selected styling).
 const neonMenuItemSx = {
   color: 'var(--green)',
   '&:hover': {
@@ -128,17 +104,7 @@ export default function DownloadPreferences() {
 
           <Tooltip
             title="Data Downloads"
-            slotProps={{
-              tooltip: {
-                sx: {
-                  backgroundColor: 'rgba(0, 20, 61, 0.96)',
-                  color: 'var(--green)',
-                  border: '1px solid var(--reflected-light)',
-                  boxShadow: '0 11px 19px 1px #0000002e',
-                  fontSize: '0.78rem'
-                }
-              }
-            }}
+            slotProps={tooltipSlotProps}
           >
             <Box
               component={Link}

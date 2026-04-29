@@ -24,15 +24,8 @@ import MainCard from 'components/MainCard';
 import downloadDataPreferencesActiveIcon from 'assets/toggle_buttons/Download_Data_Preferences_Icon_Active.svg';
 import downloadDataPreferencesInactiveIcon from 'assets/toggle_buttons/Download_Data_Preferences_Icon_Inactive.svg';
 
-const glassSurfaceSx = {
-  backgroundColor: 'rgba(0, 17, 48, 0.03)',
-  backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))'
-};
-
-const reflectedCardChromeSx = {
-  border: '1px solid var(--reflected-light)',
-  boxShadow: '0 11px 19px 1px #0000002e'
-};
+import { glassSurfaceSx, reflectedCardChromeSx, neonControlSx, neonMenuPaperSx, tooltipSlotProps } from 'themes/sx-tokens';
+import { pheNodeSelectionOptions as PHENODE_OPTIONS } from 'data/mocks/phenode-options';
 
 const downloadPanelSx = {
   border: '1px solid var(--reflected-light)',
@@ -41,23 +34,7 @@ const downloadPanelSx = {
   backgroundImage: 'none'
 };
 
-const neonControlSx = {
-  backgroundColor: 'var(--drf)',
-  border: '1px solid var(--reflected-light)',
-  borderRadius: 1,
-  minHeight: 40,
-  boxShadow: '0 11px 19px 1px #0000002e'
-};
-
-const neonMenuPaperSx = {
-  backgroundColor: 'rgba(0, 20, 61, 0.96)',
-  backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))',
-  border: '1px solid var(--reflected-light)',
-  boxShadow: '0 11px 19px 1px #0000002e',
-  backdropFilter: 'blur(6px)',
-  color: 'var(--green)'
-};
-
+// Multi-select variant (uses .Mui-selected styling).
 const neonMenuItemSx = {
   color: 'var(--green)',
   '&:hover': {
@@ -176,7 +153,7 @@ const datePickerSlotProps = (placeholder) => ({
 const DATA_TYPES = ['Environmental Data', 'PheNode Images', 'System Diagnostics Data', 'Wireless Sensor Data'];
 const PHENODE_ENABLED_DATA_TYPES = ['Environmental Data', 'PheNode Images', 'System Diagnostics Data'];
 
-const PHENODE_OPTIONS = ['PheNode 020', 'PheNode 017', 'PheNode 031', 'PheNode 105', 'PheNode 214'];
+// PHENODE_OPTIONS imported from data/mocks/phenode-options.
 
 const WIRELESS_SENSOR_OPTIONS = ['WS-1234567', 'WS-1234568', 'WS-1234569', 'WS-1234570', 'WS-1234571'];
 
@@ -344,17 +321,7 @@ export default function DataDownloads() {
           </Typography>
           <Tooltip
             title="Download Preferences"
-            slotProps={{
-              tooltip: {
-                sx: {
-                  backgroundColor: 'rgba(0, 20, 61, 0.96)',
-                  color: 'var(--green)',
-                  border: '1px solid var(--reflected-light)',
-                  boxShadow: '0 11px 19px 1px #0000002e',
-                  fontSize: '0.78rem'
-                }
-              }
-            }}
+            slotProps={tooltipSlotProps}
           >
             <Box
               component={Link}

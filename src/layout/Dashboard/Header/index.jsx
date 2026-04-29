@@ -41,9 +41,18 @@ export default function Header() {
         color="secondary"
         variant="light"
         sx={{
-          color: 'text.primary',
-          bgcolor: 'transparent',
-          ml: { xs: 0, lg: -2 }
+          ml: { xs: 0, lg: -2 },
+          border: '1px solid var(--reflected-light)',
+          color: 'var(--blue)',
+          backgroundColor: 'rgba(0, 20, 61, 0.72)',
+          boxShadow: '0 11px 19px 1px #0000002e',
+          '&:hover': {
+            borderColor: 'var(--green)',
+            boxShadow: '0 0 7px -5px var(--green)',
+            color: 'var(--green)',
+            textShadow: '0 1px 5px #007bff',
+            backgroundColor: 'rgba(72, 247, 245, 0.08)'
+          }
         }}
       >
         {!drawerOpen ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
