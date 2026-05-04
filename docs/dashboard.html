@@ -1,0 +1,1270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PheNode · Project Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FAF9F5;
+    --surface: #FFFFFF;
+    --surface-2: #F5F1EA;
+    --surface-3: #EFE9DD;
+    --border: #E5DECF;
+    --border-strong: #D4CAB4;
+    --text: #1F1E1D;
+    --text-muted: #6B6259;
+    --text-faint: #9A9082;
+    --accent: #C96342;
+    --accent-hover: #B5563A;
+    --accent-soft: #F4E5DA;
+    --accent-tint: #FBF1EA;
+    --code-bg: #1F1E1D;
+    --code-text: #F5F1EA;
+    --inline-code-bg: #EFE9DD;
+    --success: #6F8F4E;
+    --success-soft: #E5EBD9;
+    --warning: #C9914A;
+    --warning-soft: #F4E7D2;
+    --info: #5B7BA8;
+    --info-soft: #DCE4EF;
+    --shadow-sm: 0 1px 2px rgba(31, 30, 29, 0.04);
+    --shadow-md: 0 2px 8px rgba(31, 30, 29, 0.06), 0 1px 2px rgba(31, 30, 29, 0.04);
+    --radius: 10px;
+    --radius-lg: 14px;
+    --serif: "Source Serif 4", "Iowan Old Style", Georgia, "Times New Roman", serif;
+    --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .shell {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 56px 32px 96px;
+  }
+
+  /* ── Header ─────────────────────────────────────────── */
+  header.page {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 36px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .brand-mark {
+    width: 36px; height: 36px;
+    border-radius: 9px;
+    background: var(--accent);
+    display: grid; place-items: center;
+    color: #fff;
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 20px;
+    box-shadow: var(--shadow-sm);
+  }
+  .brand-text h1 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 28px;
+    letter-spacing: -0.01em;
+    margin: 0;
+    color: var(--text);
+  }
+  .brand-text .eyebrow {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-faint);
+    margin-bottom: 2px;
+    font-weight: 500;
+  }
+  .meta {
+    text-align: right;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .meta .stat {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .meta .stat strong {
+    font-family: var(--serif);
+    font-size: 22px;
+    color: var(--text);
+    font-weight: 500;
+  }
+  .meta .divider {
+    display: inline-block;
+    width: 1px;
+    height: 14px;
+    background: var(--border);
+    margin: 0 12px;
+    vertical-align: middle;
+  }
+
+  /* ── Toolbar ────────────────────────────────────────── */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .toolbar .lhs { color: var(--text-muted); font-size: 13px; }
+  .toolbar .rhs { display: flex; gap: 8px; }
+  .btn {
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 14px;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  }
+  .btn:hover { background: var(--surface-2); border-color: var(--border-strong); }
+  .btn:active { background: var(--surface-3); }
+  .btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* ── Milestones ─────────────────────────────────────── */
+  .milestones {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .milestone {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+  }
+  .milestone:hover { border-color: var(--border-strong); }
+  .milestone[data-open="true"] {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-md);
+  }
+
+  .m-header {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 18px;
+    width: 100%;
+    background: transparent;
+    border: 0;
+    padding: 18px 22px;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+  }
+  .m-header:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+    border-radius: var(--radius-lg);
+  }
+  .m-num {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--accent);
+    min-width: 36px;
+    line-height: 1;
+  }
+  .m-titleblock { min-width: 0; }
+  .m-title {
+    font-family: var(--serif);
+    font-size: 19px;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1.3;
+    margin: 0 0 4px;
+    letter-spacing: -0.005em;
+  }
+  .m-sub {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.45;
+  }
+  .m-rhs {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .tag {
+    font-size: 11.5px;
+    font-weight: 500;
+    padding: 3px 9px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+  }
+  .tag-shipped {
+    background: var(--success-soft);
+    color: #4F6936;
+    border-color: #CFDDB8;
+  }
+  .tag-partial {
+    background: var(--warning-soft);
+    color: #8B5E1F;
+    border-color: #E6CC9C;
+  }
+  .tag-reference {
+    background: var(--info-soft);
+    color: #3F5779;
+    border-color: #BFCCE0;
+  }
+  .caret {
+    width: 24px; height: 24px;
+    display: grid; place-items: center;
+    color: var(--text-muted);
+    transition: transform 200ms ease;
+    flex-shrink: 0;
+  }
+  .milestone[data-open="true"] .caret { transform: rotate(180deg); }
+  .caret svg { display: block; }
+
+  .m-body {
+    display: none;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .milestone[data-open="true"] .m-body { display: block; }
+
+  .m-body-inner {
+    padding: 28px 32px 36px;
+    max-width: 760px;
+    margin: 0 auto;
+  }
+
+  /* ── Markdown content ───────────────────────────────── */
+  .md { color: var(--text); }
+  .md > *:first-child { margin-top: 0; }
+  .md > *:last-child { margin-bottom: 0; }
+
+  .md h1, .md h2, .md h3, .md h4 {
+    font-family: var(--serif);
+    color: var(--text);
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    line-height: 1.3;
+  }
+  .md h1 { display: none; } /* H1 is the milestone title in the header */
+  .md h2 {
+    font-size: 19px;
+    margin: 36px 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .md h2:first-child { margin-top: 0; }
+  .md h3 {
+    font-size: 16px;
+    margin: 24px 0 8px;
+    color: var(--text);
+  }
+  .md h4 {
+    font-size: 14.5px;
+    margin: 18px 0 6px;
+    color: var(--text-muted);
+    font-family: var(--sans);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .md p {
+    margin: 0 0 14px;
+    line-height: 1.65;
+    color: var(--text);
+  }
+  .md p strong, .md li strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .md ul, .md ol {
+    margin: 0 0 14px;
+    padding-left: 24px;
+  }
+  .md li { margin-bottom: 5px; line-height: 1.6; }
+  .md hr {
+    border: 0;
+    border-top: 1px solid var(--border);
+    margin: 28px 0;
+  }
+  .md a {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px solid var(--accent-soft);
+    transition: border-color 120ms ease;
+  }
+  .md a:hover { border-bottom-color: var(--accent); }
+  .md blockquote {
+    margin: 14px 0;
+    padding: 12px 18px;
+    background: var(--accent-tint);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    color: var(--text);
+  }
+  .md blockquote p { margin-bottom: 6px; }
+  .md blockquote p:last-child { margin-bottom: 0; }
+
+  .md code {
+    font-family: var(--mono);
+    font-size: 12.8px;
+    background: var(--inline-code-bg);
+    color: var(--text);
+    padding: 1.5px 6px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+  }
+  .md pre {
+    background: var(--code-bg);
+    color: var(--code-text);
+    border-radius: 10px;
+    padding: 16px 18px;
+    overflow-x: auto;
+    margin: 14px 0;
+    font-size: 12.8px;
+    line-height: 1.6;
+    border: 1px solid #2E2C29;
+  }
+  .md pre code {
+    background: transparent;
+    color: inherit;
+    border: 0;
+    padding: 0;
+    font-size: inherit;
+  }
+
+  .md table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0 18px;
+    font-size: 13.5px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    display: block;
+    overflow-x: auto;
+  }
+  .md table thead {
+    background: var(--surface-2);
+  }
+  .md table th {
+    text-align: left;
+    padding: 10px 14px;
+    font-weight: 600;
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .md table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+    color: var(--text);
+  }
+  .md table tr:last-child td { border-bottom: 0; }
+  .md table tr:hover td { background: var(--surface-2); }
+
+  /* ── Footer ─────────────────────────────────────────── */
+  footer.page {
+    margin-top: 48px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    color: var(--text-faint);
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  footer.page .dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    margin-right: 7px;
+    vertical-align: middle;
+  }
+
+  /* ── Responsive ─────────────────────────────────────── */
+  @media (max-width: 720px) {
+    .shell { padding: 32px 18px 64px; }
+    header.page { flex-direction: column; align-items: flex-start; }
+    .meta { text-align: left; }
+    .m-header { grid-template-columns: auto 1fr; padding: 16px 18px; }
+    .m-rhs { grid-column: 2; justify-content: flex-end; padding-top: 4px; }
+    .m-body-inner { padding: 22px 18px 28px; }
+    .toolbar { flex-direction: column; align-items: stretch; }
+    .toolbar .rhs { justify-content: flex-end; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <header class="page">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">P</div>
+      <div class="brand-text">
+        <div class="eyebrow">Project Tracker</div>
+        <h1>PheNode</h1>
+      </div>
+    </div>
+    <div class="meta">
+      <span class="stat"><strong>3</strong> milestones</span>
+      <span class="divider"></span>
+      <span>Last updated <strong style="font-size:13px;font-family:var(--sans);font-weight:500;color:var(--text)">Apr 29, 2026</strong></span>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <div class="lhs">Click any milestone to expand its full report.</div>
+    <div class="rhs">
+      <button class="btn" id="expand-all">Expand all</button>
+      <button class="btn" id="collapse-all">Collapse all</button>
+    </div>
+  </div>
+
+  <div class="milestones" id="milestones">
+
+    <article class="milestone" data-open="false" id="m-refactor">
+      <button class="m-header" aria-expanded="false" aria-controls="m-refactor-body">
+        <div class="m-num">01</div>
+        <div class="m-titleblock">
+          <h2 class="m-title">PheNodeV3 Refactor — Frontend Audit Follow-through</h2>
+          <div class="m-sub">Apr 29, 2026 · 8 audit findings closed · production build clean</div>
+        </div>
+        <div class="m-rhs">
+          <span class="tag tag-shipped">Shipped</span>
+          <span class="caret" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 5l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+        </div>
+      </button>
+      <div class="m-body" id="m-refactor-body" role="region" aria-label="Refactor report">
+        <div class="m-body-inner">
+          <div class="md">
+<h1>PheNodeV3 Refactor Report (4/29/26)</h1>
+<p>Implementation pass over the eight findings from the prior frontend audit. All
+changes were limited to <code>phenodeV3/</code>. The production build (<code>vite build</code>)
+completes cleanly after the refactor.</p>
+<h2>1. Centralized neon style tokens (Audit finding #3)</h2>
+<p><strong>What changed.</strong> Added <code>src/themes/sx-tokens.js</code> exporting the shared <code>sx</code>
+constants (<code>glassSurfaceSx</code>, <code>reflectedCardChromeSx</code>, <code>drfSurfaceSx</code>,
+<code>chartSurfaceSx</code>, <code>neonControlSx</code>, <code>drawerNavButtonSurfaceSx</code>,
+<code>orientationButtonSx</code>, <code>neonMenuPaperSx</code>, <code>neonMenuItemSx</code>) plus two new
+slot-prop tokens — <code>tooltipSlotProps</code> and <code>neonSelectMenuPaperProps</code>.</p>
+<p><strong>Where applied.</strong> Replaced the duplicated declarations in eight section files
+(<code>sensor-network</code>, <code>multi-sensor-graph</code>, <code>map-view</code>, <code>imaging</code>,
+<code>system-diagnostics</code>, <code>sensor-measurements</code>, <code>data-downloads</code>,
+<code>download-preferences</code>). The two fleet-overview pages keep a couple of local
+variants intentionally — they use <code>--box-outline-blue</code> instead of
+<code>--reflected-light</code> and a more saturated background, and de-duplication
+happens at the component level (see #2).</p>
+<p><strong>Impact.</strong> Visual tweaks now flow from one file. Inline tooltip <code>slotProps</code>
+objects that were rebuilt every render are now hoisted module-level constants,
+so MUI's slot caching is preserved.</p>
+<h2>2. De-duplicated fleet-overview pages (Audit finding #2)</h2>
+<p><strong>What changed.</strong> Both <code>fleet-overview.jsx</code> and <code>sensor-fleet-overview.jsx</code>
+were 99% duplicate (~452 lines each). Extracted the shared UI into
+<code>src/sections/fleet-overview/FleetOverviewView.jsx</code>. The two section files are
+now thin wrappers (~16 lines each) that pass title, label, count, search
+placeholder, and rows.</p>
+<p><strong>Impact.</strong> Bug fixes / design tweaks now happen once, not twice. The two
+pages cannot drift again.</p>
+<h2>3. Mock data moved to <code>src/data/mocks/</code> (Audit finding #4a)</h2>
+<p><strong>What changed.</strong> Created <code>src/data/mocks/</code> with:</p>
+<ul>
+<li><code>fleet.js</code> — <code>phenodeFleetRows</code>, <code>sensorFleetRows</code></li>
+<li><code>time-ranges.js</code> — <code>timeRangeOptions</code>, <code>chartTimeLabels</code></li>
+<li><code>phenode-options.js</code> — <code>pheNodeSelectionOptions</code>, <code>sensorSelectionOptions</code>,
+  <code>multiGraphSensorOptions</code></li>
+<li><code>sensor-measurements.js</code> — <code>sensorMeasurementCharts</code>, <code>soilProbeReadings</code>,
+  <code>sensorInfoReadings</code></li>
+</ul>
+<p><strong>Where applied.</strong> Updated <code>sensor-network</code>, <code>map-view</code>, <code>multi-sensor-graph</code>,
+<code>system-diagnostics</code>, <code>sensor-measurements</code>, <code>data-downloads</code>, and the two
+fleet pages to import from <code>data/mocks/*</code> instead of declaring local arrays.
+Eliminated four-way duplication of <code>timeRangeOptions</code> and <code>chartTimeLabels</code>.</p>
+<p><strong>Impact.</strong> When the backend is wired up, the mock modules become the swap
+target — no UI-file edits needed.</p>
+<h2>4. API services + data hooks (Audit finding #4b)</h2>
+<p><strong>What changed.</strong> Mirrored phenodeX's pattern:</p>
+<ul>
+<li><code>src/services/fetcher.js</code> — generic JSON fetcher (with SWR tuple-key
+  support) plus <code>buildUrl(path)</code> honoring <code>VITE_API_URL</code>.</li>
+<li><code>src/services/api.js</code> — typed surface (<code>fetchPhenodeFleet</code>,
+  <code>fetchSensorFleet</code>, <code>fetchSensorMeasurementCharts</code>, <code>fetchSoilProbeReadings</code>,
+  <code>fetchSensorInfo</code>) that today returns mock data wrapped in promises so
+  consumers stay async-aware.</li>
+<li><code>src/hooks/data/useFleet.js</code> — <code>useFleet('phenode' | 'sensor')</code> returning
+  <code>{ data, isLoading, error }</code>.</li>
+<li><code>src/hooks/data/useSensorMeasurements.js</code> — three hooks
+  (<code>useSensorMeasurementCharts</code>, <code>useSensorInfo</code>, <code>useSoilProbeReadings</code>).</li>
+</ul>
+<p><strong>Where applied.</strong> Both fleet-overview wrappers now consume <code>useFleet</code> and
+pass <code>isLoading</code> to the view. When the real API lands, only <code>services/api.js</code>
+needs to change.</p>
+<h2>5. Split large section components (Audit finding #1)</h2>
+<p><strong>What changed.</strong></p>
+<ul>
+<li>Extracted the <code>SearchableMultiSelect</code> component (a multi-select Autocomplete
+  with "Select All" affordance and the neon palette baked in) to
+  <code>src/components/inputs/SearchableMultiSelect.jsx</code>. <code>multi-sensor-graph</code> was
+  carrying a near-identical inline copy; the section now imports the shared
+  component. Slot-prop and chip-styling objects are hoisted to module scope so
+  the reference is stable.</li>
+<li>Extracted the small-multiples chart grid to
+  <code>src/sections/wireless-sensors/MeasurementsChartGrid.jsx</code>. <code>sensor-network</code>
+  was rendering a ~120-line inline grid every time; the file is now noticeably
+  smaller and the chart grid can be reused on other pages later.</li>
+<li>Removed the now-unused imports and local style constants from
+  <code>multi-sensor-graph</code> and <code>sensor-network</code> (<code>Autocomplete</code>, <code>Checkbox</code>,
+  <code>TextField</code>, <code>LineChart</code>, <code>ZoomInOutlined</code>, <code>chartSurfaceSx</code>, <code>SELECT_ALL_LABEL</code>).</li>
+</ul>
+<p><strong>What was deferred.</strong> The audit's full sketch (orchestrator + 6+ subcomponents
+per section file) is a multi-day project. The two highest-leverage extractions
+above were taken; future work can chip away at it without changing public API.</p>
+<h2>6. Hoisted local hook to eliminate prop drilling (Audit finding #5)</h2>
+<p><strong>What changed.</strong> Added <code>src/hooks/useInfoCard.js</code> returning <code>{ infoCardMode,
+setInfoCardMode, selectedSoilProbe, setSelectedSoilProbe, isSoilDataMode,
+toggleMode }</code>. <code>SensorNetwork</code> now uses the hook instead of four <code>useState</code>
+calls.</p>
+<p><strong>Cross-page selection.</strong> Added <code>src/contexts/SelectionContext.jsx</code> exposing
+<code>SelectionProvider</code> and <code>useSelection()</code> for <code>selectedPheNode</code>,
+<code>selectedSensor</code>, and <code>timeRange</code>. It is opt-in — pages that still own their
+own state continue to work — and it's ready to be wired in once two pages
+need to share the "selected PheNode" identity.</p>
+<h2>7. Deleted dead / unused code (Audit finding #6)</h2>
+<p><strong>Removed:</strong></p>
+<ul>
+<li><code>src/menu-items/page.jsx</code></li>
+<li><code>src/menu-items/imaging/imaging-tab.jsx</code></li>
+<li><code>src/menu-items/sensor-measurements/sensor-measurements-tab.jsx</code></li>
+<li><code>src/menu-items/system-diagnostics/system-diagnostics-tab.jsx</code></li>
+<li><code>src/menu-items/fleet-overview/fleet-overview-tab.jsx</code></li>
+<li><code>src/pages/fleet-overview/default.jsx</code></li>
+<li><code>src/pages/data-download/default.jsx</code></li>
+<li><code>src/pages/system-diagnostics/default.jsx</code></li>
+<li><code>src/components/cards/statistics/AnalyticEcommerce.jsx</code></li>
+<li><code>src/components/table/fixed-header.jsx</code></li>
+<li><code>src/components/third-party/react-table/{Filter,EmptyTable,TablePagination,CSVExport}.jsx</code></li>
+<li><code>src/reportWebVitals.js</code> (and its only caller in <code>index.jsx</code>)</li>
+</ul>
+<p><strong>Not removed.</strong> The audit also flagged <code>src/utils/colorUtils.js</code> — that one
+is in fact imported by <code>palette.js</code>, <code>custom-shadows.jsx</code>, <code>IconButton.jsx</code>,
+<code>SimpleBar.jsx</code>, and the Button/Tab theme overrides. Restored after the build
+caught it. (The audit mis-flagged it; reporting honestly here.)</p>
+<p><strong>Deferred.</strong> The audit's optional cleanup of <code>src/api/menu.js</code> (replacing the
+SWR-as-fake-API drawer toggle with a context-backed boolean) touches six
+layout files and was left for a future PR.</p>
+<h2>8. Performance wins (Audit finding #7)</h2>
+<p><strong>What changed.</strong></p>
+<ul>
+<li><code>system-diagnostics.jsx</code>: hoisted <code>signalBarHeights</code>, <code>sensorStatusCards</code>,
+  <code>graphCards</code>, and <code>chartTimeLabels</code> from the function body to module scope.
+  Removed the now-unused <code>useMemo</code> import.</li>
+<li><code>sensor-network.jsx</code>: hoisted <code>diagramWidthSx</code> to module scope.</li>
+<li>All <code>Tooltip slotProps</code> and <code>Select MenuProps.PaperProps</code> objects across the
+  app were collapsed onto the shared, hoisted <code>tooltipSlotProps</code> /
+  <code>neonSelectMenuPaperProps</code> constants from <code>themes/sx-tokens.js</code>.</li>
+</ul>
+<p><strong>Impact.</strong> Sections no longer create a fresh literal object for tooltip /
+menu styling on every render — MUI's slot caching now actually does its job.</p>
+<h2>9. Maintainability nits (Audit finding #8)</h2>
+<ul>
+<li><strong><code>package.json</code></strong> — renamed from <code>mantis-material-free-react</code> to
+  <code>phenode-frontend</code>, version bumped to <code>0.1.0</code>, marked <code>private: true</code>,
+  description added, and the CodedThemes author/homepage block removed.
+  Dropped two unused dependencies (<code>react-router</code> — <code>react-router-dom</code> is
+  enough on v7 — and <code>web-vitals</code>, which was only used by the deleted
+  <code>reportWebVitals</code>).</li>
+<li><strong><code>useConfig.js</code></strong> — fixed the "must be use inside" → "must be used inside"
+  typo in the thrown error.</li>
+<li><strong><code>ConfigContext.jsx</code></strong> — renamed the <code>localStorage</code> key from
+  <code>mantis-react-free-config</code> to <code>phenode-frontend-config</code>.</li>
+<li><strong><code>AuthLogin.jsx</code></strong> — removed the demo <code>info@codedthemes.com / 123456</code>
+  initial values; the form now starts empty.</li>
+<li><strong><code>index.jsx</code></strong> — removed the dangling CRA-era <code>reportWebVitals()</code> call.</li>
+</ul>
+<h2>Build verification</h2>
+<p><code>vite build</code> completes cleanly:</p>
+<pre><code>✓ built in 6.52s
+</code></pre>
+<p>The only build issue encountered was the colorUtils restore noted in #7,
+which was fixed before this report was written.</p>
+<h2>What was deliberately not done</h2>
+<ul>
+<li>Folder casing (PascalCase <code>layout/Auth</code> / <code>layout/Dashboard</code> vs. kebab-case
+  elsewhere) was left as-is. Renaming would break a lot of imports and is
+  best handled in its own dedicated PR.</li>
+<li>Replacing <code>api/menu.js</code> (the SWR-as-fake-API drawer toggle) with a context.
+  The audit marked this optional and it touches six layout files.</li>
+<li>Splitting <code>imaging.jsx</code>, <code>system-diagnostics.jsx</code>, and <code>data-downloads.jsx</code>
+  into orchestrator + subcomponents. The most useful pieces
+  (<code>SearchableMultiSelect</code>, <code>MeasurementsChartGrid</code>,
+  <code>FleetOverviewView</code>) were extracted; the rest is incremental work that
+  doesn't block the backend wiring.</li>
+</ul>
+</div>
+        </div>
+      </div>
+    </article>
+
+    <article class="milestone" data-open="false" id="m-auth">
+      <button class="m-header" aria-expanded="false" aria-controls="m-auth-body">
+        <div class="m-num">02</div>
+        <div class="m-titleblock">
+          <h2 class="m-title">Authentication — Login Integration</h2>
+          <div class="m-sub">Email/password wired end-to-end · Google OAuth callback pending</div>
+        </div>
+        <div class="m-rhs">
+          <span class="tag tag-partial">In progress</span>
+          <span class="caret" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 5l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+        </div>
+      </button>
+      <div class="m-body" id="m-auth-body" role="region" aria-label="Auth integration report">
+        <div class="m-body-inner">
+          <div class="md">
+<h1>Authentication — Login Integration Report</h1>
+<p><strong>Subsystem:</strong> PheNode V3 frontend ↔ phenodeX backend auth router
+<strong>Audience:</strong> Engineers picking up or reviewing the auth flow
+<strong>Status:</strong> Email/password login wired end-to-end against the live backend; Google OAuth still requires the <code>/oauth/callback</code> page before it can be enabled.</p>
+<hr />
+<h2>1. Summary</h2>
+<p>The phenodeX auth router has been re-verified and now exposes a full set of
+authentication endpoints. The V3 login form (<code>src/sections/auth/AuthLogin.jsx</code>)
+has been wired to the real backend <code>POST /api/auth/login</code> endpoint. Successful
+sign-ins persist tokens to <code>localStorage</code> and route the user into the
+dashboard. Unapproved or invalid sign-ins are surfaced with the appropriate
+UX: pending-approval users land on the polling page, bad credentials show an
+inline error.</p>
+<hr />
+<h2>2. Backend Surface (phenodeX)</h2>
+<p>The auth router (<code>phenode_backend/api/auth/routes.py</code>) currently exposes:</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Purpose</th>
+<th>Notable responses</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>POST</td>
+<td><code>/api/auth/login</code></td>
+<td>Email + password sign-in</td>
+<td><code>200</code> → <code>TokenResponse</code> <code>{ access_token, refresh_token, token_type: "bearer" }</code> <br> <code>401</code> → invalid email or password <br> <code>403</code> → account disabled or pending approval</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/auth/signup</code></td>
+<td>Email + password account creation</td>
+<td><code>201</code> → <code>SignupResponse</code>. Super-admin emails auto-approved with tokens; everyone else returns <code>status: "pending_approval"</code> with no tokens.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/auth/token</code></td>
+<td>Exchange a Google ID token for backend JWTs</td>
+<td><code>200</code> → <code>TokenResponse</code> <br> <code>403</code> → <code>is_approved=false</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/auth/refresh</code></td>
+<td>Rotate the JWT pair using a valid refresh token</td>
+<td><code>200</code> → <code>TokenResponse</code></td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/auth/google/login</code></td>
+<td>Begin Google OAuth (HTTP redirect to Google's consent screen)</td>
+<td><code>302</code> redirect</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/auth/google/callback</code></td>
+<td>Google → backend → frontend handoff (<code>/oauth/callback?token=…</code>)</td>
+<td><code>302</code> redirect</td>
+</tr>
+</tbody>
+</table>
+<p>Reference: <a href="../../phenodeX/docs/frontend-backend-api.md"><code>phenodeX/docs/frontend-backend-api.md</code></a>.</p>
+<hr />
+<h2>3. Frontend Wiring (V3)</h2>
+<h3>File: <code>src/sections/auth/AuthLogin.jsx</code></h3>
+<p>The login form's <code>handleEmailLogin</code> now performs a real network call:</p>
+<pre><code class="language-js">const apiBase = import.meta.env.VITE_API_URL || '/api';
+const res = await fetch(`${apiBase}/auth/login`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email: email.trim().toLowerCase(), password })
+});
+</code></pre>
+<p>Following submission, the response is dispatched per the matrix in §4.</p>
+<h3>Token persistence</h3>
+<p>On a successful sign-in the access and refresh tokens are written to
+<code>localStorage</code> under the keys <code>access_token</code> and <code>refresh_token</code>. This matches
+the convention used by the legacy phenodeX <code>AuthContext</code> so that downstream
+fetcher utilities continue to work without modification once V3 brings them
+over.</p>
+<h3>Routing</h3>
+<table>
+<thead>
+<tr>
+<th>Result</th>
+<th>Destination</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200</code> (approved sign-in)</td>
+<td><code>/dashboard/fleet-overview</code></td>
+</tr>
+<tr>
+<td><code>403</code> with <code>detail</code> containing <code>"pending"</code></td>
+<td><code>/approval-pending</code></td>
+</tr>
+<tr>
+<td>Any other failure</td>
+<td>Stays on <code>/login</code> with error</td>
+</tr>
+</tbody>
+</table>
+<h3>Error surface</h3>
+<p>Errors render via an MUI <code>Alert</code> styled with the project's critical token
+(<code>var(--critical)</code>) — <code>border: 1px solid var(--critical)</code>, translucent
+background, matching icon color. The user can dismiss the alert via the
+close affordance. Network errors fall back to "Network error — please try
+again."</p>
+<h3>Submit affordance</h3>
+<p>The primary "Login" button is rendered through the project's neon-themed
+<code>ProviderButton</code> recipe. While the request is in flight:</p>
+<ul>
+<li>Button label changes to <strong>"Signing in..."</strong></li>
+<li>Button is <code>disabled</code> (the <code>submitting</code> state flag is held in component state)</li>
+</ul>
+<p>The button re-enables in the <code>finally</code> block of the request handler so the
+control state is correct on both success and failure paths.</p>
+<hr />
+<h2>4. Behavior Matrix</h2>
+<table>
+<thead>
+<tr>
+<th>Backend response</th>
+<th>Detail / condition</th>
+<th>Frontend behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>TokenResponse</code> payload</td>
+<td>Persist <code>access_token</code> + <code>refresh_token</code> to <code>localStorage</code>; navigate to <code>/dashboard/fleet-overview</code> (replace history).</td>
+</tr>
+<tr>
+<td><code>401 Unauthorized</code></td>
+<td>"Invalid email or password"</td>
+<td>Inline themed <code>Alert</code> with the backend's <code>detail</code>, or "Invalid email or password." fallback. Form remains editable.</td>
+</tr>
+<tr>
+<td><code>403 Forbidden</code></td>
+<td><code>detail</code> contains the word "pending"</td>
+<td>Navigate to <code>/approval-pending</code> (replace history). The polling page hits <code>GET /api/user/devices</code> every 10s and routes onward when the user is approved.</td>
+</tr>
+<tr>
+<td><code>403 Forbidden</code></td>
+<td>Other (e.g. account disabled)</td>
+<td>Inline themed <code>Alert</code> with the backend's <code>detail</code>, or "This account is not allowed to sign in." fallback.</td>
+</tr>
+<tr>
+<td>Network failure</td>
+<td><code>fetch</code> rejects</td>
+<td>Inline themed <code>Alert</code>: "Network error — please try again." Logged to console.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>5. Out of scope / not yet wired</h2>
+<ul>
+<li><strong>Google OAuth</strong> — the button hands off to a stub. Real handoff requires:
+  1. Pointing the click handler at <code>${VITE_API_URL}/auth/google/login</code>.
+  2. Adding an <code>/oauth/callback</code> route in V3 that reads <code>?token=…</code>, calls
+     <code>POST /api/auth/token</code>, and dispatches via the same matrix as §4.</li>
+<li><strong>Email/password signup</strong> — the signup page is currently a Google-only CTA.
+  The backend supports <code>POST /api/auth/signup</code>, so adding a password-based
+  signup form is a straightforward follow-up.</li>
+<li><strong>AuthContext</strong> — token persistence is currently inline (direct
+  <code>localStorage</code> writes). A V3 <code>AuthContext</code> mirroring phenodeX's would
+  centralize this and unlock automatic refresh on 401 from protected
+  endpoints.</li>
+</ul>
+<hr />
+<h2>6. Quick verification steps</h2>
+<ol>
+<li>Run the backend locally (<code>http://localhost:8000</code>) with a known
+   provisioned email/password user.</li>
+<li>Set <code>VITE_API_URL=http://localhost:8000/api</code> in <code>phenodeV3/.env.local</code>.</li>
+<li><code>npm run dev</code> in <code>phenodeV3/</code>, navigate to <code>/</code>. The page should redirect
+   to <code>/login</code>.</li>
+<li>Submit valid credentials — confirm <code>localStorage.access_token</code> and
+   <code>localStorage.refresh_token</code> are populated and that the page redirects to
+   <code>/dashboard/fleet-overview</code>.</li>
+<li>Submit invalid credentials — confirm the inline <code>Alert</code> surfaces with the
+   backend's <code>detail</code>.</li>
+<li>Submit credentials for a known unapproved user — confirm redirect to
+   <code>/approval-pending</code>.</li>
+</ol>
+</div>
+        </div>
+      </div>
+    </article>
+
+    <article class="milestone" data-open="false" id="m-local">
+      <button class="m-header" aria-expanded="false" aria-controls="m-local-body">
+        <div class="m-num">03</div>
+        <div class="m-titleblock">
+          <h2 class="m-title">Running PheNode Locally — Login Setup</h2>
+          <div class="m-sub">Single-command bootstrap · local docker stack and production API both supported</div>
+        </div>
+        <div class="m-rhs">
+          <span class="tag tag-reference">Reference</span>
+          <span class="caret" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 5l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+        </div>
+      </button>
+      <div class="m-body" id="m-local-body" role="region" aria-label="Running locally guide">
+        <div class="m-body-inner">
+          <div class="md">
+<h1>Running PheNode Locally — Login Setup</h1>
+<p><strong>Status:</strong> All bootstrap pieces are already wired up. From a clean clone
+you can bring the full stack up with a single <code>make up</code> and sign in
+end-to-end — either against the local docker stack or directly against
+the production API.</p>
+<p><strong>Scope:</strong> This guide assumes Docker, Node 20+, and <code>npm</code> are installed,
+and that both <code>phenodeV3</code> and <code>phenodeX</code> live under <code>~/Coding/PheNode/</code>.</p>
+<hr />
+<h2>⚠️ Vital — local vs production API URLs</h2>
+<p>The local backend and the production deployment expose <strong>different path
+prefixes</strong>. This is the single most common source of "why isn't login
+working" confusion, so read this before you change anything.</p>
+<table>
+<thead>
+<tr>
+<th>Environment</th>
+<th>Base URL</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Local</td>
+<td><code>http://localhost:8000/api</code></td>
+</tr>
+<tr>
+<td>Production</td>
+<td><code>https://phenode.cloud/api/v1</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Why the discrepancy:</strong></p>
+<ul>
+<li>Local FastAPI (<code>phenodeX/phenode_backend/core/config.py</code>) defines
+  <code>api_v1_prefix: str = "/api"</code> — note that's plain <code>/api</code>, not <code>/api/v1</code>.
+  So the local server mounts every route directly under <code>/api</code>.</li>
+<li>The production nginx reverse-proxy (configured in
+  <code>phenodeX/docker-compose.yml</code> and its prod sibling) sits in front of
+  FastAPI and rewrites incoming <code>/api/v1/*</code> requests down to <code>/api/*</code>
+  before forwarding. That's why the public URL has <code>/v1</code> but the local
+  one doesn't.</li>
+</ul>
+<p><strong>Where this is set:</strong> <code>phenodeV3/.env</code> has both URLs documented at the
+top of the file. One line is active, the other is commented. To switch:
+flip the comment, then <strong>restart the vite dev server</strong> (Vite reads
+<code>.env</code> only at startup).</p>
+<pre><code class="language-env">## --- LOCAL (docker compose stack in phenodeX) -------------------------------
+# VITE_API_URL = http://localhost:8000/api
+
+## --- PRODUCTION (phenode.cloud, nginx-rewritten /v1 prefix) -----------------
+VITE_API_URL = https://phenode.cloud/api/v1
+</code></pre>
+<p><strong>CORS caveat for production from localhost:</strong> Hitting <code>phenode.cloud</code>
+from a <code>localhost:3000</code> page is a cross-origin request. The local
+backend has <code>localhost:3000</code> whitelisted in
+<code>Settings.cors_allow_origins</code>, but production does not. If you get a
+preflight CORS error in DevTools, the backend team needs to add
+<code>http://localhost:3000</code> to the production CORS allowlist.</p>
+<p><strong>Production data warning:</strong> When pointed at the production URL, every
+request hits real production records and tokens. Use a non-production
+account for testing or switch to local.</p>
+<p><strong>Production data warning:</strong> When pointed at the production URL, every
+request hits real production records and tokens. Use a non-production
+account for testing or switch to local.</p>
+<hr />
+<h2>What's already in place</h2>
+<p>The repo ships with all the glue needed to run locally:</p>
+<ul>
+<li><strong>Root <code>Makefile</code></strong> — <code>make up</code>, <code>make backend</code>, <code>make frontend</code>,
+  <code>make stop</code>, <code>make logs</code>, <code>make health</code>, <code>make signup</code>, <code>make clean</code>.</li>
+<li><strong>Root <code>README.md</code></strong> — quick reference for the make targets.</li>
+<li><strong><code>phenodeV3/.env</code></strong> has both <code>VITE_API_URL</code> candidates documented
+  (local and production). Production is the active default — flip the
+  comment to point at the local docker stack.</li>
+<li><strong><code>phenodeV3/package.json</code></strong> has both a <code>dev</code> and <code>start</code> script
+  pointing at vite, so either <code>npm run dev</code> or <code>npm run start</code> works.</li>
+<li><strong><code>phenodeX/.env.local</code></strong> is auto-seeded from <code>.env.example</code> the first
+  time you run <code>make backend</code> or <code>make up</code> — no manual prep.</li>
+<li><strong>CORS</strong> in the local <code>phenodeX</code> config already allows
+  <code>http://localhost:3000</code> (V3 dev port) and <code>http://localhost:3002</code>
+  (legacy frontend). Production allowlist is managed separately.</li>
+<li><strong><code>phenodeV3/src/sections/auth/AuthLogin.jsx</code></strong> is wired to
+  <code>${VITE_API_URL}/auth/login</code>. 200 stores both tokens in
+  <code>localStorage</code> and routes to <code>/dashboard/fleet-overview</code>; 403 with a
+  pending-approval detail routes to <code>/approval-pending</code>; 401/other
+  failures render an inline themed <code>Alert</code>.</li>
+</ul>
+<hr />
+<h2>TL;DR</h2>
+<h3>Against production (default)</h3>
+<p><code>phenodeV3/.env</code> already points at <code>https://phenode.cloud/api/v1</code>. So:</p>
+<pre><code class="language-bash">cd ~/Coding/PheNode
+make frontend            # vite on http://localhost:3000
+# → log in with your real production credentials
+</code></pre>
+<p><code>make backend</code> is unnecessary for prod — you're hitting <code>phenode.cloud</code>,
+not the local docker stack.</p>
+<h3>Against local docker stack</h3>
+<pre><code class="language-bash"># 1. Edit phenodeV3/.env — comment the production line, uncomment the local one.
+cd ~/Coding/PheNode
+make up                  # backend (detached) + frontend (foreground)
+make signup              # create a SUPER_ADMIN test account
+# → open http://localhost:3000, log in with that account
+</code></pre>
+<p>That's it. The rest of this doc is detail for when you need it.</p>
+<hr />
+<h2>1. <code>make up</code> — bring the local stack online</h2>
+<pre><code class="language-bash">cd ~/Coding/PheNode
+make up
+</code></pre>
+<p>What this does, in order:</p>
+<ol>
+<li>If <code>phenodeX/.env.local</code> doesn't exist, it's seeded from <code>.env.example</code>.</li>
+<li>The backend stack comes up in the background via
+   <code>docker compose --profile local up --build -d api worker db redis minio</code>.</li>
+<li>If <code>phenodeV3/node_modules</code> is missing, <code>npm install</code> runs.</li>
+<li>The V3 dev server starts in the foreground on
+   <a href="http://localhost:3000">http://localhost:3000</a>. Ctrl-C stops the frontend; the backend keeps
+   running so subsequent <code>make frontend</code> calls are instant.</li>
+</ol>
+<p>Useful URLs while it's up:</p>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>URL</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>V3 frontend</td>
+<td><a href="http://localhost:3000">http://localhost:3000</a></td>
+</tr>
+<tr>
+<td>Backend API</td>
+<td><a href="http://localhost:8000">http://localhost:8000</a></td>
+</tr>
+<tr>
+<td>Swagger UI</td>
+<td><a href="http://localhost:8000/docs">http://localhost:8000/docs</a></td>
+</tr>
+<tr>
+<td>Postgres</td>
+<td><code>localhost:5432</code> (postgres/postgres)</td>
+</tr>
+<tr>
+<td>MinIO console</td>
+<td><a href="http://localhost:9001">http://localhost:9001</a></td>
+</tr>
+</tbody>
+</table>
+<p>Health check from another shell:</p>
+<pre><code class="language-bash">make health
+# → {&quot;status&quot;:&quot;ok&quot;,&quot;environment&quot;:&quot;local&quot;}
+</code></pre>
+<blockquote>
+<p><strong>Reminder:</strong> if <code>phenodeV3/.env</code> is pointed at production, the V3
+frontend won't talk to your local docker backend even when it's
+running. Flip the comment in <code>.env</code> and restart vite to switch.</p>
+</blockquote>
+<hr />
+<h2>2. <code>make signup</code> — create a test account (local only)</h2>
+<p>The login endpoint compares the submitted password against
+<code>user.password_hash</code>. If your DB row was created via Google sign-in
+historically, the hash will be <code>NULL</code> and login will fail. Fastest way to
+get a usable account is the signup target:</p>
+<pre><code class="language-bash">make signup
+</code></pre>
+<p>That POSTs to <code>http://localhost:8000/api/auth/signup</code> (always local —
+the Makefile target hard-codes the local URL) with the defaults baked in:</p>
+<pre><code>email:    jake@phenode.com
+password: changeme123
+full_name: Jake Stanton
+</code></pre>
+<p>Override any of them on the CLI:</p>
+<pre><code class="language-bash">make signup SIGNUP_EMAIL=alice@phenode.com SIGNUP_PASSWORD=hunter2 \
+            SIGNUP_NAME=&quot;Alice Example&quot;
+</code></pre>
+<p>Possible responses:</p>
+<table>
+<thead>
+<tr>
+<th>Backend response</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>201</code> with <code>access_token</code> + <code>refresh_token</code></td>
+<td>New user. Email is in <code>SUPER_ADMIN_EMAILS</code>, so auto-approved.</td>
+</tr>
+<tr>
+<td><code>201</code> with <code>status: "pending_approval"</code> and no tokens</td>
+<td>New user but needs admin approval (regular non-super-admin path).</td>
+</tr>
+<tr>
+<td><code>409</code> "An account already exists for this email…"</td>
+<td>Email already in DB. Use a different email or set the password via SQL — see below.</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Don't run <code>make signup</code> against production.</strong> It's hard-coded to the
+local backend on purpose so you can't accidentally create test
+accounts on <code>phenode.cloud</code>. To create a real production account, talk
+to the backend team or use the production signup flow.</p>
+</blockquote>
+<h3>If you hit a 409</h3>
+<p>The row exists with no <code>password_hash</code>. Two options:</p>
+<p><strong>A. Pick a different email.</strong> Easiest. Re-run <code>make signup</code> with
+<code>SIGNUP_EMAIL=…</code>.</p>
+<p><strong>B. Set a password on the existing row.</strong> Generate a bcrypt hash inside
+the running api container:</p>
+<pre><code class="language-bash">docker compose -f phenodeX/docker-compose.yml exec api python -c \
+  &quot;from phenode_backend.core.security import hash_password; \
+   print(hash_password('your-strong-password'))&quot;
+</code></pre>
+<p>Then update the row:</p>
+<pre><code class="language-bash">docker compose -f phenodeX/docker-compose.yml exec db \
+  psql -U postgres -d phenode -c \
+  &quot;UPDATE users SET password_hash = '&lt;paste-the-hash&gt;' \
+   WHERE email = 'jake@phenode.com';&quot;
+</code></pre>
+<p>Only <code>email</code> + <code>password_hash</code> are read by <code>POST /api/auth/login</code>.</p>
+<hr />
+<h2>3. Sign in</h2>
+<ol>
+<li>Open <a href="http://localhost:3000/">http://localhost:3000/</a> — you'll bounce to <code>/login</code>.</li>
+<li>Type the email + password from step 2 (local) or your real production
+   credentials.</li>
+<li>Click <strong>Login</strong>.</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Result</th>
+<th>Backend response</th>
+<th>UX</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>✅ Approved sign-in</td>
+<td><code>200</code></td>
+<td><code>access_token</code> + <code>refresh_token</code> saved to <code>localStorage</code>; redirect to <code>/dashboard/fleet-overview</code>.</td>
+</tr>
+<tr>
+<td>❌ Wrong password / unknown email</td>
+<td><code>401</code></td>
+<td>Inline red Alert: "Invalid email or password."</td>
+</tr>
+<tr>
+<td>⏳ Account pending approval</td>
+<td><code>403</code></td>
+<td>Redirect to <code>/approval-pending</code> (polls <code>/api/user/devices</code> every 10s, routes onward when approved).</td>
+</tr>
+<tr>
+<td>💀 Network or CORS error</td>
+<td><code>fetch</code> rejects</td>
+<td>Inline red Alert: "Network error — please try again."</td>
+</tr>
+</tbody>
+</table>
+<p>Verify tokens persisted: DevTools → <strong>Application</strong> → <strong>Local Storage</strong>
+→ <code>http://localhost:3000</code>. You should see <code>access_token</code> and
+<code>refresh_token</code> keys.</p>
+<p>The full URL the form posts to depends on <code>VITE_API_URL</code>:</p>
+<ul>
+<li>Local mode: <code>POST http://localhost:8000/api/auth/login</code></li>
+<li>Production mode: <code>POST https://phenode.cloud/api/v1/auth/login</code></li>
+</ul>
+<hr />
+<h2>Lifecycle reference</h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>make up</code></td>
+<td>Local backend (detached) + frontend (foreground).</td>
+</tr>
+<tr>
+<td><code>make backend</code></td>
+<td>Local backend stack only.</td>
+</tr>
+<tr>
+<td><code>make frontend</code></td>
+<td>V3 dev server only. Targets whatever <code>VITE_API_URL</code> points at.</td>
+</tr>
+<tr>
+<td><code>make stop</code></td>
+<td>Stop the docker stack (volumes preserved).</td>
+</tr>
+<tr>
+<td><code>make logs</code></td>
+<td>Tail the local backend <code>api</code> logs.</td>
+</tr>
+<tr>
+<td><code>make health</code></td>
+<td>Curl the local <code>/healthz</code>.</td>
+</tr>
+<tr>
+<td><code>make signup</code></td>
+<td>POST to local <code>/api/auth/signup</code>. Override defaults via env vars.</td>
+</tr>
+<tr>
+<td><code>make clean</code></td>
+<td>Stop + wipe docker volumes (full reset).</td>
+</tr>
+<tr>
+<td><code>make install</code></td>
+<td>npm install in V3 only (rarely needed; the other targets do it for you).</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>Common gotchas</h2>
+<ul>
+<li><strong>CORS error in console.</strong> Means the backend isn't where <code>VITE_API_URL</code>
+  thinks it is, or the origin isn't in the backend's allowlist. Local
+  backend has <code>localhost:3000</code> allowlisted; production allowlist is
+  managed by the backend team.</li>
+<li><strong>404 on <code>/auth/login</code>.</strong> Two flavors:</li>
+<li>You're pointed at local with the <code>/api/v1</code> prefix (production-style
+    URL). Local FastAPI mounts at plain <code>/api</code> — drop the <code>/v1</code>.</li>
+<li>You're pointed at production with just <code>/api</code> (no <code>/v1</code>). Production
+    nginx requires <code>/api/v1</code>.</li>
+<li><strong>Vite ignored an env update.</strong> It reads <code>.env*</code> only at startup —
+  Ctrl-C the dev server and run <code>make frontend</code> again.</li>
+<li><strong><code>verify_password</code> always fails.</strong> Means the user row exists but has
+  no <code>password_hash</code>. See step 2 → "If you hit a 409".</li>
+<li><strong><code>docker compose</code> not found.</strong> You're on an older Docker Desktop. The
+  Makefile assumes Compose v2 plugin syntax (<code>docker compose …</code> not
+  <code>docker-compose …</code>). Update Docker Desktop.</li>
+</ul>
+<hr />
+<h2>Out of scope (not yet wired)</h2>
+<ul>
+<li><strong>Google OAuth.</strong> The button currently logs to the console. Wiring it
+  requires adding an <code>/oauth/callback</code> page in V3 that reads <code>?token=…</code>,
+  POSTs it to <code>/auth/token</code>, and dispatches via the same matrix as the
+  email/password flow.</li>
+<li><strong>Token refresh on 401.</strong> Once an <code>AuthContext</code> is added in V3, it
+  should hit <code>POST /auth/refresh</code> with the stored <code>refresh_token</code> and
+  retry the original request transparently.</li>
+<li><strong>Email/password signup UI.</strong> The <code>/register</code> page is currently a
+  Google-only CTA. The backend supports <code>POST /auth/signup</code> already
+  (the <code>make signup</code> target proves it); adding the form is a
+  straightforward follow-up.</li>
+</ul>
+</div>
+        </div>
+      </div>
+    </article>
+
+  </div>
+
+  <footer class="page">
+    <div><span class="dot"></span>PheNode project tracker · static snapshot</div>
+    <div>Generated from <code style="font-family:var(--mono);font-size:11.5px;background:var(--inline-code-bg);padding:2px 6px;border-radius:4px;border:1px solid var(--border);">~/Coding/PheNode/Outputs/*.md</code></div>
+  </footer>
+
+</div>
+
+<!-- Markdown sources, embedded so the dashboard works fully offline -->
+<script>
+  // Disclosure / accordion behavior
+  function setOpen(milestone, open) {
+    milestone.dataset.open = open ? 'true' : 'false';
+    const btn = milestone.querySelector('.m-header');
+    if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  document.querySelectorAll('.milestone').forEach(m => {
+    const btn = m.querySelector('.m-header');
+    btn.addEventListener('click', () => setOpen(m, m.dataset.open !== 'true'));
+  });
+  document.getElementById('expand-all').addEventListener('click', () => {
+    document.querySelectorAll('.milestone').forEach(m => setOpen(m, true));
+  });
+  document.getElementById('collapse-all').addEventListener('click', () => {
+    document.querySelectorAll('.milestone').forEach(m => setOpen(m, false));
+  });
+
+  // Open milestone if URL hash points to it
+  if (location.hash) {
+    const target = document.querySelector(location.hash);
+    if (target && target.classList.contains('milestone')) {
+      setOpen(target, true);
+      target.scrollIntoView({ behavior: 'instant', block: 'start' });
+    }
+  }
+</script>
+</body>
+</html>
