@@ -28,6 +28,7 @@ export default function AuthWrapper({ children }) {
 
   return (
     <Box
+      component="main"
       sx={{
         position: 'relative',
         minHeight: '100vh',
