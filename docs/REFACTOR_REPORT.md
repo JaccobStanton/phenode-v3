@@ -151,18 +151,18 @@ menu styling on every render — MUI's slot caching now actually does its job.
 
 ## 9. Maintainability nits (Audit finding #8)
 
-- **`package.json`** — renamed from `mantis-material-free-react` to
+- **`package.json`** — renamed from the original template package name to
   `phenode-frontend`, version bumped to `0.1.0`, marked `private: true`,
-  description added, and the CodedThemes author/homepage block removed.
-  Dropped two unused dependencies (`react-router` — `react-router-dom` is
-  enough on v7 — and `web-vitals`, which was only used by the deleted
-  `reportWebVitals`).
+  description added, and the upstream template's author/homepage block
+  removed. Dropped two unused dependencies (`react-router` —
+  `react-router-dom` is enough on v7 — and `web-vitals`, which was only
+  used by the deleted `reportWebVitals`).
 - **`useConfig.js`** — fixed the "must be use inside" → "must be used inside"
   typo in the thrown error.
 - **`ConfigContext.jsx`** — renamed the `localStorage` key from
   `mantis-react-free-config` to `phenode-frontend-config`.
-- **`AuthLogin.jsx`** — removed the demo `info@codedthemes.com / 123456`
-  initial values; the form now starts empty.
+- **`AuthLogin.jsx`** — removed the demo email/password initial values
+  shipped with the original template; the form now starts empty.
 - **`index.jsx`** — removed the dangling CRA-era `reportWebVitals()` call.
 
 ## Build verification

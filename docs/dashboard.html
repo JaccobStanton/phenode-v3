@@ -711,9 +711,9 @@ layout files and was left for a future PR.</p>
 menu styling on every render — MUI's slot caching now actually does its job.</p>
 <h2>9. Maintainability nits (Audit finding #8)</h2>
 <ul>
-<li><strong><code>package.json</code></strong> — renamed from <code>mantis-material-free-react</code> to
+<li><strong><code>package.json</code></strong> — renamed from the original template package name to
   <code>phenode-frontend</code>, version bumped to <code>0.1.0</code>, marked <code>private: true</code>,
-  description added, and the CodedThemes author/homepage block removed.
+  description added, and the upstream template's author/homepage block removed.
   Dropped two unused dependencies (<code>react-router</code> — <code>react-router-dom</code> is
   enough on v7 — and <code>web-vitals</code>, which was only used by the deleted
   <code>reportWebVitals</code>).</li>
@@ -721,8 +721,8 @@ menu styling on every render — MUI's slot caching now actually does its job.</
   typo in the thrown error.</li>
 <li><strong><code>ConfigContext.jsx</code></strong> — renamed the <code>localStorage</code> key from
   <code>mantis-react-free-config</code> to <code>phenode-frontend-config</code>.</li>
-<li><strong><code>AuthLogin.jsx</code></strong> — removed the demo <code>info@codedthemes.com / 123456</code>
-  initial values; the form now starts empty.</li>
+<li><strong><code>AuthLogin.jsx</code></strong> — removed the demo email/password initial values
+  shipped with the original template; the form now starts empty.</li>
 <li><strong><code>index.jsx</code></strong> — removed the dangling CRA-era <code>reportWebVitals()</code> call.</li>
 </ul>
 <h2>Build verification</h2>

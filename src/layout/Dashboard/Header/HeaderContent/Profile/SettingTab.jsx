@@ -13,12 +13,10 @@ import UnorderedListOutlined from '@ant-design/icons/UnorderedListOutlined';
 // ==============================|| HEADER PROFILE - SETTING TAB ||============================== //
 //
 // Items here are template-stub navigation entries — none currently route
-// anywhere. Wire onClicks as the corresponding pages are built.
-//
-// The previous version of this file had two external links pointing at
-// `https://codedthemes.support-hub.io/` (Mantis template defaults). They
-// were removed because the URLs aren't relevant to PheNode and the
-// styling didn't match the rest of the menu. Re-add them — pointing at
+// anywhere. Wire onClicks as the corresponding pages are built. Earlier
+// versions of this file shipped with two external template-default links
+// (one on Support, one on a Feedback entry) — both were removed because
+// the URLs weren't relevant to PheNode. Re-add them — pointing at
 // PheNode's actual support / feedback destinations — when those exist.
 
 const themedListItemSx = {

@@ -180,18 +180,29 @@ export default function Profile() {
           color="secondary"
           variant="light"
           sx={{
+            // Avatar trigger uses the same chrome recipe as the fleet-overview
+            // filter buttons (FleetOverviewView.jsx:37-79) for hover/active —
+            // green border + soft glass tint on hover; full Mui-selected look
+            // when the popper is open. Rest state keeps a transparent
+            // placeholder border so layout doesn't shift between states.
             p: 0.25,
             color: 'inherit',
-            bgcolor: 'transparent',
-            border: 'none',
+            border: '1px solid transparent',
+            borderRadius: 1,
+            backgroundColor: 'transparent',
             boxShadow: 'none',
+            transition: 'all 0.18s ease',
             '&:hover': {
-              bgcolor: 'transparent',
+              borderColor: 'var(--green)',
+              backgroundColor: 'rgba(0, 17, 48, 0.03)',
+              backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))',
               boxShadow: 'none'
             },
             ...(open && {
-              bgcolor: 'transparent',
-              boxShadow: 'none'
+              borderColor: 'var(--green)',
+              backgroundColor: 'rgba(72, 247, 245, 0.12)',
+              backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))',
+              boxShadow: '0 11px 19px 1px #0000002e'
             })
           }}
           aria-label="open profile"
