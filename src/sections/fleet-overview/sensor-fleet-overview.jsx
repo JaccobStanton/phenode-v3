@@ -14,7 +14,7 @@ import useMyWirelessSensors from 'hooks/data/useMyWirelessSensors';
 // and the hook change.
 
 export default function SensorFleetOverview() {
-  const { rows, isLoading } = useMyWirelessSensors();
+  const { rows, isLoading, error, mutate } = useMyWirelessSensors();
 
   return (
     <FleetOverviewView
@@ -24,6 +24,9 @@ export default function SensorFleetOverview() {
       searchPlaceholder="Search Wireless Sensors..."
       rows={rows ?? []}
       isLoading={isLoading}
+      error={error}
+      onRetry={mutate}
+      emptyMessage="No wireless sensors assigned to your account yet."
     />
   );
 }

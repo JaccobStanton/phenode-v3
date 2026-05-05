@@ -8,24 +8,22 @@ import { deviceReadToFleetRow } from 'utils/transforms/device';
 //
 // Data flow:
 //   useMyDevices() → DeviceRead[] from GET /api/devices/my-devices
-//                    (SWR caches by URL+token, deduped via SWRConfig)
+//                    (validated against services/schemas/device.js,
+//                    SWR-cached by URL+token, deduped via SWRConfig)
 //        ↓
 //   deviceReadToFleetRow → row shape { siteName, lastMeasurements, metrics[] }
 //        ↓
-//   FleetOverviewView renders the cards.
+//   FleetOverviewView renders the cards (or a state-appropriate
+//   loading / empty / error card if we don't have rows yet).
 //
 // Why the transformation lives here, not in the hook:
 //   The hook returns the API's actual shape so other consumers (a future
 //   map view, an admin table, a CSV exporter) don't first have to
 //   un-transform. The "view vocabulary" (siteName, metrics[].label)
 //   belongs in the container that renders the view.
-//
-// The active count on screen is currently a placeholder — once the
-// backend exposes a fleet-wide active count (or once we count
-// `health_status === 'Live'` here), wire it in.
 
 export default function FleetOverview() {
-  const { devices, isLoading } = useMyDevices();
+  const { devices, isLoading, error, mutate } = useMyDevices();
 
   // useMemo so the transformed array reference is stable across renders
   // when `devices` hasn't changed — that keeps FleetOverviewView's
@@ -42,6 +40,9 @@ export default function FleetOverview() {
       searchPlaceholder="Search PheNodes..."
       rows={rows}
       isLoading={isLoading}
+      error={error}
+      onRetry={mutate}
+      emptyMessage="No PheNodes assigned to your account yet."
     />
   );
 }

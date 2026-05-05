@@ -43,6 +43,16 @@ const ACCESS_TOKEN_KEY = 'access_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
 
 /**
+ * Custom event fired immediately before logout clears tokens. Other
+ * subsystems (notably SWRProvider's localStorage cache) listen for it
+ * to wipe user-scoped state before the navigation away. Keeping the
+ * dispatch inside AuthContext means there's a single point that
+ * "owns" the logout signal — without it, every cache holder would
+ * have to open-code the same localStorage / event listening dance.
+ */
+export const LOGOUT_EVENT = 'auth:logout';
+
+/**
  * Decode the access token's claims into the camelCase shape the rest of
  * the app uses. Returns null when there is no token or it is unparseable.
  *
@@ -161,6 +171,11 @@ export function AuthProvider({ children }) {
   const logout = useCallback(
     ({ hard = false } = {}) => {
       if (typeof window !== 'undefined') {
+        // Fire BEFORE clearing tokens so listeners (SWRProvider's cache
+        // wipe) can act while the session is still notionally valid.
+        // Any synchronous handlers — like the persistence cache clear —
+        // get to mutate their state before the unload races.
+        window.dispatchEvent(new CustomEvent(LOGOUT_EVENT));
         try {
           window.localStorage.removeItem(ACCESS_TOKEN_KEY);
           window.localStorage.removeItem(REFRESH_TOKEN_KEY);

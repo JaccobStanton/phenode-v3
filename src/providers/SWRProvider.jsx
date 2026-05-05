@@ -2,6 +2,7 @@ import PropTypes from 'prop-types';
 import { useMemo, useRef } from 'react';
 import { SWRConfig } from 'swr';
 
+import { LOGOUT_EVENT } from 'contexts/AuthContext';
 import useAuth from 'hooks/useAuth';
 import { fetcher } from 'services/fetcher';
 
@@ -14,46 +15,89 @@ import { fetcher } from 'services/fetcher';
 //   - Sets the global `fetcher` from services/fetcher.js so individual hooks
 //     can `useSWR(key)` without re-importing the fetcher each time.
 //
-//   - dedupingInterval: 15000 (ms) — SWR coalesces identical-key requests
-//     within this window. With cache-key-by-URL, two pages that both ask
-//     for /api/devices/my-devices in quick succession share a single
-//     network request. (Per-hook overrides exist for things that genuinely
-//     need to bypass dedup.)
+//   - Persists the cache to localStorage so a hard refresh feels instant.
+//     The user lands on /dashboard with last-known device data already
+//     painted; SWR revalidates in the background and replaces with fresh.
 //
-//   - revalidateOnFocus: false — heavy lists shouldn't re-fetch every time
-//     the tab regains focus. Per-hook overrides exist for things that
-//     should — e.g., a real-time-ish status page can pass
-//     `revalidateOnFocus: true` on its useSWR call.
+//   - dedupingInterval: 15000 (ms) — SWR coalesces identical-key requests
+//     within this window. Two pages calling the same hook in quick
+//     succession share a single network request.
+//
+//   - revalidateOnFocus: false — heavy lists shouldn't re-fetch every
+//     time the tab regains focus.
 //
 //   - shouldRetryOnError — SWR's default exponential-backoff retry is
-//     useful for transient network errors, pointless for 401s (the token
-//     won't fix itself by being asked again). Skipping retry on 401 also
-//     prevents a queue of doomed retries running while the onError
-//     handler is mid-logout.
+//     useful for transient network errors, pointless for 401s. Skipping
+//     retry on 401 also prevents a queue of doomed retries running while
+//     the onError handler is mid-logout.
 //
 //   - onError — global hook for unrecoverable errors. The interesting
-//     case is 401: when the access token is rejected, hard-logout the
-//     user (clears tokens AND does window.location.assign('/login') in
-//     one shot, which wipes SWR cache + cancels in-flight requests).
-//     Other statuses (403, 5xx, network) are left for the calling page
-//     to surface — they're not "the session is broken" errors.
+//     case is 401: hard-logout the user (clears tokens AND does
+//     window.location.assign('/login') in one shot). Other statuses are
+//     left for the calling page to surface — they're not "the session is
+//     broken" errors.
 //
-// Why this lives below AuthProvider, inside the router:
+// Why the persistence cache is wiped on logout:
 //
-//   - SWRProvider needs useAuth() to read `logout` for the 401 handler.
-//     useAuth requires an AuthProvider ancestor.
-//
-//   - AuthProvider's logout uses useNavigate(), which requires a router
-//     context. So both providers live inside RouterProvider — see
-//     routes/index.jsx where the stacking happens.
-//
-// Why not put this in App.jsx:
-//
-//   - It can't be — the dependency on useAuth() forces it below
-//     AuthProvider, and AuthProvider has to be inside the router.
-//   - Side benefit: keeps App.jsx declarative (just <ThemeCustomization>
-//     + <RouterProvider>). Provider stacking lives next to the route
-//     definitions where it belongs.
+//   The cache holds user-scoped data (device lists, sensor readings).
+//   If user A logs out and user B logs in on the same browser, user B
+//   shouldn't briefly see user A's fleet before SWR revalidates. The
+//   provider listens for AuthContext's LOGOUT_EVENT and clears the Map
+//   plus the localStorage entry synchronously — so by the time the
+//   hard-navigation to /login fires, there's nothing user-scoped left.
+
+const PERSIST_KEY = 'phenode:swr-cache';
+
+/**
+ * Build the SWR cache. Runs once when SWRProvider mounts. Reads any
+ * persisted entries from localStorage so the first render of any
+ * useSWR consumer sees instant cached data, then writes the live Map
+ * back on `beforeunload` so the next session picks up where this one
+ * left off.
+ *
+ * Why we wipe on LOGOUT_EVENT (instead of just trusting the next user
+ * to revalidate over the stale data): the staleness window is small,
+ * but it's a real "saw the previous user's devices for a beat" UX
+ * issue on shared browsers. Clearing the Map + the localStorage entry
+ * synchronously inside the listener closes that window.
+ */
+const createCacheProvider = () => () => {
+  let map;
+  try {
+    const stored = typeof window !== 'undefined' ? window.localStorage.getItem(PERSIST_KEY) : null;
+    map = new Map(stored ? JSON.parse(stored) : []);
+  } catch {
+    // Storage unreadable / JSON corrupt — start with empty cache.
+    map = new Map();
+  }
+
+  if (typeof window !== 'undefined') {
+    // Flush the live Map to localStorage on page unload. Wrapped in
+    // try/catch because Storage can throw QuotaExceededError on full
+    // quota and the unload handler must not crash the navigation.
+    window.addEventListener('beforeunload', () => {
+      try {
+        window.localStorage.setItem(PERSIST_KEY, JSON.stringify(Array.from(map.entries())));
+      } catch {
+        // ignore — best-effort persistence; next load just starts cold
+      }
+    });
+
+    // Wipe on logout so the next user (if any) doesn't briefly see the
+    // previous user's data. Synchronous: by the time AuthContext's
+    // logout finishes navigating, the persistence is already cleared.
+    window.addEventListener(LOGOUT_EVENT, () => {
+      map.clear();
+      try {
+        window.localStorage.removeItem(PERSIST_KEY);
+      } catch {
+        // ignore
+      }
+    });
+  }
+
+  return map;
+};
 
 export default function SWRProvider({ children }) {
   const { logout } = useAuth();
@@ -64,13 +108,19 @@ export default function SWRProvider({ children }) {
   // that, but the ref keeps the intent (and the logs) clean.
   const hasLoggedOutRef = useRef(false);
 
-  // Memoize the SWRConfig value object so SWR's context doesn't churn on
-  // every render — that would cascade re-renders through every useSWR
-  // consumer in the tree. `logout` from useAuth is itself useCallback-
-  // stable (deps: [navigate]), so this memo's deps stay stable too.
+  // Memoize the SWRConfig value object so SWR's context doesn't churn
+  // on every render — that would cascade re-renders through every
+  // useSWR consumer in the tree. `logout` from useAuth is itself
+  // useCallback-stable (deps: [navigate]).
+  //
+  // Note: `provider` is constructed once via createCacheProvider() so
+  // the cache Map persists across renders. SWRConfig calls the
+  // provider function once at mount and reuses the returned Map for
+  // the lifetime of the tree.
   const config = useMemo(
     () => ({
       fetcher,
+      provider: createCacheProvider(),
       dedupingInterval: 15000,
       revalidateOnFocus: false,
       shouldRetryOnError: (err) => err?.status !== 401,

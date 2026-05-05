@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 
 import useMediaQuery from '@mui/material/useMediaQuery';
 import Toolbar from '@mui/material/Toolbar';
@@ -9,6 +9,7 @@ import Box from '@mui/material/Box';
 import Drawer from './Drawer';
 import Header from './Header';
 import Footer from './Footer';
+import ErrorBoundary from 'components/ErrorBoundary';
 import Loader from 'components/Loader';
 import Breadcrumbs from 'components/@extended/Breadcrumbs';
 
@@ -20,6 +21,7 @@ import useConfig from 'hooks/useConfig';
 export default function DashboardLayout() {
   const { menuMasterLoading } = useGetMenuMaster();
   const { state } = useConfig();
+  const location = useLocation();
   const downXL = useMediaQuery((theme) => theme.breakpoints.down('xl'));
   const showPageTitleAndBreadcrumbs = state.showPageTitleAndBreadcrumbs ?? false;
   const MAIN_CARD_MIN_HEIGHT = 'calc(100vh - 206px)';
@@ -58,7 +60,16 @@ export default function DashboardLayout() {
               }
             }}
           >
-            <Outlet />
+            {/*
+              key={location.pathname} resets the boundary on route change.
+              Without it, an error on /fleet-overview would persist when
+              the user clicks a different page in the drawer — they'd see
+              the fallback on every page until reload. With the key, each
+              navigation gets a fresh boundary instance.
+            */}
+            <ErrorBoundary key={location.pathname}>
+              <Outlet />
+            </ErrorBoundary>
           </Box>
           <Footer />
         </Box>

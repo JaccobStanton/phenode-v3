@@ -88,8 +88,113 @@ const emptyRowCardSx = {
   textAlign: 'center'
 };
 
+// Retry-button style for the error state. Mirrors the controlBaseSx
+// chrome used elsewhere on this page (search/sort buttons) so the
+// affordance feels native to the surface.
+const retryButtonSx = {
+  mt: 1.5,
+  height: 40,
+  px: 2.5,
+  borderRadius: 1,
+  cursor: 'pointer',
+  color: 'var(--blue)',
+  fontFamily: 'inherit',
+  fontSize: '0.8rem',
+  fontWeight: 500,
+  letterSpacing: '0.04em',
+  textTransform: 'uppercase',
+  border: '1px solid var(--reflected-light)',
+  backgroundColor: 'rgba(0, 17, 48, 0.03)',
+  backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))',
+  boxShadow: '0 11px 19px 1px #0000002e',
+  transition: 'color 0.18s ease, border-color 0.18s ease',
+  '&:hover': {
+    borderColor: 'var(--green)',
+    color: 'var(--green)'
+  }
+};
+
+/**
+ * Renders the appropriate "no rows visible" state. Order matters: the
+ * conditions below cascade from "still loading" → "failed" → "search
+ * returned zero of N rows" → "fleet is genuinely empty." The order
+ * means a hook that's both loading AND error'd shows loading first,
+ * which matches user expectation (revalidation-in-flight after a prior
+ * failure shouldn't flash an error message).
+ *
+ * `rows` here is the *unfiltered* array from the hook. The component's
+ * `visibleRows` (filtered + sorted) is what triggers this render in the
+ * first place; we use the unfiltered count to tell apart "no devices"
+ * from "no search matches."
+ */
+function renderEmptyStateCard({ rows, isLoading, error, onRetry, searchValue, emptyMessage }) {
+  // 1. Loading first time (no data yet)
+  if (isLoading && (!rows || rows.length === 0)) {
+    return (
+      <Card sx={emptyRowCardSx}>
+        <Typography variant="body1" sx={{ color: 'var(--blue)' }}>
+          Loading fleet…
+        </Typography>
+      </Card>
+    );
+  }
+
+  // 2. Failed first load (error, no data)
+  if (error && (!rows || rows.length === 0)) {
+    return (
+      <Card sx={emptyRowCardSx}>
+        <Typography variant="body1" sx={{ color: 'var(--orange)', fontWeight: 600 }}>
+          Failed to load fleet
+        </Typography>
+        {error.message && (
+          <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.55)', display: 'block', mt: 0.5, fontStyle: 'italic' }}>
+            {error.message}
+          </Typography>
+        )}
+        {onRetry && (
+          <Box component="button" type="button" onClick={onRetry} sx={retryButtonSx}>
+            Try again
+          </Box>
+        )}
+      </Card>
+    );
+  }
+
+  // 3. Search returned zero of N existing rows
+  if (searchValue && rows && rows.length > 0) {
+    return (
+      <Card sx={emptyRowCardSx}>
+        <Typography variant="body1" sx={{ color: 'var(--blue)' }}>
+          No entries found for that search.
+        </Typography>
+      </Card>
+    );
+  }
+
+  // 4. Fleet is genuinely empty (loaded successfully, zero rows)
+  return (
+    <Card sx={emptyRowCardSx}>
+      <Typography variant="body1" sx={{ color: 'var(--blue)' }}>
+        {emptyMessage}
+      </Typography>
+    </Card>
+  );
+}
+
 /**
  * Renders the fleet-overview list (used both for PheNodes and wireless sensors).
+ *
+ * Distinguishes four "no rows visible" states so the user always sees a
+ * useful message instead of a blank space:
+ *
+ *   1. First-time loading (no data yet, no error) → "Loading fleet…"
+ *   2. Failed load          (error, no data)      → "Failed to load fleet"
+ *                                                   + Retry button if onRetry supplied
+ *   3. Loaded but empty     (no error, zero rows) → "No devices in your fleet yet"
+ *   4. Search returned zero (rows exist, none match query)
+ *                                                 → "No entries found for that search"
+ *
+ * Once rows are present and not filtered out, the cards render normally.
  *
  * @param {Object} props
  * @param {string} props.title
@@ -97,8 +202,23 @@ const emptyRowCardSx = {
  * @param {number|string} props.activeCount
  * @param {string} props.searchPlaceholder
  * @param {Array} props.rows - Array of { siteName, lastMeasurements, metrics: [{ label, value }] }
+ * @param {boolean} [props.isLoading]
+ * @param {Error} [props.error] - SWR error from the calling hook, if any
+ * @param {Function} [props.onRetry] - Optional retry handler (e.g., the hook's mutate())
+ * @param {string} [props.emptyMessage] - Override for state #3's message — wireless-sensor
+ *                                        page may want different copy than the device page
  */
-export default function FleetOverviewView({ title = 'Your Fleet', activeLabel, activeCount, searchPlaceholder, rows, isLoading = false }) {
+export default function FleetOverviewView({
+  title = 'Your Fleet',
+  activeLabel,
+  activeCount,
+  searchPlaceholder,
+  rows,
+  isLoading = false,
+  error,
+  onRetry,
+  emptyMessage = 'No devices in your fleet yet.'
+}) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchValue, setSearchValue] = useState('');
   const [sortMode, setSortMode] = useState('');
@@ -371,13 +491,7 @@ export default function FleetOverviewView({ title = 'Your Fleet', activeLabel, a
                   </Grid>
                 </Card>
               ))}
-              {visibleRows.length === 0 && (
-                <Card sx={emptyRowCardSx}>
-                  <Typography variant="body1" sx={{ color: 'var(--blue)' }}>
-                    {isLoading ? 'Loading fleet…' : 'No sensor entries found for that search.'}
-                  </Typography>
-                </Card>
-              )}
+              {visibleRows.length === 0 && renderEmptyStateCard({ rows, isLoading, error, onRetry, searchValue, emptyMessage })}
             </Stack>
           </Box>
         </Box>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { preload } from 'swr';
 
 // material-ui
 import Box from '@mui/material/Box';
@@ -14,6 +15,8 @@ import Alert from '@mui/material/Alert';
 import IconButton from 'components/@extended/IconButton';
 import Logo from 'components/logo/LogoIcon';
 import useAuth from 'hooks/useAuth';
+import API from 'services/endpoints';
+import { buildUrl, fetcher } from 'services/fetcher';
 import { tooltipSlotProps } from 'themes/sx-tokens';
 
 // assets
@@ -212,6 +215,13 @@ export default function AuthLogin() {
         // every consumer (Profile menu, future fetch hooks, route guards)
         // sees the new session without re-reading localStorage.
         login(data);
+        // Pre-warm the device list before navigating. SWR's `preload`
+        // kicks off the fetch (it doesn't await) and populates the
+        // cache against the same key useMyDevices() will use on mount,
+        // so by the time /dashboard/fleet-overview's useSWR runs, the
+        // data is either already there or about to be — avoiding the
+        // "loading fleet…" flash on first dashboard paint after sign-in.
+        preload([buildUrl(API.devices.myDevices), data.access_token], fetcher);
         navigate('/dashboard/fleet-overview', { replace: true });
         return;
       }
