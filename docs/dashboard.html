@@ -549,9 +549,9 @@
       </div>
     </div>
     <div class="meta">
-      <span class="stat"><strong>3</strong> milestones</span>
+      <span class="stat"><strong>4</strong> milestones</span>
       <span class="divider"></span>
-      <span>Last updated <strong style="font-size:13px;font-family:var(--sans);font-weight:500;color:var(--text)">Apr 29, 2026</strong></span>
+      <span>Last updated <strong style="font-size:13px;font-family:var(--sans);font-weight:500;color:var(--text)">May 5, 2026</strong></span>
     </div>
   </header>
 
@@ -1404,6 +1404,156 @@ the running api container:</p>
   Google-only CTA. The backend supports <code>POST /auth/signup</code> already
   (the <code>make signup</code> target proves it); adding the form is a
   straightforward follow-up.</li>
+</ul>
+</div>
+        </div>
+      </div>
+    </article>
+
+    <article class="milestone" data-open="false" id="m-day-2026-05-05">
+      <button class="m-header" aria-expanded="false" aria-controls="m-day-2026-05-05-body">
+        <div class="m-num">04</div>
+        <div class="m-titleblock">
+          <h2 class="m-title">Daily Build — May 5, 2026</h2>
+          <div class="m-sub">Auth UX polish · login wired to backend · Lighthouse 86 → 91 · CodedThemes scrubbed</div>
+        </div>
+        <div class="m-rhs">
+          <span class="tag tag-shipped">Today</span>
+          <span class="caret" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 5l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+        </div>
+      </button>
+      <div class="m-body" id="m-day-2026-05-05-body" role="region" aria-label="Daily build report — May 5, 2026">
+        <div class="m-body-inner">
+          <div class="md">
+<h1>Dev Report — May 5, 2026</h1>
+<p><strong>Theme:</strong> Authentication, login UX, Lighthouse auditing, load time<br />
+<strong>Surface area:</strong> PheNode V3 frontend (<code>phenodeV3/</code>), repo plumbing<br />
+<strong>Outcome:</strong> Lighthouse Performance 86 → <strong>91</strong>, SEO 92 → <strong>100</strong>, A11y 100 (with the lone failed audit cleared), Best Practices held at <strong>100</strong>.</p>
+<hr />
+<h2>1. Summary</h2>
+<p>Five loose phases that fed into each other:</p>
+<ol>
+<li><strong>Auth UX polish</strong> — final color, gradient, glow, button-state, and tooltip work on <code>/login</code> and <code>/register</code>.</li>
+<li><strong>Header avatar menu</strong> — wired to the real user (from the JWT in <code>localStorage</code>), themed all sub-components, and made logout functional from both the icon button and the in-menu list item.</li>
+<li><strong>Backend connection</strong> — <code>VITE_API_URL</code> toggle for local vs production, <code>.env</code> untracked from git with a tracked <code>.env.example</code> template, verified prod base URL is <code>/api</code> (not <code>/api/v1</code> as initially suggested).</li>
+<li><strong>Lighthouse setup + iteration cycle</strong> — installed Lighthouse as a devDependency, wrote <code>make audit</code> and supporting shell script, ran five rounds of audits with two failed approaches and two successful ones documented for future reference.</li>
+<li><strong>Repository hygiene</strong> — removed every CodedThemes / Mantis template reference from the codebase, deleted the third-party tracking pixel that was eating ~290 ms of every page load, and produced documentation covering local setup, Lighthouse runbook, and a performance baseline.</li>
+</ol>
+<hr />
+<h2>2. Auth UX polish</h2>
+<p>Driven by direct review of the live UI, several small visual tweaks landed:</p>
+<ul>
+<li>Removed the green glow ring on the logo box at the top of the sign-in card; left only the standard project drop shadow.</li>
+<li>Iterated several times on the Login button border/glow treatment (started at green-border-with-glow, ended at <code>var(--blue)</code> border with no glow at rest, hover transitions border + text to <code>var(--green)</code> with no shadow). Width capped to 60–70% of the form column and centered.</li>
+<li>Removed the redundant "Login" / "Password" labels above each input; placeholders now carry the labeling.</li>
+<li>Placeholders in <code>var(--green)</code>, typed values in <code>var(--green)</code>, both via a <code>blendedInputSx</code> recipe that overrides the global <code>OutlinedInput</code> theme just for the auth inputs.</li>
+<li>Added a clear-X icon on the email field; sits at rest in <code>var(--blue)</code> and brightens to <code>var(--green)</code> on hover, sharing an <code>inputAdornmentIconSx</code> recipe with the password eye toggle.</li>
+<li>Right panel collapsed to "Welcome to PheNode" with subtitle "Environmental Intelligence Platform" in <code>var(--blue)</code>.</li>
+<li>Auth pill goes full-bleed with no rounded corners and no border on mobile so the page background never shows through at the edges.</li>
+<li>Added a footer "Copyright © 2026 Agrela Ecosystems. All rights reserved" anchored at the bottom of the page background; only the company name is the link to <code>https://www.agrelaeco.com</code>.</li>
+<li>The LOGIN button's <code>aria-label</code> now reads <code>"Login — sign in with email and password"</code> so it contains the visible text (WCAG 2.5.3, "Label in Name").</li>
+<li>Added <code>component="main"</code> on <code>AuthWrapper</code>'s outer <code>Box</code> so the document has the required <code>&lt;main&gt;</code> landmark — fixes Lighthouse's <code>landmark-one-main</code> audit.</li>
+</ul>
+<hr />
+<h2>3. Header avatar menu — wired to real user</h2>
+<p>The avatar dropdown in the dashboard header was previously hardcoded to "Bill Keezle / Super User Account" with a non-functional logout button.</p>
+<p><strong>What changed:</strong></p>
+<ul>
+<li>New shared utility <code>src/utils/auth.js</code> exporting <code>decodeJwtPayload(token)</code>, <code>getCurrentUser()</code>, <code>formatRoleLabel(role)</code>, <code>clearTokens()</code>, and <code>logout(navigate)</code>.</li>
+<li><code>Profile/index.jsx</code> reads from <code>getCurrentUser()</code> and renders the email as the username line and the formatted role as the secondary line. Both lines collapse to flex with <code>noWrap</code> + ellipsis so a long email truncates instead of pushing the logout button off the right edge.</li>
+<li><code>AuthApprovalPending.jsx</code> was refactored to use the shared <code>getCurrentUser</code> and <code>logout</code> helpers, removing ~30 lines of duplicate boilerplate.</li>
+<li>The popper paper was rebuilt around the same radial gradient as the drawer's <code>SHELL_SURFACE_GRADIENT</code> for visual continuity. Hit several dead-ends along the way (a phantom white overlay traced to the <code>MainCard</code> component painting its own gradient on top of the consumer <code>sx</code>; tabs picking up MUI's default white hover background; backdrop filter creating a frame-1 flash during the Grow transition), all resolved.</li>
+<li>All sub-components (Tabs, ProfileTab list, SettingTab list, divider, user-info row, logout icon button) use only project tokens — no white text anywhere, no MUI grays, no template-leftover chrome.</li>
+</ul>
+<hr />
+<h2>4. Login wired to the real backend</h2>
+<p><code>AuthLogin.jsx</code>'s <code>handleEmailLogin</code> had been a UI-only stub. Verified the phenodeX auth router actually exposes the email/password endpoints, then wired the form:</p>
+<ul>
+<li>200 → store <code>access_token</code> + <code>refresh_token</code> in <code>localStorage</code>, navigate to <code>/dashboard/fleet-overview</code>.</li>
+<li>403 with <code>detail</code> containing "pending" → navigate to <code>/approval-pending</code>.</li>
+<li>401 / other 4xx → render an inline themed <code>Alert</code> (using <code>var(--critical)</code>), keep the form editable.</li>
+<li>Network error → the same Alert with "Network error — please try again."</li>
+<li>Submit button shows "Signing in…" and is <code>disabled</code> while the request is in flight.</li>
+</ul>
+<p><code>.env</code> re-organized with both candidate <code>VITE_API_URL</code> values (local and production) and an explanatory header documenting that both environments mount routes at plain <code>/api</code> — no <code>/v1</code> segment. The incorrect <code>/api/v1</code> claim from earlier was tracked back to a verbal source, verified against <code>phenodeX/docs/frontend-backend-api.md:16</code> and <code>phenode_backend/main.py:108-116</code>, and corrected. The <code>.env</code> file is now untracked from git (was committed previously) and there's a companion <code>.env.example</code> template that IS tracked.</p>
+<hr />
+<h2>5. Visual documentation — Mermaid mind map</h2>
+<p>Generated <code>Outputs/auth-component-mindmap.md</code> and integrated four key flow diagrams into <code>phenodeV3/docs/auth-login-integration-report.md</code> §5:</p>
+<ul>
+<li><strong>5.1</strong> <code>AuthLogin.jsx</code> email + password flow — fanning out into 200 / 403-pending / 403-other / 401 / network paths.</li>
+<li><strong>5.2</strong> Google sign-in / sign-up — current stubs (solid arrows) plus the planned end-to-end flow (dotted arrows) through <code>/api/auth/google/login</code> → <code>/oauth/callback</code> → <code>POST /api/auth/token</code>.</li>
+<li><strong>5.3</strong> Approval-pending polling loop — the 10-second <code>GET /api/user/devices</code> cycle with loop-back arrows on 403 and the redirect arrow on 200.</li>
+<li><strong>5.4</strong> Logout convergence — three different click sources (avatar icon, profile-tab list item, approval-pending button) funnel into the single <code>logout</code> helper.</li>
+</ul>
+<p>Each diagram was validated through the Mermaid Chart MCP connector (installed today) and confirmed to render cleanly. Every claim in the document carries a <code>path:line</code> citation against the actual code.</p>
+<hr />
+<h2>6. Repository plumbing</h2>
+<p>Single-entry lifecycle with the new <code>Makefile</code>, <code>README.md</code>, and supporting scripts:</p>
+<ul>
+<li><strong><code>Makefile</code></strong> — <code>make up</code>, <code>make backend</code>, <code>make frontend</code>, <code>make stop</code>, <code>make logs</code>, <code>make health</code>, <code>make signup</code>, <code>make audit</code>, <code>make clean</code>.</li>
+<li><strong><code>README.md</code></strong> — quick-start, project structure, command table, links to longer docs.</li>
+<li><strong><code>scripts/lighthouse-audit.sh</code></strong> — handles the build → preview → audit → cleanup lifecycle for <code>make audit</code>. Has a <code>trap cleanup EXIT</code> so the preview server gets killed even on Ctrl-C.</li>
+<li><strong><code>Outputs/</code></strong> folder for shareable artifacts.</li>
+<li><strong><code>Lighthouse_Reports/</code></strong> folder with a self-only <code>.gitignore</code> so the directory is tracked but the per-run JSON reports aren't committed.</li>
+</ul>
+<hr />
+<h2>7. Lighthouse — setup, iteration, results</h2>
+<p>Five rounds of audits today:</p>
+<table>
+<thead>
+<tr><th>Round</th><th>Change</th><th>Performance</th><th>FCP</th><th>LCP</th><th>Unused JS</th></tr>
+</thead>
+<tbody>
+<tr><td>1</td><td>Initial baseline</td><td>86</td><td>3.0 s</td><td>3.4 s</td><td>105 KiB</td></tr>
+<tr><td>2</td><td>Applied all 5 audit-driven fixes</td><td>79</td><td>3.8 s</td><td>4.0 s</td><td>229 KiB</td></tr>
+<tr><td>3</td><td>Reverted CSS deferral (<code>media="print"</code>)</td><td>80</td><td>3.3 s</td><td>4.1 s</td><td>229 KiB</td></tr>
+<tr><td>4</td><td>Reverted <code>manualChunks</code> for x-charts/pickers</td><td>88</td><td>2.9 s</td><td>3.2 s</td><td>105 KiB</td></tr>
+<tr><td>5</td><td>Inline CSS plugin + lazy <code>DashboardLayout</code></td><td><strong>91</strong></td><td><strong>2.7 s</strong></td><td><strong>2.9 s</strong></td><td><strong>50 KiB</strong></td></tr>
+</tbody>
+</table>
+<p><strong>What worked:</strong></p>
+<ul>
+<li>Conditional <code>ResizeObserver</code> polyfill (<code>if (!('ResizeObserver' in window))</code>) — modern browsers skip the request entirely. Removed an 802 ms render-block from the third-party CDN.</li>
+<li>Real <code>robots.txt</code> at <code>phenodeV3/public/</code>. SEO 92 → 100. The previous "44 syntax errors" audit was Lighthouse parsing the SPA's <code>index.html</code> as robots directives.</li>
+<li><code>aria-label</code> on the LOGIN button now contains the visible text. Cleared <code>label-content-name-mismatch</code>.</li>
+<li>Inline entry CSS via custom Vite plugin <code>inlineEntryCss()</code>. Eliminated the render-blocking CSS request entirely without the FOUC the <code>media="print"</code> trick produced.</li>
+<li>Lazy-loaded <code>DashboardLayout</code> via <code>Loadable(lazy(() =&gt; import('layout/Dashboard')))</code> in <code>MainRoutes.jsx</code>. Entry chunk shrunk 244 KB → 148 KB (−39%). Unused JS halved.</li>
+</ul>
+<p><strong>What didn't work — recorded for future reference in <code>phenodeV3/docs/Lighthouse/baseline.md</code> §5:</strong></p>
+<ul>
+<li><code>media="print" onload="this.media='all'"</code> CSS deferral. Satisfied the audit but caused FOUC on the auth surface (which depends on CSS for first paint due to <code>backdrop-filter</code> and gradients). FCP regressed by 800 ms. Reverted.</li>
+<li>Object-form <code>manualChunks</code> for lazy-only deps. Did shrink the entry bundle, but the chunks ended up loaded as <code>High</code>-priority static deps on every route including <code>/login</code>. Net result was MORE JS shipped to auth pages. Even <code>modulePreload: { resolveDependencies: () =&gt; [] }</code> didn't suppress the eager fetch. Reverted.</li>
+</ul>
+<hr />
+<h2>8. Cleanup — CodedThemes / Mantis template scrub</h2>
+<p>The <code>phenode-frontend</code> package descended from a CodedThemes Mantis admin template and still carried template references and a tracking pixel:</p>
+<ul>
+<li><code>index.html</code> — meta <code>title</code>, <code>description</code>, <code>keywords</code>, <code>author</code> all rewritten to PheNode / Agrela Ecosystems. The <code>fomo.codedthemes.com</code> tracker (<code>~288 ms</code> of every page load — about 43% of the original 670 ms total) deleted.</li>
+<li><code>src/layout/Dashboard/Footer.jsx</code> — "About us" link target swapped from <code>codedthemes.com/about-us/</code> to <code>https://www.agrelaeco.com/</code>.</li>
+<li><code>src/components/cards/AuthFooter.jsx</code> — entire file deleted (was orphaned + carried "Made with love by Team CodedThemes" branding).</li>
+<li><code>SettingTab.jsx</code> — rewrote a comment that named the upstream <code>codedthemes.support-hub.io</code> URL.</li>
+<li><code>docs/REFACTOR_REPORT.md</code> and <code>docs/dashboard.html</code> — historical refactor notes generalized to "the upstream template".</li>
+</ul>
+<p>Final grep across the repo for <code>codedthemes</code> / <code>fomo.codedthemes</code>: <strong>zero matches</strong>.</p>
+<hr />
+<h2>9. Documentation produced today</h2>
+<ul>
+<li><code>Outputs/auth-login-integration-report.md</code> — full report on the email/password flow wiring with the four flow diagrams.</li>
+<li><code>Outputs/auth-component-mindmap.md</code> — top-level mind map plus four flowcharts.</li>
+<li><code>Outputs/running-the-system-locally.md</code> — local setup walkthrough.</li>
+<li><code>Outputs/frontend-engineering-skill-patch.md</code> — patch document for the "Verification &amp; Source-of-Truth" rule.</li>
+<li><code>phenodeV3/docs/Lighthouse/instructions.md</code> — 12-section Lighthouse runbook.</li>
+<li><code>phenodeV3/docs/Lighthouse/baseline.md</code> — performance baseline V2 with the two failed-experiment writeups.</li>
+<li><code>phenodeV3/docs/dev_reports/2026-05-05.md</code> — this report.</li>
+</ul>
+<hr />
+<h2>10. Tomorrow's queue</h2>
+<ul>
+<li>Wire the Google OAuth <code>/oauth/callback</code> page so the Google sign-in / sign-up button stops being a console-info stub.</li>
+<li>Audit the dashboard surface (<code>/dashboard/fleet-overview</code>) once auth is live end-to-end. Expect a similar "no <code>&lt;main&gt;</code> landmark" warning that's an easy <code>component="main"</code> fix.</li>
+<li>Consider a smarter code-split strategy if performance work resumes (see <code>baseline.md</code> §5.3 for the function-form <code>manualChunks</code> hypothesis).</li>
 </ul>
 </div>
         </div>
