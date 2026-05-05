@@ -1,0 +1,220 @@
+import { createContext, useCallback, useEffect, useMemo, useState } from 'react';
+import PropTypes from 'prop-types';
+import { useNavigate } from 'react-router-dom';
+
+import { decodeJwtPayload } from 'utils/auth';
+
+// =============================================================================
+// AuthContext — single source of truth for the signed-in user.
+// =============================================================================
+//
+// Why this file exists:
+//   Before this, `utils/auth.js` exposed `getCurrentUser()` which re-read and
+//   re-decoded the JWT from `localStorage` on every call (one-shot helper,
+//   no change-propagation). That's fine when only one or two screens need
+//   the user, but the dashboard now has many consumers (Profile menu, route
+//   guards, fetch hooks, the approval-pending poller, etc.) and we need a
+//   single state source that re-renders consumers when the token changes.
+//
+// What this provider owns:
+//   - accessToken, refreshToken (raw strings, used by the fetcher)
+//   - user (decoded claims, camelCased at this boundary)
+//   - isAuthenticated (token present AND not past its `exp`)
+//   - login(tokenPair) / logout()
+//
+// Persistence:
+//   - Hydrates from localStorage at first render (useState initializer) so
+//     the very first paint already reflects the persisted session — no
+//     "auth-loading" flicker on a hard refresh.
+//   - Writes to localStorage from login() and clears from logout(). Components
+//     never read localStorage directly anymore.
+//   - Listens for `storage` events so a logout in tab A is mirrored in tab B
+//     without a refresh.
+//
+// Backend contract verified against:
+//   phenodeX/docs/frontend-backend-api.md:33-39        (JWT claim list)
+//   phenodeX/phenode_backend/api/auth/routes.py:36-53  (_create_token_pair
+//                                                       populates sub=email,
+//                                                       role, org_id,
+//                                                       is_approved, exp)
+
+const ACCESS_TOKEN_KEY = 'access_token';
+const REFRESH_TOKEN_KEY = 'refresh_token';
+
+/**
+ * Decode the access token's claims into the camelCase shape the rest of
+ * the app uses. Returns null when there is no token or it is unparseable.
+ *
+ * Why we rename at this boundary: the backend ships snake_case (`is_approved`,
+ * `org_id`); the rest of the JS codebase is camelCase. Renaming here, once,
+ * means component code never has to know about the backend's casing.
+ */
+function userFromToken(accessToken) {
+  if (!accessToken) return null;
+  const payload = decodeJwtPayload(accessToken);
+  if (!payload) return null;
+  return {
+    email: payload.sub || '',
+    role: payload.role || 'USER',
+    isApproved: payload.is_approved !== false,
+    orgId: payload.org_id ?? null,
+    exp: payload.exp ?? null
+  };
+}
+
+/**
+ * "Fresh" means: the token exists, decodes, and is not past its `exp`.
+ *
+ * Why a missing/non-numeric `exp` counts as fresh: a malformed-but-readable
+ * token shouldn't lock the UI out before the backend has even been asked.
+ * We'd rather surface a real 401 from the next API call (which the fetcher's
+ * refresh flow can then handle) than guess at expiry from the client.
+ *
+ * Why we multiply by 1000: per RFC 7519 the `exp` claim is in epoch SECONDS;
+ * Date.now() is in milliseconds.
+ */
+function isTokenFresh(accessToken) {
+  if (!accessToken) return false;
+  const payload = decodeJwtPayload(accessToken);
+  if (!payload) return false;
+  if (typeof payload.exp !== 'number') return true;
+  return payload.exp * 1000 > Date.now();
+}
+
+/**
+ * Read both tokens out of localStorage. Wrapped in try/catch because Safari
+ * private mode and some embedded webviews throw on storage access — falling
+ * back to "no session" is preferable to a render crash.
+ */
+function readStoredTokens() {
+  if (typeof window === 'undefined') {
+    return { accessToken: null, refreshToken: null };
+  }
+  try {
+    return {
+      accessToken: window.localStorage.getItem(ACCESS_TOKEN_KEY),
+      refreshToken: window.localStorage.getItem(REFRESH_TOKEN_KEY)
+    };
+  } catch {
+    return { accessToken: null, refreshToken: null };
+  }
+}
+
+// Default value used when something tries to read auth outside a provider
+// (tests, Storybook stories that don't mount AuthProvider). Returning a
+// useful default — rather than `null` — avoids "Cannot read property
+// 'isAuthenticated' of null" stacks on a misconfigured tree.
+const defaultContextValue = {
+  accessToken: null,
+  refreshToken: null,
+  user: null,
+  isAuthenticated: false,
+  login: () => {},
+  logout: () => {}
+};
+
+// Exporting the raw context lets tests / one-off cases pass an explicit
+// context object via <AuthContext.Provider value={...}>. App code should
+// import the `useAuth` hook from `hooks/useAuth.js` instead.
+export const AuthContext = createContext(defaultContextValue);
+
+export function AuthProvider({ children }) {
+  const navigate = useNavigate();
+
+  // useState's initializer runs synchronously on first render, so the very
+  // first paint already reflects the persisted session.
+  const [tokens, setTokens] = useState(readStoredTokens);
+
+  /**
+   * Persist a token pair and mark the user signed in.
+   *
+   * Accepts the backend response shape directly:
+   *   { access_token, refresh_token, token_type }
+   * (per phenodeX/phenode_backend/api/auth/routes.py:_create_token_pair).
+   *
+   * We don't navigate from inside login(): the caller knows where the user
+   * should land (e.g., dashboard vs /approval-pending depending on the 403
+   * detail), and the context shouldn't second-guess that.
+   */
+  const login = useCallback(({ access_token: accessToken, refresh_token: refreshToken }) => {
+    if (typeof window !== 'undefined') {
+      try {
+        if (accessToken) window.localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+        if (refreshToken) window.localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+      } catch {
+        // Storage may be blocked. State below is still correct for this
+        // tab — the user just won't survive a reload.
+      }
+    }
+    setTokens({ accessToken: accessToken ?? null, refreshToken: refreshToken ?? null });
+  }, []);
+
+  /**
+   * Clear both tokens, drop state, and route to /login.
+   *
+   * Default is a soft React-Router redirect. Callers that need a hard reload
+   * (e.g., a fetch interceptor that wants to wipe SWR cache + in-flight
+   * requests in one shot when the refresh flow gives up) can pass
+   * `{ hard: true }`.
+   */
+  const logout = useCallback(
+    ({ hard = false } = {}) => {
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.removeItem(ACCESS_TOKEN_KEY);
+          window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+        } catch {
+          // ignore — the in-memory state below is still cleared
+        }
+      }
+      setTokens({ accessToken: null, refreshToken: null });
+      if (hard && typeof window !== 'undefined') {
+        window.location.assign('/login');
+        return;
+      }
+      navigate('/login', { replace: true });
+    },
+    [navigate]
+  );
+
+  /**
+   * Cross-tab sync. Fires when localStorage is mutated in *another* tab
+   * (the spec doesn't fire `storage` for same-tab writes, which is exactly
+   * what we want — same-tab changes go through login/logout already).
+   *
+   * Without this, signing out in tab A would leave tab B rendering
+   * /dashboard with stale context state until the next route change.
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const handleStorage = (event) => {
+      // event.key === null means storage was cleared entirely — re-read.
+      if (event.key !== null && event.key !== ACCESS_TOKEN_KEY && event.key !== REFRESH_TOKEN_KEY) {
+        return;
+      }
+      setTokens(readStoredTokens());
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
+  // Memoize the value object so consumers that depend on the whole value
+  // don't re-render on every parent render. login/logout are themselves
+  // stable (useCallback with empty / [navigate] deps), so the only thing
+  // that should churn here is the tokens object itself.
+  const value = useMemo(
+    () => ({
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: userFromToken(tokens.accessToken),
+      isAuthenticated: isTokenFresh(tokens.accessToken),
+      login,
+      logout
+    }),
+    [tokens.accessToken, tokens.refreshToken, login, logout]
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+AuthProvider.propTypes = { children: PropTypes.node };

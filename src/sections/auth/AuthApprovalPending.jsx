@@ -8,7 +8,7 @@ import Typography from '@mui/material/Typography';
 
 // project imports
 import Logo from 'components/logo/LogoIcon';
-import { getCurrentUser, logout } from 'utils/auth';
+import useAuth from 'hooks/useAuth';
 
 // ============================|| AUTH - APPROVAL PENDING ||============================ //
 //
@@ -22,8 +22,8 @@ import { getCurrentUser, logout } from 'utils/auth';
 // We poll /user/devices every 10s. On 200 we redirect to the dashboard.
 // The user can also log out from here.
 //
-// NOTE: Once an AuthContext is wired up in V3, prefer reading the user's
-// approval flag from context rather than hitting /user/devices directly.
+// User identity and the access token come from `useAuth()` (AuthContext).
+// We don't touch localStorage directly here — the context owns it.
 //
 // All colors come from project CSS variables (src/assets/style.css). The
 // "pending" state uses --orange to match the project's warning convention.
@@ -32,19 +32,18 @@ const POLL_INTERVAL_MS = 10000;
 
 export default function AuthApprovalPending() {
   const navigate = useNavigate();
+  const { user, accessToken, isAuthenticated, logout } = useAuth();
   const [secondsLeft, setSecondsLeft] = useState(POLL_INTERVAL_MS / 1000);
-  const [email, setEmail] = useState('');
 
   useEffect(() => {
-    // getCurrentUser() reads + decodes the access_token from localStorage
-    // (utils/auth.js). Returns null if there's no token or it's malformed.
-    const user = getCurrentUser();
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-    if (!user || !token) {
+    // If the AuthContext says we have no usable session, bounce back to
+    // /login. `isAuthenticated` already covers "missing token" + "expired
+    // token"; the explicit accessToken check is belt-and-suspenders for
+    // the edge case where exp is missing on a malformed JWT.
+    if (!isAuthenticated || !accessToken) {
       navigate('/login', { replace: true });
       return undefined;
     }
-    setEmail(user.email);
 
     let cancelled = false;
 
@@ -52,7 +51,7 @@ export default function AuthApprovalPending() {
       try {
         const apiBase = import.meta.env.VITE_API_URL || '/api';
         const res = await fetch(`${apiBase}/user/devices`, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${accessToken}` }
         });
         if (cancelled) return;
         if (res.ok) {
@@ -84,9 +83,11 @@ export default function AuthApprovalPending() {
       cancelled = true;
       clearInterval(tick);
     };
-  }, [navigate]);
+  }, [navigate, isAuthenticated, accessToken]);
 
-  const handleLogout = () => logout(navigate);
+  // logout() handles the navigation itself (via the navigate captured
+  // inside AuthContext), so we just call it.
+  const handleLogout = () => logout();
 
   return (
     <Stack spacing={3}>
@@ -130,7 +131,7 @@ export default function AuthApprovalPending() {
         </Typography>
       </Stack>
 
-      {email && (
+      {user?.email && (
         <Box
           sx={{
             mx: 'auto',
@@ -144,7 +145,7 @@ export default function AuthApprovalPending() {
             color: 'rgba(255, 255, 255, 0.85)'
           }}
         >
-          {email}
+          {user.email}
         </Box>
       )}
 

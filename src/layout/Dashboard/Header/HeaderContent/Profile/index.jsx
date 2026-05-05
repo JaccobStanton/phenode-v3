@@ -1,6 +1,5 @@
 import PropTypes from 'prop-types';
 import { useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 
 // material-ui
 import { useTheme } from '@mui/material/styles';
@@ -21,7 +20,8 @@ import SettingTab from './SettingTab';
 import Avatar from 'components/@extended/Avatar';
 import Transitions from 'components/@extended/Transitions';
 import IconButton from 'components/@extended/IconButton';
-import { getCurrentUser, formatRoleLabel, logout } from 'utils/auth';
+import useAuth from 'hooks/useAuth';
+import { formatRoleLabel } from 'utils/auth';
 
 // assets
 import LogoutOutlined from '@ant-design/icons/LogoutOutlined';
@@ -135,9 +135,8 @@ function a11yProps(index) {
 
 export default function Profile() {
   const theme = useTheme();
-  const navigate = useNavigate();
 
-  // Pull user info from the JWT in localStorage. The JWT carries:
+  // Pull user info from AuthContext. The JWT carries:
   //   sub          → email          (per phenodeX/docs/frontend-backend-api.md:33-39
   //                                   and phenode_backend/api/auth/routes.py:36-53)
   //   role         → USER | ADMIN | SUPER_ADMIN
@@ -145,7 +144,10 @@ export default function Profile() {
   // No /api/user/me endpoint exists yet, so full_name is not available
   // from the token or any user-scoped read. We display the email as the
   // primary identifier and the formatted role as the secondary line.
-  const user = getCurrentUser();
+  //
+  // Reading from the context (instead of decoding the JWT here) means this
+  // component re-renders on login/logout without us having to wire it up.
+  const { user, logout } = useAuth();
   const displayName = user?.email || 'Signed out';
   const displayRole = user ? formatRoleLabel(user.role) : '';
 
@@ -164,7 +166,7 @@ export default function Profile() {
 
   const handleLogout = () => {
     setOpen(false);
-    logout(navigate);
+    logout();
   };
 
   const [value, setValue] = useState(0);

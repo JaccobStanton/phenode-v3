@@ -7,13 +7,13 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import Tooltip from '@mui/material/Tooltip';
 import OutlinedInput from '@mui/material/OutlinedInput';
-import InputLabel from '@mui/material/InputLabel';
 import InputAdornment from '@mui/material/InputAdornment';
 import Alert from '@mui/material/Alert';
 
 // project imports
 import IconButton from 'components/@extended/IconButton';
 import Logo from 'components/logo/LogoIcon';
+import useAuth from 'hooks/useAuth';
 import { tooltipSlotProps } from 'themes/sx-tokens';
 
 // assets
@@ -40,8 +40,10 @@ import CloseOutlined from '@ant-design/icons/CloseOutlined';
 //   POST /api/auth/refresh     (rotate JWT pair)
 //   GET  /api/auth/google/login (start OAuth)
 //
-// On 200 we store the tokens in localStorage (matching phenodeX's
-// AuthContext convention) and route to /dashboard/fleet-overview.
+// On 200 we hand the token pair to `AuthContext.login()`, which persists
+// them to localStorage and updates the in-memory auth state for every
+// consumer (Profile menu, fetch hooks, route guards). Then we route to
+// /dashboard/fleet-overview.
 // On 403 we route to /approval-pending — that page polls until the admin
 // approves and then sends the user on to the dashboard.
 
@@ -181,6 +183,7 @@ const GitHubIcon = () => (
 // ----------------------------------------------------------------------
 export default function AuthLogin() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -205,8 +208,10 @@ export default function AuthLogin() {
 
       if (res.ok) {
         const data = await res.json();
-        localStorage.setItem('access_token', data.access_token);
-        localStorage.setItem('refresh_token', data.refresh_token);
+        // login() persists both tokens AND updates the AuthContext so
+        // every consumer (Profile menu, future fetch hooks, route guards)
+        // sees the new session without re-reading localStorage.
+        login(data);
         navigate('/dashboard/fleet-overview', { replace: true });
         return;
       }
