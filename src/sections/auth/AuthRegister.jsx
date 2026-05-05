@@ -141,7 +141,6 @@ export default function AuthRegister() {
             fontSize: '1.05rem',
             letterSpacing: '0.01em',
             mt: 0.5,
-            textShadow: '0 1px 9px #1a75e0c9'
           }}
         >
           Request access

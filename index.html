@@ -28,8 +28,16 @@
     <link rel="dns-prefetch" href="//fonts.googleapis.com" />
     <link rel="dns-prefetch" href="//fonts.gstatic.com" />
 
-    <!-- this is to resolve issue in old safari browser in tablet -->
-    <script src="https://cdn.jsdelivr.net/npm/resize-observer-polyfill@1.5.1/dist/ResizeObserver.min.js"></script>
+    <!-- ResizeObserver polyfill, conditionally loaded for legacy Safari/iPad
+         (pre-13.1, pre-2020). Modern browsers skip the request entirely,
+         which removes the ~800ms render-blocking penalty. -->
+    <script>
+      if (!('ResizeObserver' in window)) {
+        var s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/resize-observer-polyfill@1.5.1/dist/ResizeObserver.min.js';
+        document.head.appendChild(s);
+      }
+    </script>
   </head>
 
   <body>

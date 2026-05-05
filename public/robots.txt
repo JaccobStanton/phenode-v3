@@ -1,0 +1,14 @@
+# PheNode crawler directives.
+# Files in /public are copied to / by Vite at build time, so this is
+# served at https://phenode.cloud/robots.txt as a literal text file
+# (i.e. NOT routed through the SPA's index.html fallback). If the
+# production nginx is configured to send everything to index.html,
+# add `location = /robots.txt { try_files $uri =404; }` so this file
+# is served literally.
+
+User-agent: *
+Disallow: /dashboard/
+Disallow: /approval-pending
+Allow: /
+
+Sitemap: https://phenode.cloud/sitemap.xml

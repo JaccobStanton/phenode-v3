@@ -3,6 +3,60 @@ import react from '@vitejs/plugin-react';
 import jsconfigPaths from 'vite-jsconfig-paths';
 import path from 'path';
 
+/**
+ * Build-only plugin: take the emitted entry CSS file, inline it as a
+ * <style> tag inside index.html, and delete the now-orphan .css from
+ * dist. Eliminates the render-blocking <link rel="stylesheet"> request
+ * entirely (the CSS becomes part of the document HTML).
+ *
+ * We tried the alternative `media="print" onload="this.media='all'"`
+ * deferral pattern earlier and it satisfied Lighthouse but pushed real
+ * FCP up by ~800ms — the auth surface needs CSS for first paint.
+ * Inlining gives the same audit win without that regression because the
+ * CSS is available the moment the HTML parser sees the <style> tag,
+ * with zero extra requests.
+ *
+ * Only runs on production builds. Dev mode keeps normal stylesheet
+ * loading for HMR responsiveness.
+ */
+function inlineEntryCss() {
+  let cssLinkPaths = [];
+  return {
+    name: 'phenode-inline-entry-css',
+    apply: 'build',
+    enforce: 'post',
+    transformIndexHtml: {
+      // Run after Vite's own asset emission so we know which CSS file
+      // the index.html link points at.
+      order: 'post',
+      handler(html, ctx) {
+        cssLinkPaths = [];
+        return html.replace(
+          /<link rel="stylesheet"[^>]*href="([^"]+\.css)"[^>]*>/g,
+          (match, href) => {
+            const cssRel = href.replace(/^\//, '');
+            const bundleEntry = ctx.bundle && ctx.bundle[cssRel];
+            if (bundleEntry && bundleEntry.source) {
+              cssLinkPaths.push(cssRel);
+              return `<style>${bundleEntry.source}</style>`;
+            }
+            // Couldn't find the CSS in the bundle — leave the link tag
+            // alone rather than break the page.
+            return match;
+          }
+        );
+      }
+    },
+    // Delete the inlined CSS files from the bundle so dist/ doesn't ship
+    // duplicate (now-unreferenced) files.
+    generateBundle(_options, bundle) {
+      for (const cssPath of cssLinkPaths) {
+        if (bundle[cssPath]) delete bundle[cssPath];
+      }
+    }
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const API_URL = env.VITE_APP_BASE_NAME || '/';
@@ -28,7 +82,7 @@ export default defineConfig(({ mode }) => {
         // Add more aliases as needed
       }
     },
-    plugins: [react(), jsconfigPaths()],
+    plugins: [react(), jsconfigPaths(), inlineEntryCss()],
     build: {
       chunkSizeWarningLimit: 1000,
       sourcemap: true,
@@ -45,7 +99,19 @@ export default defineConfig(({ mode }) => {
             if (/\.(woff2?|eot|ttf|otf)$/.test(name)) return `fonts/[name]-[hash].${ext}`;
             return `assets/[name]-[hash].${ext}`;
           }
-          // manualChunks: { ... } // Add if you want custom chunk splitting
+          // NOTE: We tried `manualChunks: { 'mui-charts': ['@mui/x-charts'],
+          // 'mui-pickers': ['@mui/x-date-pickers'] }` to pull dashboard-only
+          // heavyweights out of the main bundle. It DID shrink the entry
+          // chunk (244 KB → 168 KB), but Vite then loaded those new chunks
+          // as static deps of the entry on every route — including /login,
+          // where they're never imported. Net result was MORE unused JS on
+          // /login (105 KiB → 229 KiB). Even `modulePreload: { resolveDependencies: () => [] }`
+          // didn't suppress the eager fetch.
+          //
+          // Letting Vite handle code-splitting automatically (via the
+          // existing `lazy(() => import(...))` calls in routes/MainRoutes.jsx)
+          // keeps x-charts/pickers inside the lazy dashboard chunks, where
+          // they only load when those routes are visited.
         }
       },
       // Only drop console/debugger in production

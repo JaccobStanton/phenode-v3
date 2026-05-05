@@ -2,7 +2,17 @@ import { lazy } from 'react';
 
 // project imports
 import Loadable from 'components/Loadable';
-import DashboardLayout from 'layout/Dashboard';
+
+// DashboardLayout is lazy too. Previously this was a static import and
+// it became part of the eager entry chunk on every route — including
+// /login, where its header/drawer/navigation chrome and all the MUI
+// components those depend on were loaded but never used. Verified by a
+// Lighthouse audit that flagged ~105KB of unused JS in the entry on
+// /login, most of which traced back to the dashboard layout tree.
+//
+// With this lazy(), DashboardLayout (and everything reachable from it)
+// stays in its own chunk and only loads when /dashboard/* is hit.
+const DashboardLayout = Loadable(lazy(() => import('layout/Dashboard')));
 
 // render- Dashboard
 const FleetOverviewPage = Loadable(lazy(() => import('pages/fleet-overview/fleet-overview')));

@@ -10,7 +10,10 @@
     "preview": "vite preview",
     "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
     "lint:fix": "eslint --fix \"src/**/*.{js,jsx,ts,tsx}\"",
-    "prettier": "prettier --write \"src/**/*.{js,jsx,ts,tsx}\""
+    "prettier": "prettier --write \"src/**/*.{js,jsx,ts,tsx}\"",
+    "audit:login": "lighthouse http://localhost:4173/login --output=json --output-path=../Lighthouse_Reports/lighthouse-login.json --chrome-flags=\"--headless=new --no-sandbox\" --quiet",
+    "audit:register": "lighthouse http://localhost:4173/register --output=json --output-path=../Lighthouse_Reports/lighthouse-register.json --chrome-flags=\"--headless=new --no-sandbox\" --quiet",
+    "audit": "npm run audit:login && npm run audit:register"
   },
   "dependencies": {
     "@ant-design/colors": "7.2.1",
@@ -69,6 +72,7 @@
     "eslint-plugin-prettier": "5.5.4",
     "eslint-plugin-react": "7.37.5",
     "eslint-plugin-react-hooks": "7.0.1",
+    "lighthouse": "^12.0.0",
     "prettier": "3.7.4"
   }
 }

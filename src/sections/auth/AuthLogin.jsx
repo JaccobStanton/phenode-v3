@@ -381,7 +381,7 @@ export default function AuthLogin() {
               glow at rest that intensifies a touch on hover. */}
           <Box sx={{ display: 'flex', justifyContent: 'center', pt: 0.5 }}>
             <Box sx={{ width: { xs: '70%', sm: '60%' }, maxWidth: 220 }}>
-              <ProviderButton type="submit" glow disabled={submitting} ariaLabel="Sign in with email and password">
+              <ProviderButton type="submit" glow disabled={submitting} ariaLabel="Login — sign in with email and password">
                 <span>{submitting ? 'Signing in...' : 'Login'}</span>
               </ProviderButton>
             </Box>
