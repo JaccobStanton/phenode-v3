@@ -7,21 +7,44 @@
 
 const getApiBaseUrl = () => import.meta.env.VITE_API_URL;
 
-const buildErrorMessage = async (response) => {
-  let detail = `HTTP error! status: ${response.status}`;
+/**
+ * Error type thrown by `fetcher` for non-2xx responses.
+ *
+ * Why this exists: SWR's global `onError` handler (see providers/SWRProvider.jsx)
+ * needs to branch on the HTTP status — specifically, a 401 means "log the user
+ * out." Throwing a plain `Error(message)` would force the handler to parse the
+ * message text, which is brittle. Surfacing `.status` directly on the error
+ * keeps the contract clean and lets every caller (current and future) make
+ * status-based decisions cheaply.
+ */
+export class ApiError extends Error {
+  constructor(status, detail) {
+    super(detail || `HTTP error! status: ${status}`);
+    this.name = 'ApiError';
+    this.status = status;
+    this.detail = detail ?? null;
+  }
+}
+
+/**
+ * Best-effort extraction of a human-readable message from a non-2xx response.
+ * Tries JSON `detail` / `message`, falls back to raw text, returns null if
+ * the body can't be read at all. Wrapped in nested try/catches because both
+ * `response.text()` and `JSON.parse` can throw.
+ */
+const parseErrorDetail = async (response) => {
   try {
     const text = await response.text();
-    if (!text) return detail;
+    if (!text) return null;
     try {
       const parsed = JSON.parse(text);
-      detail = parsed?.detail || parsed?.message || text || detail;
+      return parsed?.detail || parsed?.message || text;
     } catch {
-      detail = text;
+      return text;
     }
   } catch {
-    // keep default message
+    return null;
   }
-  return detail;
 };
 
 /**
@@ -38,7 +61,8 @@ export const fetcher = async (url) => {
 
   const response = await fetch(target, { headers, credentials: 'include' });
   if (!response.ok) {
-    throw new Error(await buildErrorMessage(response));
+    const detail = await parseErrorDetail(response);
+    throw new ApiError(response.status, detail);
   }
   if (response.status === 204) return null;
   return response.json();
