@@ -21,10 +21,9 @@ const MainRoutes = {
   path: '/',
   element: <DashboardLayout />,
   children: [
-    {
-      path: '/',
-      element: <FleetOverviewPage />
-    },
+    // NOTE: bare '/' is intentionally NOT mapped here. LoginRoutes owns the
+    // index route and redirects unauthenticated users to /login. The
+    // dashboard is reachable via /dashboard/* paths below.
     {
       path: 'dashboard',
       children: [

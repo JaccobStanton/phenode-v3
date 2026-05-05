@@ -1,11 +1,11 @@
 import PropTypes from 'prop-types';
 import { useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 // material-ui
 import { useTheme } from '@mui/material/styles';
 import CardContent from '@mui/material/CardContent';
 import ClickAwayListener from '@mui/material/ClickAwayListener';
-import Grid from '@mui/material/Grid';
 import Paper from '@mui/material/Paper';
 import Popper from '@mui/material/Popper';
 import Stack from '@mui/material/Stack';
@@ -19,9 +19,9 @@ import Box from '@mui/material/Box';
 import ProfileTab from './ProfileTab';
 import SettingTab from './SettingTab';
 import Avatar from 'components/@extended/Avatar';
-import MainCard from 'components/MainCard';
 import Transitions from 'components/@extended/Transitions';
 import IconButton from 'components/@extended/IconButton';
+import { getCurrentUser, formatRoleLabel, logout } from 'utils/auth';
 
 // assets
 import LogoutOutlined from '@ant-design/icons/LogoutOutlined';
@@ -41,13 +41,78 @@ const projectTooltipSlotProps = {
   }
 };
 
+// Menu surface — very subtle radial gradient on a #003274 base, fading
+// just slightly to #002a63 (~7% darker) at the edges. Same radial shape
+// as the drawer (anchor at 50%/15%) so the dropdown stays in the same
+// visual family, but the contrast between the two stops is intentionally
+// minimal — the gradient reads as a soft tonal shift rather than a
+// visible spotlight.
 const profileMenuPaperSx = {
-  backgroundColor: 'rgba(0, 20, 61, 0.96)',
-  backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))',
+  backgroundColor: '#003274',
+  backgroundImage: 'radial-gradient(circle at 50% 15%, #003274, #002a63)',
   border: '1px solid var(--reflected-light)',
+  boxShadow: '0 11px 19px 1px #0000002e'
+};
+
+// Themed Tabs treatment for the avatar dropdown — labels and icons sit
+// in var(--blue) at rest and transition to var(--green) on hover/select,
+// matching the project's standard interactive-control pattern.
+//
+// `backgroundColor: transparent` on hover/focus is intentional: MUI's
+// MuiTab default adds a faint white/grey hover background that washes
+// the menu surface — explicitly killing it keeps the hover effect to
+// just the color/glow change.
+const profileTabsSx = {
+  minHeight: 40,
+  '& .MuiTab-root': {
+    minHeight: 40,
+    color: 'var(--blue)',
+    transition: 'color 0.18s ease',
+    backgroundColor: 'transparent',
+    // Tab icon inherits color from the Tab via currentColor on the SVG.
+    '& .MuiSvgIcon-root, & svg': { color: 'inherit' },
+    '&:hover': {
+      color: 'var(--green)',
+      backgroundColor: 'transparent'
+    },
+    '&.Mui-focusVisible': {
+      backgroundColor: 'transparent'
+    }
+  },
+  '& .MuiTab-root.Mui-selected': {
+    color: 'var(--green)',
+    backgroundColor: 'transparent'
+  },
+  '& .MuiTabs-indicator': {
+    backgroundColor: 'var(--green)'
+  }
+};
+
+// Logout icon-button — matches the fleet-overview filter buttons
+// (controlBaseSx + sortToggleSx in FleetOverviewView.jsx:37-79):
+// reflected-light border, var(--blue) icon, glass surface, project shadow,
+// transitioning to var(--green) on hover.
+const logoutIconButtonSx = {
+  width: 40,
+  height: 40,
+  border: '1px solid var(--reflected-light)',
+  borderRadius: 1,
+  color: 'var(--blue)',
+  backgroundColor: 'rgba(0, 17, 48, 0.03)',
+  backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))',
   boxShadow: '0 11px 19px 1px #0000002e',
-  backdropFilter: 'blur(6px)',
-  color: 'var(--green)'
+  transition: 'color 0.18s ease, border-color 0.18s ease',
+  '&:hover': {
+    color: 'var(--green)',
+    borderColor: 'var(--green)',
+    backgroundColor: 'rgba(0, 17, 48, 0.03)',
+    backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))'
+  },
+  '&:focus-visible': {
+    color: 'var(--green)',
+    borderColor: 'var(--green)',
+    outline: 'none'
+  }
 };
 
 // tab panel wrapper
@@ -70,6 +135,19 @@ function a11yProps(index) {
 
 export default function Profile() {
   const theme = useTheme();
+  const navigate = useNavigate();
+
+  // Pull user info from the JWT in localStorage. The JWT carries:
+  //   sub          → email          (per phenodeX/docs/frontend-backend-api.md:33-39
+  //                                   and phenode_backend/api/auth/routes.py:36-53)
+  //   role         → USER | ADMIN | SUPER_ADMIN
+  //   is_approved  → boolean
+  // No /api/user/me endpoint exists yet, so full_name is not available
+  // from the token or any user-scoped read. We display the email as the
+  // primary identifier and the formatted role as the secondary line.
+  const user = getCurrentUser();
+  const displayName = user?.email || 'Signed out';
+  const displayRole = user ? formatRoleLabel(user.role) : '';
 
   const anchorRef = useRef(null);
   const [open, setOpen] = useState(false);
@@ -82,6 +160,11 @@ export default function Profile() {
       return;
     }
     setOpen(false);
+  };
+
+  const handleLogout = () => {
+    setOpen(false);
+    logout(navigate);
   };
 
   const [value, setValue] = useState(0);
@@ -152,36 +235,65 @@ export default function Profile() {
           <Transitions type="grow" position="top-right" in={open} {...TransitionProps}>
             <Paper sx={{ ...profileMenuPaperSx, width: 290, minWidth: 240, maxWidth: { xs: 250, md: 290 } }}>
               <ClickAwayListener onClickAway={handleClose}>
-                <MainCard elevation={0} border={false} content={false} sx={{ backgroundColor: 'transparent', backgroundImage: 'none' }}>
+                {/* Wrapping Box gives ClickAwayListener its single-child
+                    target. We deliberately don't use MainCard here —
+                    MainCard.jsx:37-46 paints its own multi-stop gradient
+                    that overrides whatever sx the consumer passes,
+                    which would mask the drawer gradient on the Paper. */}
+                <Box>
                   <CardContent sx={{ px: 2.5, pt: 3 }}>
-                    <Grid container sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Grid>
-                        <Stack direction="row" sx={{ gap: 1.25, alignItems: 'center' }}>
-                          <Avatar
-                            alt="profile user"
-                            src={avatar1}
-                            sx={{ width: 32, height: 32, bgcolor: 'transparent', color: 'inherit' }}
-                          />
-                          <Stack>
-                            <Typography variant="h6">Bill Keezle</Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              Super User Account
-                            </Typography>
-                          </Stack>
-                        </Stack>
-                      </Grid>
-                      <Grid>
-                        <Tooltip title="Logout" arrow={false} slotProps={projectTooltipSlotProps}>
-                          <IconButton size="large" sx={{ color: 'text.primary' }}>
-                            <LogoutOutlined />
-                          </IconButton>
-                        </Tooltip>
-                      </Grid>
-                    </Grid>
+                    {/* Single flex row — user info shrinks (with email
+                        ellipsis) and the logout button stays pinned to
+                        the right regardless of email length. */}
+                    <Stack
+                      direction="row"
+                      sx={{ alignItems: 'center', gap: 1.25, minWidth: 0 }}
+                    >
+                      <Avatar
+                        alt="profile user"
+                        src={avatar1}
+                        sx={{ width: 32, height: 32, flexShrink: 0, bgcolor: 'transparent', color: 'inherit' }}
+                      />
+                      <Stack sx={{ minWidth: 0, flex: 1 }}>
+                        <Typography
+                          variant="h6"
+                          noWrap
+                          title={displayName}
+                          sx={{
+                            color: 'var(--green)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}
+                        >
+                          {displayName}
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{ color: 'var(--blue)', fontSize: '0.78rem' }}
+                        >
+                          {displayRole}
+                        </Typography>
+                      </Stack>
+                      <Tooltip title="Logout" arrow={false} slotProps={projectTooltipSlotProps}>
+                        <IconButton
+                          onClick={handleLogout}
+                          aria-label="Log out"
+                          sx={{ flexShrink: 0, ...logoutIconButtonSx }}
+                        >
+                          <LogoutOutlined />
+                        </IconButton>
+                      </Tooltip>
+                    </Stack>
                   </CardContent>
 
-                  <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-                    <Tabs variant="fullWidth" value={value} onChange={handleChange} aria-label="profile tabs">
+                  <Box sx={{ borderBottom: '1px solid var(--reflected-light)' }}>
+                    <Tabs
+                      variant="fullWidth"
+                      value={value}
+                      onChange={handleChange}
+                      aria-label="profile tabs"
+                      sx={profileTabsSx}
+                    >
                       <Tab
                         sx={{
                           display: 'flex',
@@ -217,12 +329,12 @@ export default function Profile() {
                     </Tabs>
                   </Box>
                   <TabPanel value={value} index={0} dir={theme.direction}>
-                    <ProfileTab />
+                    <ProfileTab onLogout={handleLogout} />
                   </TabPanel>
                   <TabPanel value={value} index={1} dir={theme.direction}>
                     <SettingTab />
                   </TabPanel>
-                </MainCard>
+                </Box>
               </ClickAwayListener>
             </Paper>
           </Transitions>
