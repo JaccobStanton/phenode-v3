@@ -2,6 +2,7 @@ import { createContext, useCallback, useEffect, useMemo, useState } from 'react'
 import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
 
+import { TOKENS_UPDATED_EVENT } from 'services/fetcher';
 import { decodeJwtPayload } from 'utils/auth';
 
 // =============================================================================
@@ -178,24 +179,43 @@ export function AuthProvider({ children }) {
   );
 
   /**
-   * Cross-tab sync. Fires when localStorage is mutated in *another* tab
-   * (the spec doesn't fire `storage` for same-tab writes, which is exactly
-   * what we want — same-tab changes go through login/logout already).
+   * Token-change listeners — two channels feeding the same handler:
    *
-   * Without this, signing out in tab A would leave tab B rendering
-   * /dashboard with stale context state until the next route change.
+   *   1. `storage` event fires when localStorage is mutated in *another*
+   *      tab (the spec doesn't fire `storage` for same-tab writes,
+   *      which is exactly what we want — same-tab login/logout calls
+   *      already update state via setTokens directly). Without this,
+   *      signing out in tab A would leave tab B rendering /dashboard
+   *      with stale context state until the next route change.
+   *
+   *   2. `auth:tokens-updated` (TOKENS_UPDATED_EVENT) is our own bus,
+   *      dispatched by services/fetcher.js after a successful
+   *      auto-refresh on 401. The fetcher writes new tokens to
+   *      localStorage in this same tab, so `storage` doesn't fire here
+   *      — we need our own signal to keep AuthContext's in-memory
+   *      state in sync. Without this, every subsequent SWR hook would
+   *      re-trigger refresh because its key still carries the old
+   *      token from the stale context value.
    */
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
-    const handleStorage = (event) => {
+
+    const refreshFromStorage = () => setTokens(readStoredTokens());
+
+    const handleStorageEvent = (event) => {
       // event.key === null means storage was cleared entirely — re-read.
       if (event.key !== null && event.key !== ACCESS_TOKEN_KEY && event.key !== REFRESH_TOKEN_KEY) {
         return;
       }
-      setTokens(readStoredTokens());
+      refreshFromStorage();
     };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
+
+    window.addEventListener('storage', handleStorageEvent);
+    window.addEventListener(TOKENS_UPDATED_EVENT, refreshFromStorage);
+    return () => {
+      window.removeEventListener('storage', handleStorageEvent);
+      window.removeEventListener(TOKENS_UPDATED_EVENT, refreshFromStorage);
+    };
   }, []);
 
   // Memoize the value object so consumers that depend on the whole value

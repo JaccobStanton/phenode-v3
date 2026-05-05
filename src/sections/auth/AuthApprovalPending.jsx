@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 // material-ui
@@ -9,6 +9,7 @@ import Typography from '@mui/material/Typography';
 // project imports
 import Logo from 'components/logo/LogoIcon';
 import useAuth from 'hooks/useAuth';
+import { refreshTokens } from 'services/fetcher';
 
 // ============================|| AUTH - APPROVAL PENDING ||============================ //
 //
@@ -32,8 +33,12 @@ const POLL_INTERVAL_MS = 10000;
 
 export default function AuthApprovalPending() {
   const navigate = useNavigate();
-  const { user, accessToken, isAuthenticated, logout } = useAuth();
+  const { user, accessToken, refreshToken, isAuthenticated, login, logout } = useAuth();
   const [secondsLeft, setSecondsLeft] = useState(POLL_INTERVAL_MS / 1000);
+  // Once we've started the post-approval flow (refresh + navigate), gate
+  // out concurrent polls — the 1-second tick can fire checkApproval
+  // again before the previous run finishes its async refresh.
+  const approvalHandlingRef = useRef(false);
 
   useEffect(() => {
     // If the AuthContext says we have no usable session, bounce back to
@@ -47,7 +52,43 @@ export default function AuthApprovalPending() {
 
     let cancelled = false;
 
+    /**
+     * Fires once when the backend reports approval. Refresh the JWT
+     * before navigating so the new token carries the updated
+     * `is_approved=true` claim — without this, the user's existing
+     * JWT still says is_approved=false (it was minted at login time,
+     * before the admin approved). That's tolerable today (RequireAuth
+     * doesn't gate on approval — see its docblock for why) but a
+     * footgun for any future approval-aware UI or guard, so we mint
+     * a fresh token now while we have a clean transition point.
+     *
+     * If the refresh itself fails, fall through to navigation anyway
+     * — the dashboard pages will pick up the existing token, and the
+     * fetcher's auto-refresh handles staleness on subsequent calls.
+     * Worst case the user sees stale claim-driven labels for a beat;
+     * better than blocking them out of a dashboard they've earned.
+     */
+    const handleApproved = async () => {
+      if (approvalHandlingRef.current) return;
+      approvalHandlingRef.current = true;
+
+      try {
+        if (refreshToken) {
+          const newTokens = await refreshTokens(refreshToken);
+          if (cancelled) return;
+          login(newTokens);
+        }
+      } catch (refreshErr) {
+        console.warn('[approval-pending] post-approval refresh failed:', refreshErr);
+      }
+
+      if (cancelled) return;
+      navigate('/dashboard/fleet-overview', { replace: true });
+    };
+
     const checkApproval = async () => {
+      // Skip if we've already kicked off the approval handoff.
+      if (approvalHandlingRef.current) return;
       try {
         const apiBase = import.meta.env.VITE_API_URL || '/api';
         const res = await fetch(`${apiBase}/user/devices`, {
@@ -55,13 +96,11 @@ export default function AuthApprovalPending() {
         });
         if (cancelled) return;
         if (res.ok) {
-          // Approved — back to dashboard.
-          navigate('/dashboard/fleet-overview', { replace: true });
+          await handleApproved();
         }
         // 403 means still pending; do nothing and let the next tick try again.
       } catch (err) {
         // Network error — keep polling silently.
-        // eslint-disable-next-line no-console
         console.warn('[approval-pending] check failed', err);
       }
     };
@@ -83,7 +122,7 @@ export default function AuthApprovalPending() {
       cancelled = true;
       clearInterval(tick);
     };
-  }, [navigate, isAuthenticated, accessToken]);
+  }, [navigate, isAuthenticated, accessToken, refreshToken, login]);
 
   // logout() handles the navigation itself (via the navigate captured
   // inside AuthContext), so we just call it.
