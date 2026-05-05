@@ -377,7 +377,7 @@ export default function Imaging() {
                     width: 'auto',
                     height: 'auto',
                     maxWidth: '100%',
-                    maxHeight: { xs: 320, sm: 430, lg: 820 },
+                    maxHeight: { xs: 320, sm: 430, lg: 650 },
                     objectFit: 'contain',
                     border: '1px solid var(--reflected-light)',
                     borderRadius: 1,

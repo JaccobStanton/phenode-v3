@@ -292,7 +292,7 @@ export default function SensorNetwork() {
                         alt="Wireless sensor network diagram"
                         sx={{
                           width: '100%',
-                          maxHeight: { xs: 250, sm: 330, md: 400, lg: 430 },
+                          maxHeight: { xs: 250, sm: 330, md: 400, lg: 350 },
                           objectFit: 'contain',
                           display: 'block',
                           transform: { xs: 'translateY(8px)', sm: 'translateY(10px)' },
