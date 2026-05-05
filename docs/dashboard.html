@@ -397,6 +397,105 @@
   .md table tr:last-child td { border-bottom: 0; }
   .md table tr:hover td { background: var(--surface-2); }
 
+  
+  /* ── Mermaid diagrams ───────────────────────────────── */
+  .md pre.mermaid {
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 18px;
+    text-align: center;
+    font-family: var(--sans);
+  }
+  .md pre.mermaid svg { max-width: 100%; height: auto; display: inline-block; }
+
+  
+  /* ── Mermaid zoom hint + lightbox ───────────────────── */
+  .md pre.mermaid[data-processed] {
+    cursor: zoom-in;
+    position: relative;
+    transition: border-color 120ms ease;
+  }
+  .md pre.mermaid[data-processed]:hover { border-color: var(--accent-soft); }
+  .md pre.mermaid[data-processed]::after {
+    content: "⤢";
+    position: absolute;
+    top: 8px; right: 10px;
+    width: 26px; height: 26px;
+    display: grid; place-items: center;
+    font-size: 14px; color: var(--text-muted);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px;
+    opacity: 0.55;
+    transition: opacity 120ms ease, color 120ms ease;
+    pointer-events: none;
+  }
+  .md pre.mermaid[data-processed]:hover::after {
+    opacity: 1; color: var(--accent);
+  }
+
+  .lightbox {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(31, 30, 29, 0.82);
+    display: flex; align-items: center; justify-content: center;
+    padding: 40px;
+    backdrop-filter: blur(2px);
+  }
+  .lightbox[hidden] { display: none; }
+  .lightbox-stage {
+    position: relative;
+    width: 100%; height: 100%;
+    background: var(--bg);
+    border-radius: 14px;
+    overflow: hidden;
+    cursor: grab;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+  }
+  .lightbox-stage.is-dragging { cursor: grabbing; }
+  .lightbox-stage svg {
+    max-width: 100%; max-height: 100%;
+    width: 100%; height: 100%;
+    user-select: none;
+  }
+  .lightbox-controls {
+    position: absolute; bottom: 24px; left: 50%;
+    transform: translateX(-50%);
+    display: flex; gap: 4px;
+    background: var(--surface);
+    padding: 5px; border-radius: 10px;
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 14px rgba(31,30,29,0.18);
+  }
+  .lightbox-controls button {
+    font-family: var(--sans);
+    font-size: 13px; font-weight: 500;
+    padding: 7px 14px; min-width: 38px;
+    background: transparent; border: 0; border-radius: 7px;
+    cursor: pointer; color: var(--text);
+  }
+  .lightbox-controls button:hover { background: var(--surface-2); }
+  .lightbox-controls button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .lightbox-close {
+    position: absolute; top: 24px; right: 24px;
+    width: 38px; height: 38px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 50%;
+    font-size: 22px; line-height: 1; color: var(--text);
+    cursor: pointer; display: grid; place-items: center;
+    box-shadow: 0 4px 14px rgba(31,30,29,0.18);
+  }
+  .lightbox-close:hover { background: var(--surface-2); border-color: var(--border-strong); }
+  .lightbox-hint {
+    position: absolute; top: 24px; left: 24px;
+    font-size: 12px; color: var(--text-muted);
+    background: var(--surface);
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    pointer-events: none;
+  }
+
   /* ── Footer ─────────────────────────────────────────── */
   footer.page {
     margin-top: 48px;
@@ -429,6 +528,14 @@
     .toolbar .rhs { justify-content: flex-end; }
   }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.10.0/dist/mermaid.min.js" integrity="sha384-PY+AFiXLIHkR5jE4nk0JwPQQmmQlT4mJXFlgeT4jJeuARaBQBK+nSwwxzrPRAtUM" crossorigin="anonymous"></script>
+<script>
+  // Initialize mermaid only if the loader succeeded; the disclosure script
+  // is in a separate <script> block so this can never break it.
+  if (window.mermaid) {
+    mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: "neutral" });
+  }
+</script>
 </head>
 <body>
 <div class="shell">
@@ -819,7 +926,86 @@ control state is correct on both success and failure paths.</p>
 </tbody>
 </table>
 <hr />
-<h2>5. Out of scope / not yet wired</h2>
+<h2>5. Visual flow diagrams</h2>
+<p>The four diagrams below show the same logic the behavior matrix describes,
+plus the adjacent flows (Google handoff, approval polling, logout
+convergence). They render as live SVG widgets when this file is opened
+in any Mermaid-aware viewer (GitHub, VS Code with the Mermaid extension,
+Cowork's markdown renderer with the Mermaid Chart connector enabled, or
+mermaid.live).</p>
+<h3>5.1 Login flow — <code>AuthLogin.jsx</code> email + password</h3>
+<p>Fanning out into 200, 403-pending, 403-other, 401, and network paths.</p>
+<pre class="mermaid">flowchart LR
+  user([User submits<br/>email + password]) --> AL["AuthLogin.jsx<br/>handleEmailLogin<br/>line 191-247"]
+  AL -->|fetch line 200| API["POST<br/>VITE_API_URL/auth/login"]
+
+  API -->|"200 line 206-211"| OK["Store tokens<br/>line 208-209<br/>access_token<br/>refresh_token<br/>in localStorage"]
+  OK -->|"line 210"| DASH["dashboard/fleet-overview"]
+
+  API -->|"403 pending line 217-227"| PEND["approval-pending"]
+
+  API -->|"403 other line 228-230"| INLINE403["Inline Alert<br/>stay on login"]
+
+  API -->|"401 / 4xx line 233-241"| INLINE4XX["Inline Alert<br/>stay on login"]
+
+  API -->|"network err line 242-246"| INLINE_NET["Inline Alert<br/>Network error"]
+</pre>
+<h3>5.2 Google sign-in / sign-up flow (currently stubs; planned end-to-end shown dotted)</h3>
+<p>Solid arrows are the current click stub. Dotted arrows mark the
+documented but not-yet-wired round-trip through
+<code>/api/auth/google/login</code> → <code>/oauth/callback</code> → <code>POST /api/auth/token</code>.</p>
+<pre class="mermaid">flowchart LR
+  ALG([User clicks<br/>Continue with Google<br/>on AuthLogin or AuthRegister]) --> STUB["Currently:<br/>console.info stub<br/>AuthLogin.jsx:50-55<br/>AuthRegister.jsx:38-43"]
+
+  STUB -.planned.-> GLOG["Browser GET api/auth/google/login<br/>backend redirects to Google consent"]
+  GLOG -.planned.-> GCB["Backend GET api/auth/google/callback<br/>exchanges code for google_id_token<br/>redirects to FRONTEND_ORIGIN/oauth/callback?token=..."]
+  GCB -.planned.-> CBPAGE["Frontend oauth/callback page<br/>NOT YET BUILT — see TODO in AuthLogin.jsx:43-55"]
+  CBPAGE -.planned.-> EXCH["POST api/auth/token<br/>body: google_id_token"]
+
+  EXCH -.200.-> SAVE2["Store tokens in localStorage"]
+  SAVE2 --> DASH2["dashboard/fleet-overview"]
+  EXCH -.403 pending.-> PEND2["approval-pending"]
+</pre>
+<h3>5.3 Approval-pending polling loop</h3>
+<p>Polls <code>GET /api/user/devices</code> every 10 seconds. 403 keeps the loop
+running; 200 redirects to the dashboard.</p>
+<pre class="mermaid">flowchart LR
+  ROUTE([Browser navigates to<br/>approval-pending<br/>e.g. from AuthLogin 403 path]) --> AAP["AuthApprovalPending.jsx<br/>useEffect line 38-83"]
+
+  AAP --> CHECK1{"getCurrentUser line 41<br/>token present?"}
+  CHECK1 -.no token.-> LOGIN1["login replace<br/>line 44"]
+  CHECK1 --yes--> SETUP["Set email from token<br/>line 47<br/>Start polling tick"]
+
+  SETUP -->|"every 10s line 65-78"| POLL["GET VITE_API_URL/user/devices<br/>line 51-58<br/>Authorization: Bearer access_token"]
+
+  POLL -->|"200 line 59-62"| APPROVED["dashboard/fleet-overview<br/>line 60"]
+  POLL -->|"403 still pending"| WAIT["Keep polling"]
+  POLL -->|"network err"| WAIT2["Keep polling silently"]
+
+  WAIT --> POLL
+  WAIT2 --> POLL
+
+  AAP --> LOGOUT["Log out button<br/>handleLogout line 89<br/>= logout from utils/auth"]
+</pre>
+<h3>5.4 Logout convergence — three click sources, one helper</h3>
+<p>Every logout affordance funnels through the single <code>logout(navigate)</code>
+helper in <code>src/utils/auth.js</code>, which clears both tokens from
+<code>localStorage</code> and routes back to <code>/login</code>.</p>
+<pre class="mermaid">flowchart LR
+  AVATAR_ICON([Avatar menu logout icon button<br/>Profile/index.jsx:265-282]) --> HL_PROFILE["handleLogout<br/>Profile/index.jsx:165-168"]
+  PROFILE_LIST([Profile tab Logout list item<br/>ProfileTab.jsx:77-82]) -->|onLogout prop| HL_PROFILE
+  AAP_BUTTON([Approval-pending Log out button<br/>AuthApprovalPending.jsx:163-191]) --> HL_AAP["handleLogout<br/>AuthApprovalPending.jsx:89"]
+
+  HL_PROFILE --> LOGOUT_FN["logout helper<br/>utils/auth.js:93-100"]
+  HL_AAP --> LOGOUT_FN
+
+  LOGOUT_FN --> CLEAR["localStorage.removeItem<br/>access_token<br/>refresh_token<br/>line 86-87"]
+  LOGOUT_FN --> ROUTE_OUT{"navigate provided?"}
+  ROUTE_OUT -->|yes| NAV_LOGIN["navigate login replace<br/>line 96"]
+  ROUTE_OUT -->|no fallback| WIN_LOGIN["window.location.assign login<br/>line 98"]
+</pre>
+<hr />
+<h2>6. Out of scope / not yet wired</h2>
 <ul>
 <li><strong>Google OAuth</strong> — the button hands off to a stub. Real handoff requires:
   1. Pointing the click handler at <code>${VITE_API_URL}/auth/google/login</code>.
@@ -834,7 +1020,7 @@ control state is correct on both success and failure paths.</p>
   endpoints.</li>
 </ul>
 <hr />
-<h2>6. Quick verification steps</h2>
+<h2>7. Quick verification steps</h2>
 <ol>
 <li>Run the backend locally (<code>http://localhost:8000</code>) with a known
    provisioned email/password user.</li>
@@ -879,10 +1065,9 @@ the production API.</p>
 <p><strong>Scope:</strong> This guide assumes Docker, Node 20+, and <code>npm</code> are installed,
 and that both <code>phenodeV3</code> and <code>phenodeX</code> live under <code>~/Coding/PheNode/</code>.</p>
 <hr />
-<h2>⚠️ Vital — local vs production API URLs</h2>
-<p>The local backend and the production deployment expose <strong>different path
-prefixes</strong>. This is the single most common source of "why isn't login
-working" confusion, so read this before you change anything.</p>
+<h2>⚠️ Vital — picking the API base URL</h2>
+<p>Both local and production mount every API route under <code>/api</code> (no
+version segment). The two <code>VITE_API_URL</code> candidates are:</p>
 <table>
 <thead>
 <tr>
@@ -897,21 +1082,22 @@ working" confusion, so read this before you change anything.</p>
 </tr>
 <tr>
 <td>Production</td>
-<td><code>https://phenode.cloud/api/v1</code></td>
+<td><code>https://phenode.cloud/api</code></td>
 </tr>
 </tbody>
 </table>
-<p><strong>Why the discrepancy:</strong></p>
-<ul>
-<li>Local FastAPI (<code>phenodeX/phenode_backend/core/config.py</code>) defines
-  <code>api_v1_prefix: str = "/api"</code> — note that's plain <code>/api</code>, not <code>/api/v1</code>.
-  So the local server mounts every route directly under <code>/api</code>.</li>
-<li>The production nginx reverse-proxy (configured in
-  <code>phenodeX/docker-compose.yml</code> and its prod sibling) sits in front of
-  FastAPI and rewrites incoming <code>/api/v1/*</code> requests down to <code>/api/*</code>
-  before forwarding. That's why the public URL has <code>/v1</code> but the local
-  one doesn't.</li>
-</ul>
+<p>Confirmed in <code>phenodeX/docs/frontend-backend-api.md</code> ("Production API
+base URL: <code>https://phenode.cloud/api</code>") and in
+<code>phenodeX/phenode_backend/core/config.py</code>
+(<code>api_v1_prefix: str = "/api"</code> — the variable name is misleading, but
+the value is just <code>/api</code>). There is no <code>/v1</code> segment in either
+environment; every router is mounted directly under <code>/api</code> in
+<code>phenodeX/phenode_backend/main.py</code>.</p>
+<blockquote>
+<p>Earlier guidance suggested the production base was
+<code>https://phenode.cloud/api/v1</code>. That was incorrect — that URL returns
+404. The docs and config are the source of truth.</p>
+</blockquote>
 <p><strong>Where this is set:</strong> <code>phenodeV3/.env</code> has both URLs documented at the
 top of the file. One line is active, the other is commented. To switch:
 flip the comment, then <strong>restart the vite dev server</strong> (Vite reads
@@ -919,8 +1105,8 @@ flip the comment, then <strong>restart the vite dev server</strong> (Vite reads
 <pre><code class="language-env">## --- LOCAL (docker compose stack in phenodeX) -------------------------------
 # VITE_API_URL = http://localhost:8000/api
 
-## --- PRODUCTION (phenode.cloud, nginx-rewritten /v1 prefix) -----------------
-VITE_API_URL = https://phenode.cloud/api/v1
+## --- PRODUCTION (phenode.cloud) ---------------------------------------------
+VITE_API_URL = https://phenode.cloud/api
 </code></pre>
 <p><strong>CORS caveat for production from localhost:</strong> Hitting <code>phenode.cloud</code>
 from a <code>localhost:3000</code> page is a cross-origin request. The local
@@ -928,9 +1114,6 @@ backend has <code>localhost:3000</code> whitelisted in
 <code>Settings.cors_allow_origins</code>, but production does not. If you get a
 preflight CORS error in DevTools, the backend team needs to add
 <code>http://localhost:3000</code> to the production CORS allowlist.</p>
-<p><strong>Production data warning:</strong> When pointed at the production URL, every
-request hits real production records and tokens. Use a non-production
-account for testing or switch to local.</p>
 <p><strong>Production data warning:</strong> When pointed at the production URL, every
 request hits real production records and tokens. Use a non-production
 account for testing or switch to local.</p>
@@ -960,7 +1143,7 @@ account for testing or switch to local.</p>
 <hr />
 <h2>TL;DR</h2>
 <h3>Against production (default)</h3>
-<p><code>phenodeV3/.env</code> already points at <code>https://phenode.cloud/api/v1</code>. So:</p>
+<p><code>phenodeV3/.env</code> already points at <code>https://phenode.cloud/api</code>. So:</p>
 <pre><code class="language-bash">cd ~/Coding/PheNode
 make frontend            # vite on http://localhost:3000
 # → log in with your real production credentials
@@ -1139,7 +1322,7 @@ the running api container:</p>
 <p>The full URL the form posts to depends on <code>VITE_API_URL</code>:</p>
 <ul>
 <li>Local mode: <code>POST http://localhost:8000/api/auth/login</code></li>
-<li>Production mode: <code>POST https://phenode.cloud/api/v1/auth/login</code></li>
+<li>Production mode: <code>POST https://phenode.cloud/api/auth/login</code></li>
 </ul>
 <hr />
 <h2>Lifecycle reference</h2>
@@ -1196,11 +1379,9 @@ the running api container:</p>
   thinks it is, or the origin isn't in the backend's allowlist. Local
   backend has <code>localhost:3000</code> allowlisted; production allowlist is
   managed by the backend team.</li>
-<li><strong>404 on <code>/auth/login</code>.</strong> Two flavors:</li>
-<li>You're pointed at local with the <code>/api/v1</code> prefix (production-style
-    URL). Local FastAPI mounts at plain <code>/api</code> — drop the <code>/v1</code>.</li>
-<li>You're pointed at production with just <code>/api</code> (no <code>/v1</code>). Production
-    nginx requires <code>/api/v1</code>.</li>
+<li><strong>404 on <code>/auth/login</code>.</strong> Means <code>VITE_API_URL</code> is missing the <code>/api</code>
+  suffix or you typed <code>/auth/login/</code> with a trailing slash. Both local
+  and production mount the API at <code>/api</code> — there is no <code>/v1</code> segment.</li>
 <li><strong>Vite ignored an env update.</strong> It reads <code>.env*</code> only at startup —
   Ctrl-C the dev server and run <code>make frontend</code> again.</li>
 <li><strong><code>verify_password</code> always fails.</strong> Means the user row exists but has
@@ -1238,13 +1419,149 @@ the running api container:</p>
 
 </div>
 
-<!-- Markdown sources, embedded so the dashboard works fully offline -->
+
+
+<div class="lightbox" id="lightbox" hidden role="dialog" aria-label="Diagram viewer" aria-modal="true">
+  <div class="lightbox-stage" id="lightbox-stage"></div>
+  <div class="lightbox-hint">Scroll to zoom · Drag to pan · Esc to close</div>
+  <button class="lightbox-close" id="lightbox-close" aria-label="Close diagram">×</button>
+  <div class="lightbox-controls" role="group" aria-label="Zoom controls">
+    <button data-zoom="in"  aria-label="Zoom in">+</button>
+    <button data-zoom="out" aria-label="Zoom out">−</button>
+    <button data-zoom="reset" aria-label="Reset zoom">Reset</button>
+  </div>
+</div>
+
 <script>
-  // Disclosure / accordion behavior
+  // ── Mermaid zoom lightbox ─────────────────────────────
+  (function () {
+    const lb     = document.getElementById('lightbox');
+    const stage  = document.getElementById('lightbox-stage');
+    const btnX   = document.getElementById('lightbox-close');
+    let viewBox  = null, initialVB = null, currentSvg = null;
+
+    function applyVB() {
+      if (!currentSvg || !viewBox) return;
+      currentSvg.setAttribute('viewBox',
+        viewBox.x + ' ' + viewBox.y + ' ' + viewBox.w + ' ' + viewBox.h);
+    }
+    function zoomAt(factor, cx, cy) {
+      if (!currentSvg) return;
+      const r = stage.getBoundingClientRect();
+      const px = (cx - r.left) / r.width;
+      const py = (cy - r.top) / r.height;
+      const newW = viewBox.w * factor;
+      const newH = viewBox.h * factor;
+      const minW = initialVB.w / 8, maxW = initialVB.w * 4;
+      if (newW < minW || newW > maxW) return;
+      viewBox.x += (viewBox.w - newW) * px;
+      viewBox.y += (viewBox.h - newH) * py;
+      viewBox.w = newW; viewBox.h = newH;
+      applyVB();
+    }
+    function open(pre) {
+      const orig = pre.querySelector('svg');
+      if (!orig) return;
+      const svg = orig.cloneNode(true);
+      svg.removeAttribute('width');
+      svg.removeAttribute('height');
+      svg.style.width = '100%'; svg.style.height = '100%';
+      stage.replaceChildren(svg);
+      currentSvg = svg;
+      const vb = svg.viewBox.baseVal;
+      if (!vb || (!vb.width && !vb.height)) {
+        const b = svg.getBBox();
+        svg.setAttribute('viewBox', b.x + ' ' + b.y + ' ' + b.width + ' ' + b.height);
+      }
+      const v = svg.viewBox.baseVal;
+      initialVB = { x: v.x, y: v.y, w: v.width, h: v.height };
+      viewBox   = { x: v.x, y: v.y, w: v.width, h: v.height };
+      lb.hidden = false;
+      document.body.style.overflow = 'hidden';
+    }
+    function close() {
+      lb.hidden = true;
+      stage.replaceChildren();
+      currentSvg = null;
+      document.body.style.overflow = '';
+    }
+    btnX.addEventListener('click', close);
+    lb.addEventListener('click', e => { if (e.target === lb) close(); });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && !lb.hidden) close();
+    });
+
+    stage.addEventListener('wheel', e => {
+      if (lb.hidden) return;
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 1.15 : 0.87;
+      zoomAt(factor, e.clientX, e.clientY);
+    }, { passive: false });
+
+    let dragging = false, lastX = 0, lastY = 0;
+    stage.addEventListener('mousedown', e => {
+      dragging = true; lastX = e.clientX; lastY = e.clientY;
+      stage.classList.add('is-dragging');
+    });
+    window.addEventListener('mousemove', e => {
+      if (!dragging || !currentSvg) return;
+      const r = stage.getBoundingClientRect();
+      viewBox.x -= (e.clientX - lastX) / r.width  * viewBox.w;
+      viewBox.y -= (e.clientY - lastY) / r.height * viewBox.h;
+      lastX = e.clientX; lastY = e.clientY;
+      applyVB();
+    });
+    window.addEventListener('mouseup', () => {
+      dragging = false; stage.classList.remove('is-dragging');
+    });
+
+    document.querySelectorAll('#lightbox [data-zoom]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const r = stage.getBoundingClientRect();
+        const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+        if (btn.dataset.zoom === 'in')  zoomAt(0.7,  cx, cy);
+        else if (btn.dataset.zoom === 'out') zoomAt(1.43, cx, cy);
+        else { viewBox = Object.assign({}, initialVB); applyVB(); }
+      });
+    });
+
+    window.setupMermaidZoom = function (container) {
+      container.querySelectorAll('pre.mermaid[data-processed]').forEach(pre => {
+        if (pre.dataset.zoomReady) return;
+        pre.dataset.zoomReady = 'true';
+        pre.setAttribute('role', 'button');
+        pre.setAttribute('tabindex', '0');
+        pre.setAttribute('title', 'Click to enlarge');
+        pre.addEventListener('click', () => open(pre));
+        pre.addEventListener('keydown', e => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(pre); }
+        });
+      });
+    };
+  })();
+
+  // ── Mermaid lazy render + zoom wiring ────────────────
+  function renderMermaidIn(container) {
+    const wireZoom = () => window.setupMermaidZoom && window.setupMermaidZoom(container);
+    if (!window.mermaid) { wireZoom(); return; }
+    const nodes = container.querySelectorAll('pre.mermaid:not([data-processed])');
+    if (!nodes.length) { wireZoom(); return; }
+    try {
+      Promise.resolve(mermaid.run({ nodes: Array.from(nodes), suppressErrors: false }))
+        .then(wireZoom)
+        .catch(err => { console.error('mermaid render failed', err); wireZoom(); });
+    } catch (err) {
+      console.error('mermaid render threw', err);
+      wireZoom();
+    }
+  }
+
+  // ── Disclosure / accordion behavior ──────────────────
   function setOpen(milestone, open) {
     milestone.dataset.open = open ? 'true' : 'false';
     const btn = milestone.querySelector('.m-header');
     if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) renderMermaidIn(milestone);
   }
   document.querySelectorAll('.milestone').forEach(m => {
     const btn = m.querySelector('.m-header');
@@ -1257,7 +1574,6 @@ the running api container:</p>
     document.querySelectorAll('.milestone').forEach(m => setOpen(m, false));
   });
 
-  // Open milestone if URL hash points to it
   if (location.hash) {
     const target = document.querySelector(location.hash);
     if (target && target.classList.contains('milestone')) {
@@ -1266,5 +1582,6 @@ the running api container:</p>
     }
   }
 </script>
+
 </body>
 </html>
