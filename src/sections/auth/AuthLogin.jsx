@@ -277,7 +277,6 @@ export default function AuthLogin() {
             fontSize: '1rem',
             letterSpacing: '0.01em',
             mt: 0.5,
-            textShadow: '0 1px 9px #1a75e0c9'
           }}
         >
           Sign in to dashboard

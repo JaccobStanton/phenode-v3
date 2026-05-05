@@ -53,6 +53,46 @@ export default function AuthWrapper({ children }) {
       {/* Atmospheric glows behind the pill */}
       <AuthBackground />
 
+      {/* Trademark footer — sits on the page background below the pill on
+          desktop. Hidden on mobile where the pill fills the viewport
+          edge-to-edge and there's no background to land on. Only the
+          company name itself is the link; the leading "© 2026" stays
+          plain text. */}
+      <Box
+        sx={{
+          position: 'absolute',
+          bottom: 16,
+          left: 0,
+          right: 0,
+          textAlign: 'center',
+          fontSize: '0.72rem',
+          letterSpacing: '0.02em',
+          color: 'var(--blue)',
+          zIndex: 2,
+          display: { xs: 'none', md: 'block' }
+        }}
+      >
+        Copyright © 2026{' '}
+        <Box
+          component="a"
+          href="https://www.agrelaeco.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          sx={{
+            color: 'var(--blue)',
+            textDecoration: 'none',
+            transition: 'color 0.18s ease',
+            '&:hover': {
+              color: 'var(--green)',
+              textDecoration: 'underline'
+            }
+          }}
+        >
+          Agrela Ecosystems
+        </Box>
+        . All rights reserved
+      </Box>
+
       {/* THE PILL — centered & rounded on desktop; full-bleed on mobile */}
       <Box
         sx={{
