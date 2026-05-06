@@ -18,6 +18,8 @@
 //   phenodeX/phenode_backend/api/devices/routes.py:51-57 (health_status
 //     is computed server-side: "Live" if seen within 30 min, else "Offline")
 
+import { batteryColor, healthStatusColor } from './metricColors';
+
 const FAHRENHEIT_RATIO = 9 / 5;
 
 /**
@@ -114,12 +116,20 @@ export function deviceReadToFleetRow(device) {
     // the same year, but reorder Decembers before Novembers across years.
     // FleetOverviewView's default + status sort comparators consume this.
     lastMeasurementAt: device?.last_measurement_at ?? null,
-    metrics: [
-      { label: 'Health Status:', value: translateHealthStatus(device?.health_status) },
-      { label: 'Temperature:', value: formatTemperature(device?.temperature_c) },
-      { label: "Today's Rainfall:", value: formatTodaysRainfall(device?.rainfall_today_mm) },
-      { label: 'Wind Speed:', value: formatWindSpeed(device?.wind_speed) },
-      { label: 'Battery:', value: formatBatteryPercent(device?.battery_percent) }
-    ]
+    metrics: (() => {
+      // Compute health + battery once each — both the value/display
+      // and the color decision derive from the same raw number, so
+      // pulling them into local consts avoids reading the same field
+      // twice and keeps the two derivations next to each other.
+      const health = translateHealthStatus(device?.health_status);
+      const batteryPct = device?.battery_percent;
+      return [
+        { label: 'Health Status:', value: health, color: healthStatusColor(health) },
+        { label: 'Temperature:', value: formatTemperature(device?.temperature_c) },
+        { label: "Today's Rainfall:", value: formatTodaysRainfall(device?.rainfall_today_mm) },
+        { label: 'Wind Speed:', value: formatWindSpeed(device?.wind_speed) },
+        { label: 'Battery:', value: formatBatteryPercent(batteryPct), color: batteryColor(batteryPct) }
+      ];
+    })()
   };
 }

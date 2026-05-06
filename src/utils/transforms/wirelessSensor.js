@@ -20,6 +20,8 @@
 //     (route handler — health_status uses the same 30-min Live/Offline
 //      cutoff as devices)
 
+import { batteryColor, healthStatusColor } from './metricColors';
+
 const FAHRENHEIT_RATIO = 9 / 5;
 
 /**
@@ -124,12 +126,19 @@ export function wirelessSensorToFleetRow(sensor) {
     // sort comparators consume this; the formatted display string is lossy
     // and can't be reliably parsed back into a sortable Date.
     lastMeasurementAt: sensor?.lastMeasurementAt ?? null,
-    metrics: [
-      { label: 'Health Status:', value: translateHealthStatus(sensor?.healthStatus) },
-      { label: 'Soil Moisture:', value: formatSoilMoisture(sensor?.soilMoisture) },
-      { label: 'Soil Temp:', value: formatSoilTemperature(sensor?.soilTemperatureC) },
-      { label: 'RSSI:', value: formatRssi(sensor?.rssi) },
-      { label: 'Battery:', value: formatBatteryPercent(sensor?.batteryPercent) }
-    ]
+    metrics: (() => {
+      // Same pattern as the device transformer: compute health +
+      // battery once each so the value/display and the color decision
+      // derive from the same source.
+      const health = translateHealthStatus(sensor?.healthStatus);
+      const batteryPct = sensor?.batteryPercent;
+      return [
+        { label: 'Health Status:', value: health, color: healthStatusColor(health) },
+        { label: 'Soil Moisture:', value: formatSoilMoisture(sensor?.soilMoisture) },
+        { label: 'Soil Temp:', value: formatSoilTemperature(sensor?.soilTemperatureC) },
+        { label: 'RSSI:', value: formatRssi(sensor?.rssi) },
+        { label: 'Battery:', value: formatBatteryPercent(batteryPct), color: batteryColor(batteryPct) }
+      ];
+    })()
   };
 }

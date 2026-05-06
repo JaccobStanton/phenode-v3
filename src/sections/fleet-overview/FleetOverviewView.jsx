@@ -363,7 +363,16 @@ export default function FleetOverviewView({
   title = 'Your Fleet',
   entityLabel = 'Devices',
   searchPlaceholder,
-  rows,
+  // Default to an empty array — both production containers already
+  // pass an array (after their `(devices ?? []).map(...)` step), but
+  // this default keeps the view robust against any caller passing
+  // `undefined` (the dev showcase page does this to force the
+  // first-time-loading state). Several spots below — the search/filter
+  // useMemo, the headerStatus useMemo, the `Showing X of Y` count —
+  // call `rows.filter(...)` and `rows.length` directly without local
+  // guards, so a single default at the destructure is the cheapest
+  // way to keep them all crash-free.
+  rows = [],
   isLoading = false,
   error,
   onRetry,
@@ -1146,7 +1155,32 @@ export default function FleetOverviewView({
                               variant="h4"
                               title={metric.value}
                               sx={{
+                                // Spread greenGlowTextSx first (color +
+                                // textShadow), then override the two
+                                // pieces that depend on the metric's
+                                // own color:
+                                //   1. `color` — Health Status and
+                                //      Battery supply their own; all
+                                //      other metrics fall through to
+                                //      the default green.
+                                //   2. `textShadow` — for the purple
+                                //      Offline state, use a reduced-
+                                //      intensity shadow (smaller blur,
+                                //      lower alpha). The default
+                                //      shadow is tuned for the green
+                                //      glow recipe and reads heavy
+                                //      under purple text on the dark
+                                //      surface; softening it keeps
+                                //      "Offline" feeling like a state
+                                //      indicator without competing
+                                //      visually with the bright green
+                                //      Active values around it.
                                 ...greenGlowTextSx,
+                                color: metric.color ?? 'var(--green)',
+                                textShadow:
+                                  metric.color === 'var(--purple)'
+                                    ? '0 1px 5px #1a75e060'
+                                    : greenGlowTextSx.textShadow,
                                 fontSize: { xs: '1rem', sm: '1.15rem' },
                                 textAlign: 'center',
                                 ...truncateLineSx
