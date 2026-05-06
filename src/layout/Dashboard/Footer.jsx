@@ -16,13 +16,13 @@ export default function Footer() {
         </Link>
       </Typography>
       <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', justifyContent: 'space-between' }}>
-        <Link href="https://www.agrelaeco.com/" target="_blank" variant="caption" color="text.primary">
+        <Link href="https://www.agrelaeco.com/about-us" target="_blank" variant="caption" color="text.primary">
           About us
         </Link>
-        <Link href="https://mui.com/legal/privacy/" target="_blank" variant="caption" color="text.primary">
+        <Link href="https://www.agrelaeco.com/privacy-policy" target="_blank" variant="caption" color="text.primary">
           Privacy
         </Link>
-        <Link href="https://mui.com/store/terms/" target="_blank" variant="caption" color="text.primary">
+        <Link href="https://www.agrelaeco.com/terms-of-service" target="_blank" variant="caption" color="text.primary">
           Terms
         </Link>
       </Stack>
