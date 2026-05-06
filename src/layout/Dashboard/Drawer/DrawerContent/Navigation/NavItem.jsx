@@ -16,7 +16,7 @@ import Box from '@mui/material/Box';
 // project imports
 import IconButton from 'components/@extended/IconButton';
 
-import { handlerDrawerOpen, useGetMenuMaster } from 'api/menu';
+import { useDrawerToggle, useGetMenuMaster } from 'api/menu';
 
 // ==============================|| NAVIGATION - LIST ITEM ||============================== //
 
@@ -24,6 +24,7 @@ export default function NavItem({ item, level, isParents = false, setSelectedID 
   const [isHovered, setIsHovered] = useState(false);
   const { menuMaster } = useGetMenuMaster();
   const drawerOpen = menuMaster.isDashboardDrawerOpened;
+  const toggleDrawer = useDrawerToggle();
 
   const downLG = useMediaQuery((theme) => theme.breakpoints.down('lg'));
 
@@ -33,7 +34,7 @@ export default function NavItem({ item, level, isParents = false, setSelectedID 
   }
 
   const itemHandler = () => {
-    if (downLG) handlerDrawerOpen(false);
+    if (downLG) toggleDrawer(false);
 
     if (isParents && setSelectedID) {
       setSelectedID(item.id);

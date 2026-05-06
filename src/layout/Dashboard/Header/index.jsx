@@ -10,7 +10,7 @@ import AppBarStyled from './AppBarStyled';
 import HeaderContent from './HeaderContent';
 import IconButton from 'components/@extended/IconButton';
 
-import { handlerDrawerOpen, useGetMenuMaster } from 'api/menu';
+import { useDrawerToggle, useGetMenuMaster } from 'api/menu';
 import { DRAWER_WIDTH, MINI_DRAWER_WIDTH } from 'config';
 
 // assets
@@ -27,6 +27,7 @@ export default function Header() {
 
   const { menuMaster } = useGetMenuMaster();
   const drawerOpen = menuMaster.isDashboardDrawerOpened;
+  const toggleDrawer = useDrawerToggle();
 
   // header content
   const headerContent = useMemo(() => <HeaderContent />, []);
@@ -36,7 +37,7 @@ export default function Header() {
     <Toolbar sx={{ minHeight: { xs: NAVBAR_TOOLBAR_HEIGHT.xs, sm: NAVBAR_TOOLBAR_HEIGHT.sm } }}>
       <IconButton
         aria-label="open drawer"
-        onClick={() => handlerDrawerOpen(!drawerOpen)}
+        onClick={() => toggleDrawer(!drawerOpen)}
         edge="start"
         color="secondary"
         variant="light"

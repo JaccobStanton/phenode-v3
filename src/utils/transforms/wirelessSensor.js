@@ -96,14 +96,29 @@ export function formatRssi(value) {
  *     backend doesn't actually expose — those were misleading. The
  *     metrics now reflect what wireless soil sensors really measure.
  *   - healthStatus: backend computes the "Live"/"Offline" string using
- *     a 30-min cutoff (routes.py:161-167) — we pass it through unchanged.
+ *     a 30-min cutoff (routes.py:161-167). We translate "Live" → "Active"
+ *     here at the boundary so product copy is consistent across the UI
+ *     (header counter, status filter button, the card cell itself).
+ *     Translating in the transformer means everything downstream — display,
+ *     search, filter, sort — operates on the UI vocabulary.
  */
+const translateHealthStatus = (raw) => {
+  if (raw === 'Live') return 'Active';
+  return raw ?? 'Unknown';
+};
+
 export function wirelessSensorToFleetRow(sensor) {
   return {
     siteName: sensor?.label || sensor?.externalSensorId || 'Unnamed sensor',
+    // Display string ("M/D/YYYY, h:mm:ss A" or "Never"). What the card renders.
     lastMeasurements: formatLastMeasurement(sensor?.lastMeasurementAt),
+    // Raw ISO 8601 (or null) for sorting. See the matching comment in
+    // utils/transforms/device.js — FleetOverviewView's default + status
+    // sort comparators consume this; the formatted display string is lossy
+    // and can't be reliably parsed back into a sortable Date.
+    lastMeasurementAt: sensor?.lastMeasurementAt ?? null,
     metrics: [
-      { label: 'Health Status:', value: sensor?.healthStatus ?? 'Unknown' },
+      { label: 'Health Status:', value: translateHealthStatus(sensor?.healthStatus) },
       { label: 'Soil Moisture:', value: formatSoilMoisture(sensor?.soilMoisture) },
       { label: 'Soil Temp:', value: formatSoilTemperature(sensor?.soilTemperatureC) },
       { label: 'RSSI:', value: formatRssi(sensor?.rssi) },

@@ -84,14 +84,32 @@ export function formatBatteryPercent(percent) {
  *   - metrics order: matches the existing mock so the visual layout
  *     doesn't shift during the migration.
  *   - health_status: backend computes this string ("Live"/"Offline"/
- *     "Unknown") in the my-devices route — we just pass it through.
+ *     "Unknown") in the my-devices route. We translate "Live" → "Active"
+ *     here at the boundary because product copy uses "Active" everywhere
+ *     in the UI (header counter, status filter button, the card cell
+ *     itself). Translating in the transformer means everything downstream
+ *     — display, search, filter, sort — operates on the UI vocabulary
+ *     instead of the API vocabulary.
  */
+const translateHealthStatus = (raw) => {
+  if (raw === 'Live') return 'Active';
+  return raw ?? 'Unknown';
+};
+
 export function deviceReadToFleetRow(device) {
   return {
     siteName: device?.label || device?.external_device_id || 'Unnamed device',
+    // Display string ("M/D/YYYY, h:mm:ss A" or "Never"). What the card renders.
     lastMeasurements: formatLastMeasurement(device?.last_measurement_at),
+    // Raw ISO 8601 (or null) for sorting. Kept separate from `lastMeasurements`
+    // because the formatter is lossy — once it's a localized date string we
+    // can't reliably parse it back, and naive lexicographic sort on the
+    // formatted "M/D/YYYY..." string would order March before May within
+    // the same year, but reorder Decembers before Novembers across years.
+    // FleetOverviewView's default + status sort comparators consume this.
+    lastMeasurementAt: device?.last_measurement_at ?? null,
     metrics: [
-      { label: 'Health Status:', value: device?.health_status ?? 'Unknown' },
+      { label: 'Health Status:', value: translateHealthStatus(device?.health_status) },
       { label: 'Temperature:', value: formatTemperature(device?.temperature_c) },
       { label: "Today's Rainfall:", value: formatTodaysRainfall(device?.rainfall_today_mm) },
       { label: 'Wind Speed:', value: formatWindSpeed(device?.wind_speed) },

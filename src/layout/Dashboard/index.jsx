@@ -13,7 +13,7 @@ import ErrorBoundary from 'components/ErrorBoundary';
 import Loader from 'components/Loader';
 import Breadcrumbs from 'components/@extended/Breadcrumbs';
 
-import { handlerDrawerOpen, useGetMenuMaster } from 'api/menu';
+import { useDrawerToggle, useGetMenuMaster } from 'api/menu';
 import useConfig from 'hooks/useConfig';
 
 // ==============================|| MAIN LAYOUT ||============================== //
@@ -25,11 +25,15 @@ export default function DashboardLayout() {
   const downXL = useMediaQuery((theme) => theme.breakpoints.down('xl'));
   const showPageTitleAndBreadcrumbs = state.showPageTitleAndBreadcrumbs ?? false;
   const MAIN_CARD_MIN_HEIGHT = 'calc(100vh - 206px)';
+  const toggleDrawer = useDrawerToggle();
 
-  // set media wise responsive drawer
+  // set media wise responsive drawer — open by default on xl+ screens,
+  // collapse the drawer below xl. Re-runs whenever the breakpoint
+  // crosses, so resizing the window in either direction snaps the
+  // drawer to the matching default.
   useEffect(() => {
-    handlerDrawerOpen(!downXL);
-  }, [downXL]);
+    toggleDrawer(!downXL);
+  }, [downXL, toggleDrawer]);
 
   if (menuMasterLoading) return <Loader />;
 

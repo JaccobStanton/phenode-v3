@@ -11,7 +11,7 @@ import DrawerContent from './DrawerContent';
 import MiniDrawerStyled from './MiniDrawerStyled';
 
 import { DRAWER_WIDTH } from 'config';
-import { handlerDrawerOpen, useGetMenuMaster } from 'api/menu';
+import { useDrawerToggle, useGetMenuMaster } from 'api/menu';
 
 const SHELL_SURFACE_GRADIENT = 'radial-gradient(circle at 50% 15%, #00438f, #00102f)';
 
@@ -21,6 +21,7 @@ export default function MainDrawer({ window }) {
   const { menuMaster } = useGetMenuMaster();
   const drawerOpen = menuMaster.isDashboardDrawerOpened;
   const downLG = useMediaQuery((theme) => theme.breakpoints.down('lg'));
+  const toggleDrawer = useDrawerToggle();
 
   // responsive drawer container
   const container = window !== undefined ? () => window().document.body : undefined;
@@ -41,7 +42,7 @@ export default function MainDrawer({ window }) {
           container={container}
           variant="temporary"
           open={drawerOpen}
-          onClose={() => handlerDrawerOpen(!drawerOpen)}
+          onClose={() => toggleDrawer(!drawerOpen)}
           ModalProps={{ keepMounted: true }}
           sx={{ display: { xs: drawerOpen ? 'block' : 'none', lg: 'none' } }}
           slotProps={{

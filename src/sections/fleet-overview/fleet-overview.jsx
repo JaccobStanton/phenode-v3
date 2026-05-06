@@ -30,13 +30,14 @@ export default function FleetOverview() {
   // useMemo (filter + sort) from re-running on every parent render.
   const rows = useMemo(() => (devices ?? []).map(deviceReadToFleetRow), [devices]);
 
-  const activeCount = rows.filter((row) => row.metrics.find((m) => m.label === 'Health Status:')?.value === 'Live').length;
-
   return (
     <FleetOverviewView
       title="Your Fleet"
-      activeLabel="PheNodes Active:"
-      activeCount={activeCount}
+      // entityLabel drives the header line: "PheNodes Active|Live|Offline: N".
+      // The view derives both the word ("Active"/"Live"/"Offline") and the
+      // count from its own statusFilter state — see headerStatus useMemo
+      // in FleetOverviewView. The container just supplies the noun.
+      entityLabel="PheNodes"
       searchPlaceholder="Search PheNodes..."
       rows={rows}
       isLoading={isLoading}

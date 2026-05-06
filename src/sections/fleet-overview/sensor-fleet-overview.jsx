@@ -34,19 +34,17 @@ export default function SensorFleetOverview() {
   // useMemo (filter + sort) from re-running on every parent render.
   const rows = useMemo(() => (sensors ?? []).map(wirelessSensorToFleetRow), [sensors]);
 
-  // 'Live' is the string the backend emits for sensors seen in the last
-  // 30 minutes (see _health_status() in
-  // phenodeX/phenode_backend/api/wireless_sensors/routes.py:161-167).
-  // Reading it off the metric we already built (rather than off the raw
-  // sensors[]) keeps "what counts as active" defined in exactly one
-  // place — the transformer.
-  const activeCount = rows.filter((row) => row.metrics.find((m) => m.label === 'Health Status:')?.value === 'Live').length;
-
   return (
     <FleetOverviewView
       title="Your Fleet"
-      activeLabel="Sensors Active:"
-      activeCount={activeCount}
+      // entityLabel drives the header line: "Sensors Active|Live|Offline: N".
+      // The view derives both the word and the count from its own
+      // statusFilter state — see headerStatus useMemo in
+      // FleetOverviewView. The container just supplies the noun.
+      // 'Live' / 'Offline' values come from the backend's _health_status()
+      // (phenode_backend/api/wireless_sensors/routes.py:161-167), passed
+      // through unchanged by the wirelessSensor transformer.
+      entityLabel="Sensors"
       searchPlaceholder="Search Wireless Sensors..."
       rows={rows}
       isLoading={isLoading}
