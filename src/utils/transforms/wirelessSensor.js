@@ -110,6 +110,13 @@ const translateHealthStatus = (raw) => {
 export function wirelessSensorToFleetRow(sensor) {
   return {
     siteName: sensor?.label || sensor?.externalSensorId || 'Unnamed sensor',
+    // Raw immutable identifier (the externalSensorId — the WS- prefixed
+    // hardware ID). Carried separately from siteName so the view can
+    // toggle which one is shown — siteName uses the user-friendly label
+    // first and falls back to this ID, while the MAC Address toggle in
+    // the toolbar forces the ID to be shown for every card regardless
+    // of label.
+    externalId: sensor?.externalSensorId || 'Unknown',
     // Display string ("M/D/YYYY, h:mm:ss A" or "Never"). What the card renders.
     lastMeasurements: formatLastMeasurement(sensor?.lastMeasurementAt),
     // Raw ISO 8601 (or null) for sorting. See the matching comment in

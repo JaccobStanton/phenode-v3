@@ -99,6 +99,12 @@ const translateHealthStatus = (raw) => {
 export function deviceReadToFleetRow(device) {
   return {
     siteName: device?.label || device?.external_device_id || 'Unnamed device',
+    // Raw immutable identifier (the MAC-style external_device_id). Carried
+    // separately from siteName so the view can toggle which one is shown
+    // — siteName uses the user-friendly label first and falls back to this
+    // ID, while the MAC Address toggle in the toolbar forces the ID to
+    // be shown for every card regardless of label.
+    externalId: device?.external_device_id || 'Unknown',
     // Display string ("M/D/YYYY, h:mm:ss A" or "Never"). What the card renders.
     lastMeasurements: formatLastMeasurement(device?.last_measurement_at),
     // Raw ISO 8601 (or null) for sorting. Kept separate from `lastMeasurements`

@@ -13,6 +13,7 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 
 import CheckCircleOutlined from '@ant-design/icons/CheckCircleOutlined';
+import IdcardOutlined from '@ant-design/icons/IdcardOutlined';
 import SearchOutlined from '@ant-design/icons/SearchOutlined';
 import SortAscendingOutlined from '@ant-design/icons/SortAscendingOutlined';
 
@@ -330,6 +331,13 @@ export default function FleetOverviewView({
   // changes the underlying set (see useEffect below) so the user isn't
   // stranded on, say, page 4 of a list that just shrank to one page.
   const [currentPage, setCurrentPage] = useState(1);
+  // Whether each card's title shows the user-set label (false, default)
+  // or the immutable external_id / externalSensorId (true). Toggled by
+  // the "MAC Address" button in the toolbar. Keeps the fallback chain
+  // in the transformer untouched — when no label exists the row's
+  // siteName already shows the external id; this just forces it for
+  // every row, label or not.
+  const [showMacAddress, setShowMacAddress] = useState(false);
   // Whether the card list is scrolled away from the top. Drives the
   // top-border treatment on the table wrapper — a thin var(--blue)
   // hairline appears the moment a card scrolls past the upper boundary,
@@ -359,7 +367,11 @@ export default function FleetOverviewView({
     // one operation ("which rows survive the current view criteria").
     const filteredRows = rows.filter((row) => {
       if (loweredSearch) {
-        const searchableText = [row.siteName, row.lastMeasurements, ...row.metrics.map((metric) => `${metric.label} ${metric.value}`)]
+        // Include both siteName and externalId in the search corpus so
+        // a user can find a card by either its label OR its MAC/external
+        // id, regardless of which one is currently being displayed in
+        // the card title (controlled by the MAC Address toggle).
+        const searchableText = [row.siteName, row.externalId, row.lastMeasurements, ...row.metrics.map((metric) => `${metric.label} ${metric.value}`)]
           .join(' ')
           .toLowerCase();
         if (!searchableText.includes(loweredSearch)) return false;
@@ -387,12 +399,19 @@ export default function FleetOverviewView({
       return bTime - aTime;
     };
 
-    // 'alpha' — pure A-Z by siteName. Per product direction this mode
-    //           explicitly does NOT chain on recency; users picking
-    //           alphabetical want a stable ordering they can scan
-    //           top-to-bottom looking for a specific site name.
+    // 'alpha' — pure A-Z by whatever's currently displayed as the title.
+    //           When the MAC Address toggle is OFF this is siteName;
+    //           when it's ON the user is looking at externalIds, so
+    //           the sort follows the display. Per product direction
+    //           this mode explicitly does NOT chain on recency; users
+    //           picking alphabetical want a stable ordering they can
+    //           scan top-to-bottom.
     if (sortMode === 'alpha') {
-      return [...filteredRows].sort((a, b) => a.siteName.localeCompare(b.siteName));
+      return [...filteredRows].sort((a, b) => {
+        const aText = showMacAddress ? a.externalId : a.siteName;
+        const bText = showMacAddress ? b.externalId : b.siteName;
+        return aText.localeCompare(bText);
+      });
     }
 
     // Default — most-recent-first. Recently-reporting devices/sensors
@@ -400,7 +419,7 @@ export default function FleetOverviewView({
     // the top means the page is useful at a glance without picking a
     // sort mode.
     return [...filteredRows].sort(compareRecencyDesc);
-  }, [rows, searchValue, sortMode, statusFilter]);
+  }, [rows, searchValue, sortMode, statusFilter, showMacAddress]);
 
   // Pagination derived from the full filtered+sorted set so search and
   // filter behave the way users expect: the search box reaches every
@@ -659,6 +678,47 @@ export default function FleetOverviewView({
                 </Typography>
               </ToggleButton>
             </Tooltip>
+
+            {/*
+              MAC Address toggle — flips each card title between the user-
+              friendly label (default) and the immutable external_id.
+              The transformer always falls back to the external_id when no
+              label exists, so this button just forces it for cards that
+              DO have a label, giving the user a quick way to read off
+              hardware identifiers without renaming anything.
+
+              Tooltip text describes the action the next click will take
+              (the action verb, not the current state):
+                showMacAddress=false → tooltip "MAC Address" (click → show MACs)
+                showMacAddress=true  → tooltip "{Entity} Name" (click → back to names)
+
+              Singular form derived from the entityLabel prop ("PheNodes"
+              → "PheNode", "Sensors" → "Sensor") so each fleet's tooltip
+              reads naturally without the container needing to pass it in
+              separately.
+            */}
+            <Tooltip
+              title={showMacAddress ? `${entityLabel.replace(/s$/, '')} Name` : 'MAC Address'}
+              arrow={false}
+              slotProps={tooltipSlotProps}
+            >
+              <ToggleButton
+                value="mac"
+                selected={showMacAddress}
+                onChange={() => setShowMacAddress((previous) => !previous)}
+                aria-label={
+                  showMacAddress
+                    ? `Show ${entityLabel.replace(/s$/, '').toLowerCase()} name (currently showing MAC address)`
+                    : 'Show MAC address (currently showing name)'
+                }
+                sx={sortToggleSx}
+              >
+                <IdcardOutlined />
+                <Typography variant="caption" sx={{ display: { xs: 'none', md: 'inline' }, color: 'inherit' }}>
+                  MAC
+                </Typography>
+              </ToggleButton>
+            </Tooltip>
           </Stack>
         </Stack>
 
@@ -747,9 +807,21 @@ export default function FleetOverviewView({
                 always reaches every row in the fleet, not just what's
                 currently on screen.
               */}
-              {pagedRows.map((row) => (
+              {pagedRows.map((row) => {
+                // Pick which identifier to render as the card title.
+                // The MAC button toggles `showMacAddress`; when on we
+                // force the immutable externalId for every card. When
+                // off, siteName retains its existing fallback chain
+                // (label || externalId), so cards without a label
+                // still show something useful by default.
+                const displayedTitle = showMacAddress ? row.externalId : row.siteName;
+                return (
                 <Card
-                  key={row.siteName}
+                  // Key on the immutable external_id (not the user-set
+                  // label) — labels can collide between two devices and
+                  // collisions cause React to incorrectly reconcile/reuse
+                  // wrong Card instances on re-render.
+                  key={row.externalId}
                   sx={{
                     width: '100%',
                     minWidth: { xs: 840, sm: 900, md: 0 },
@@ -794,14 +866,14 @@ export default function FleetOverviewView({
                       <Stack spacing={1.25} sx={{ textAlign: 'left', minWidth: 0 }}>
                         <Typography
                           variant="h4"
-                          title={row.siteName}
+                          title={displayedTitle}
                           sx={{
                             color: 'var(--green)',
                             fontSize: { xs: '1.1rem', sm: '1.25rem' },
                             ...truncateLineSx
                           }}
                         >
-                          {row.siteName}
+                          {displayedTitle}
                         </Typography>
                         <Stack spacing={0} sx={{ minWidth: 0 }}>
                           <Typography variant="subtitle1" sx={{ color: 'var(--blue)', fontSize: { xs: '0.78rem', sm: '0.84rem' }, ...truncateLineSx }}>
@@ -880,7 +952,8 @@ export default function FleetOverviewView({
                     </Grid>
                   </Grid>
                 </Card>
-              ))}
+                );
+              })}
               {visibleRows.length === 0 && renderEmptyStateCard({ rows, isLoading, error, onRetry, searchValue, emptyMessage })}
             </Stack>
           </Box>
