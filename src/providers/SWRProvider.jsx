@@ -123,6 +123,29 @@ export default function SWRProvider({ children }) {
       provider: createCacheProvider(),
       dedupingInterval: 15000,
       revalidateOnFocus: false,
+      // Return the previous key's `data` while the new key's first fetch
+      // is in flight. Most-importantly, this hides the "Loading…" flash
+      // that used to appear after a silent token rotation:
+      //
+      //   Background revalidation (refreshInterval) hits an expired
+      //   access token → 401 → fetcher auto-refreshes → new accessToken
+      //   in localStorage → AuthContext picks up the change → SWR keys
+      //   that include the token (e.g. useMyDevices, useMyWirelessSensors)
+      //   change → SWR treats the new key as a fresh subscription with
+      //   no cache → isLoading flips true → the fleet view flashes
+      //   "Loading PheNodes/Sensors…" even though the user never actually
+      //   lost their session.
+      //
+      // With keepPreviousData: true, SWR returns the OLD key's data
+      // while the new key's fetch is pending, then swaps in the fresh
+      // result on success. Token rotation becomes invisible — which is
+      // the whole point of having auto-refresh in the first place.
+      //
+      // Trade-off: for a brief moment after a key change the user sees
+      // data fetched with the previous auth context. That's fine here
+      // because token rotation by definition produces the same backend
+      // response; the data is identical, only the bearer changes.
+      keepPreviousData: true,
       shouldRetryOnError: (err) => err?.status !== 401,
       onError: (err) => {
         if (err?.status === 401 && !hasLoggedOutRef.current) {
