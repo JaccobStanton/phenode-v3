@@ -29,6 +29,12 @@ const SystemDiagnosticsPage = Loadable(lazy(() => import('pages/system-diagnosti
 const DataDownloadsPage = Loadable(lazy(() => import('pages/data-download/data-downloads')));
 const DownloadPreferencesPage = Loadable(lazy(() => import('pages/data-download/download-preferences')));
 
+// Dev-only showcase pages. Lazy + gated so the chunks aren't shipped
+// to production builds — Vite dead-code-eliminates the conditional
+// route children when import.meta.env.DEV resolves to false at build
+// time, and tree-shaking drops the lazy import along with them.
+const FleetStatesDevPage = Loadable(lazy(() => import('pages/dev/fleet-states')));
+
 // ==============================|| MAIN ROUTING ||============================== //
 //
 // Route tree shape:
@@ -98,7 +104,19 @@ const MainRoutes = {
         {
           path: 'download-preferences',
           element: <DownloadPreferencesPage />
-        }
+        },
+        // Dev-only routes — appended conditionally so production builds
+        // contain neither the route entries nor (after tree-shaking) the
+        // dev-page chunks they reference. Spread an empty array in prod
+        // so the literal stays a valid `children:` entry.
+        ...(import.meta.env.DEV
+          ? [
+              {
+                path: 'dev/fleet-states',
+                element: <FleetStatesDevPage />
+              }
+            ]
+          : [])
       ]
     }
   ]
