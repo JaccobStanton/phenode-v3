@@ -619,15 +619,87 @@ export default function FleetOverviewView({
                 }
                 sx={{
                   minHeight: 40,
-                  borderStyle: 'none none solid',
-                  borderWidth: '1px 1px 2px',
-                  borderColor: 'var(--dark-blue) var(--dark-blue) var(--reflected-light)',
+                  // No CSS border on the root at all. The visible bottom
+                  // hairline is drawn entirely by the ::after pseudo-
+                  // element below. Why this is the right move here:
+                  //
+                  //   A real CSS `border-bottom` follows the box's
+                  //   border-radius — at the rounded bottom-left and
+                  //   bottom-right corners the colored line curves up
+                  //   the 8px arc. With var(--reflected-light) (subtle)
+                  //   that's barely visible, but with var(--green) on
+                  //   hover the curve reads as "green tint in the side
+                  //   borders." A pseudo-element is a separate
+                  //   absolutely-positioned rectangle that doesn't
+                  //   inherit the parent's border-radius — it stays a
+                  //   straight line.
+                  //
+                  // `position: relative` makes the pseudo-element's
+                  // absolute positioning resolve against this box.
+                  // `overflow: hidden` is the part that ties the
+                  // straight-line pseudo-element back to the rounded
+                  // visual shape: at the bottom corners the rounded
+                  // mask clips the line so it terminates exactly where
+                  // the corner curve begins. Cleaner than the line
+                  // extending outside the visual box would have been.
+                  position: 'relative',
+                  overflow: 'hidden',
                   color: 'var(--blue)',
                   backgroundColor: '#00143642',
                   boxShadow: 'inset 1px 4px 5px #0003',
                   borderRadius: 1,
+                  // Bottom hairline. Default state: 2px tall,
+                  // var(--reflected-light). The transition smooths the
+                  // height + color swap into hover so the change reads
+                  // as a deliberate UI signal rather than a snap.
+                  '&::after': {
+                    content: '""',
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: '2px',
+                    background: 'var(--reflected-light)',
+                    pointerEvents: 'none',
+                    transition: 'height 150ms ease, background 150ms ease',
+                    zIndex: 1
+                  },
+                  // Hover (when not focused): line shrinks 2px → 1px
+                  // and tints from --reflected-light to var(--green).
+                  // Because this is a pseudo-element (not the box's
+                  // border), changing its height does NOT affect the
+                  // box's content area or padding — so the input text
+                  // never shifts up or down on hover.
+                  //
+                  // `:not(.Mui-focused)` keeps this rule from applying
+                  // when the input is focused; focus styling wins
+                  // alone once the user has clicked in.
+                  '&:hover:not(.Mui-focused):not(.Mui-disabled)::after': {
+                    height: '1px',
+                    background: 'var(--green)'
+                  },
+                  // Focused/selected: line returns to the default 2px
+                  // var(--reflected-light) — explicitly re-asserted so
+                  // the focus state is unambiguous and doesn't carry
+                  // the hover treatment forward.
+                  '&.Mui-focused::after': {
+                    height: '2px',
+                    background: 'var(--reflected-light)'
+                  },
+                  // Suppress MUI's notched outline in every state.
+                  // Belt-and-braces — there's no border on the root
+                  // anymore so the notched outline is the only place
+                  // MUI could try to repaint a colored border.
                   '& .MuiOutlinedInput-notchedOutline': {
                     border: 'none'
+                  },
+                  '&:hover .MuiOutlinedInput-notchedOutline, &.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    border: 'none'
+                  },
+                  // Typed text in var(--blue) so it matches the
+                  // placeholder.
+                  '& .MuiInputBase-input': {
+                    color: 'var(--blue)'
                   },
                   '& .MuiInputBase-input::placeholder': {
                     color: 'var(--blue)',
