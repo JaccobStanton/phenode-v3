@@ -103,7 +103,9 @@ const sortToggleSx = {
 
 const emptyRowCardSx = {
   width: '100%',
-  minWidth: { xs: 840, sm: 900, md: 0 },
+  // No minWidth — the empty / loading / error card sizes to its
+  // container so it works on every breakpoint without forcing
+  // horizontal scroll on mobile.
   backgroundColor: 'rgba(12, 35, 80, 0.359)',
   p: 2,
   border: '0.5px solid var(--box-outline-blue)',
@@ -880,7 +882,10 @@ export default function FleetOverviewView({
               // page-bottom position the user is used to seeing.
               height: { xs: 'calc(100vh - 280px)', md: 635 },
               overflowY: 'auto',
-              overflowX: { xs: 'auto', md: 'hidden' },
+              // overflowX hidden on every breakpoint — the cards no
+              // longer have a fixed minWidth that overflows mobile
+              // viewports, so there's nothing to scroll horizontally.
+              overflowX: 'hidden',
               pb: 1,
               // Shift the scrollbar gutter ~8px to the right.
               //
@@ -938,7 +943,15 @@ export default function FleetOverviewView({
                 'linear-gradient(to bottom, rgba(0,0,0,0.85) 0px, black 8px, black calc(100% - 8px), rgba(0,0,0,0.85) 100%)'
             }}
           >
-          <Box sx={{ minWidth: { xs: 860, sm: 920, md: 'auto' } }}>
+          {/*
+            Inner content wrapper — used to be a fixed-width sled
+            (860/920px) that forced horizontal scroll on mobile so the
+            5-column metric grid could fit. Now that the metric grid
+            collapses to 2 columns on xs and 3 on sm, the cards fit any
+            viewport and this wrapper just transparently fills the
+            scroll container's width.
+          */}
+          <Box>
             <Stack
               sx={{
                 display: 'flex',
@@ -972,7 +985,13 @@ export default function FleetOverviewView({
                   key={row.externalId}
                   sx={{
                     width: '100%',
-                    minWidth: { xs: 840, sm: 900, md: 0 },
+                    // No fixed minWidth — the card sizes to its container
+                    // (the scroll content area). The previous 840-900px
+                    // floor forced horizontal scroll on mobile because
+                    // the metric grid was always 5 columns wide. With
+                    // the metric grid now collapsing to 2 cols on xs,
+                    // 3 on sm, and 5 on md+, the card fits comfortably
+                    // at every breakpoint without overflow.
                     backgroundColor: 'rgba(12, 35, 80, 0.359)',
                     p: 2,
                     border: '0.5px solid var(--box-outline-blue)',
@@ -990,41 +1009,85 @@ export default function FleetOverviewView({
                     }
                   }}
                 >
-                  <Grid container spacing={{ xs: 1.5, md: 2 }} sx={{ alignItems: 'center' }}>
-                    <Grid size={{ xs: 3, md: 3, lg: 3 }}>
-                      {/*
-                        Outer Stack spacing controls the gap between the
-                        site name (top) and the caption+value pair (below).
-                        Bumped from 0.4 → 1.25 so the site name has more
-                        breathing room and the caption "Last measurements
-                        taken:" feels visually pushed down rather than
-                        crowding the title.
+                  {/*
+                    Card layout responds to viewport width.
 
-                        Inner Stack with spacing=0 keeps the caption tight
-                        against its value so they read as one unit.
-                      */}
-                      {/*
-                        minWidth: 0 — without this the Stack would otherwise
-                        let its Typography children push out the grid cell
-                        when siteName or the date string is too long,
-                        defeating the ellipsis truncation. minWidth: 0 lets
-                        the grid cell's `1fr` actually constrain the
-                        content width.
-                      */}
-                      <Stack spacing={1.25} sx={{ textAlign: 'left', minWidth: 0 }}>
+                    Mobile (xs / sm) — Grid is single-column:
+                      Row 1 (header): siteName on left, [caption / date]
+                                      stacked vertically on right.
+                      Row 2: 2- or 3-column metric grid (full width).
+
+                    Desktop (md+) — Grid is 3 / 9 split (original):
+                      Left column (size 3): siteName on top, caption
+                                            below, date below caption
+                                            — vertical Stack like before.
+                      Right column (size 9): 5-column metric grid.
+
+                    The single piece that changes between breakpoints is
+                    the inner header Stack's `direction` — `row` on
+                    mobile (so caption/date end up next to siteName) and
+                    `column` on desktop (so the original vertical stack
+                    is restored inside the narrow 25% left column).
+
+                    `alignItems: 'center'` on the Grid container only
+                    matters in the side-by-side desktop case — it
+                    vertically centers the left column against the
+                    taller metric grid.
+                  */}
+                  <Grid container spacing={{ xs: 1.5, md: 2 }} sx={{ alignItems: 'center' }}>
+                    <Grid size={{ xs: 12, md: 3 }} sx={{ minWidth: 0 }}>
+                      <Stack
+                        direction={{ xs: 'row', md: 'column' }}
+                        spacing={{ xs: 1.5, md: 1.25 }}
+                        sx={{
+                          // Mobile (row): top-align since the right side
+                          // is two lines tall.
+                          // Desktop (column): stretch so children fill
+                          // the column's full width.
+                          alignItems: { xs: 'flex-start', md: 'stretch' },
+                          minWidth: 0
+                        }}
+                      >
                         <Typography
                           variant="h4"
                           title={displayedTitle}
                           sx={{
                             color: 'var(--green)',
                             fontSize: { xs: '1.1rem', sm: '1.25rem' },
+                            textAlign: 'left',
+                            // Mobile: flex-grow:1 so the title takes all
+                            // available room and pushes caption/date to
+                            // the right. Desktop: unset so it sits at
+                            // its natural width inside the column Stack
+                            // (flex-grow in column direction would make
+                            // it stretch vertically — not what we want).
+                            flex: { xs: 1, md: 'unset' },
+                            minWidth: 0,
                             ...truncateLineSx
                           }}
                         >
                           {displayedTitle}
                         </Typography>
-                        <Stack spacing={0} sx={{ minWidth: 0 }}>
-                          <Typography variant="subtitle1" sx={{ color: 'var(--blue)', fontSize: { xs: '0.78rem', sm: '0.84rem' }, ...truncateLineSx }}>
+                        <Stack
+                          spacing={0}
+                          sx={{
+                            // Mobile: right-align both lines so they sit
+                            // flush with the card's right edge.
+                            // Desktop: left-align as in the original
+                            // (caption + date sit under the siteName).
+                            alignItems: { xs: 'flex-end', md: 'flex-start' },
+                            flexShrink: 0,
+                            minWidth: 0
+                          }}
+                        >
+                          <Typography
+                            variant="subtitle1"
+                            sx={{
+                              color: 'var(--blue)',
+                              fontSize: { xs: '0.78rem', sm: '0.84rem' },
+                              ...truncateLineSx
+                            }}
+                          >
                             Last measurements taken:
                           </Typography>
                           <Typography
@@ -1042,28 +1105,25 @@ export default function FleetOverviewView({
                       </Stack>
                     </Grid>
 
-                    <Grid size={{ xs: 9, md: 9, lg: 9 }}>
+                    <Grid size={{ xs: 12, md: 9 }}>
+                      {/*
+                        Metric grid columns step down on smaller viewports:
+                          xs — 2 columns
+                          sm — 3 columns
+                          md+ — 5 columns (original)
+                      */}
                       <Box
                         sx={{
                           display: 'grid',
                           gridTemplateColumns: {
-                            xs: 'repeat(5, minmax(0, 1fr))',
-                            sm: 'repeat(5, minmax(0, 1fr))',
-                            lg: 'repeat(5, minmax(0, 1fr))'
+                            xs: 'repeat(2, minmax(0, 1fr))',
+                            sm: 'repeat(3, minmax(0, 1fr))',
+                            md: 'repeat(5, minmax(0, 1fr))'
                           },
                           gap: { xs: 1.25, sm: 1.5, lg: 2 },
                           justifyItems: 'stretch'
                         }}
                       >
-                        {/*
-                          justifyItems: 'stretch' (instead of 'center') so
-                          each metric Stack fills its grid cell width,
-                          giving the truncation rule something to truncate
-                          AGAINST. Without stretch, the Stack collapsed to
-                          fit-content and there was nothing to ellipsis.
-                          The text inside each Typography is then
-                          re-centered via textAlign: 'center'.
-                        */}
                         {row.metrics.map((metric) => (
                           <Stack
                             key={`${row.siteName}-${metric.label}`}
