@@ -244,3 +244,63 @@ export const fetcher = async (url) => {
   if (response.status === 204) return null;
   return response.json();
 };
+
+/**
+ * Mutation request — sibling to `fetcher` for non-GET calls (PUT, POST,
+ * PATCH, DELETE) that carry a JSON body.
+ *
+ * Why a parallel function instead of extending `fetcher`:
+ *   `fetcher` is what SWRConfig hands every useSWR consumer as the
+ *   default fetcher. SWR calls it with `(key)` — a single argument. If
+ *   we made `fetcher` accept an options object as a second arg, every
+ *   SWR consumer would need to either ignore the new shape or wrap it,
+ *   and we'd risk subtle bugs where a default parameter for an SWR
+ *   call leaked into a mutation. Keeping the read path single-arg and
+ *   the write path explicitly opted-in via this function preserves
+ *   that separation.
+ *
+ * Shares the same auto-401-refresh-and-retry behavior as `fetcher` so
+ * a stale access token during a rename mutation transparently gets a
+ * fresh one and the request continues. The `parseErrorDetail` is also
+ * reused so callers can pull `.detail` off the thrown ApiError to
+ * surface backend validation messages in toasts.
+ *
+ * @param {string} url - Absolute URL (build via buildUrl()).
+ * @param {Object} options
+ * @param {string} options.method - 'PUT', 'POST', 'PATCH', 'DELETE'.
+ * @param {Object} [options.body] - JSON-serializable body. Omit for empty body.
+ * @param {string} [options.token] - Access token. Caller passes the
+ *                                   current token from useAuth(); the
+ *                                   refresh path swaps it transparently
+ *                                   on 401.
+ * @returns {Promise<*>} Parsed JSON response (or null for 204).
+ * @throws {ApiError} On any non-2xx after the refresh-and-retry attempt.
+ */
+export const mutationRequest = async (url, { method, body, token } = {}) => {
+  const buildHeaders = (currentToken) => {
+    const headers = { 'Content-Type': 'application/json' };
+    if (currentToken) headers.Authorization = `Bearer ${currentToken}`;
+    return headers;
+  };
+
+  const init = (currentToken) => ({
+    method,
+    headers: buildHeaders(currentToken),
+    credentials: 'include',
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {})
+  });
+
+  let response = await fetch(url, init(token));
+
+  if (response.status === 401) {
+    const newAccessToken = await refreshForRetry();
+    response = await fetch(url, init(newAccessToken));
+  }
+
+  if (!response.ok) {
+    const detail = await parseErrorDetail(response);
+    throw new ApiError(response.status, detail);
+  }
+  if (response.status === 204) return null;
+  return response.json();
+};

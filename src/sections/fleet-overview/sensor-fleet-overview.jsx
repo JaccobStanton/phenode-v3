@@ -1,7 +1,9 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import FleetOverviewView from 'sections/fleet-overview/FleetOverviewView';
+import useAuth from 'hooks/useAuth';
 import useMyWirelessSensors from 'hooks/data/useMyWirelessSensors';
+import { renameSensor } from 'services/mutations';
 import { wirelessSensorToFleetRow } from 'utils/transforms/wirelessSensor';
 
 // Container for the wireless-sensor fleet overview page.
@@ -28,11 +30,26 @@ import { wirelessSensorToFleetRow } from 'utils/transforms/wirelessSensor';
 
 export default function SensorFleetOverview() {
   const { sensors, isLoading, error, mutate } = useMyWirelessSensors();
+  const { accessToken } = useAuth();
 
   // useMemo so the transformed array reference is stable across renders
   // when `sensors` hasn't changed — that keeps FleetOverviewView's
   // useMemo (filter + sort) from re-running on every parent render.
   const rows = useMemo(() => (sensors ?? []).map(wirelessSensorToFleetRow), [sensors]);
+
+  // Mirror of fleet-overview.jsx's handleRename — see the matching
+  // comment there for the rationale (PUT then mutate to revalidate;
+  // errors propagate to the view for the toast). Different mutation
+  // function (renameSensor) targeting a different endpoint, but the
+  // surface is identical so FleetOverviewView's onRename contract
+  // works for both fleets unchanged.
+  const handleRename = useCallback(
+    async (externalId, newLabel) => {
+      await renameSensor(externalId, newLabel, accessToken);
+      mutate();
+    },
+    [accessToken, mutate]
+  );
 
   return (
     <FleetOverviewView
@@ -50,6 +67,7 @@ export default function SensorFleetOverview() {
       isLoading={isLoading}
       error={error}
       onRetry={mutate}
+      onRename={handleRename}
       emptyMessage="No wireless sensors assigned to your account yet."
     />
   );

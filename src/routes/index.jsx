@@ -3,6 +3,7 @@ import { createBrowserRouter, Outlet } from 'react-router-dom';
 // project imports
 import { AuthProvider } from 'contexts/AuthContext';
 import SWRProvider from 'providers/SWRProvider';
+import ToastProvider from 'providers/ToastProvider';
 import LoginRoutes from './LoginRoutes';
 import MainRoutes from './MainRoutes';
 
@@ -13,7 +14,11 @@ import MainRoutes from './MainRoutes';
 //
 //   <AuthProvider>      uses useNavigate() in logout()
 //     <SWRProvider>     uses useAuth() to read logout for the 401 handler
-//       <Outlet/>       LoginRoutes + MainRoutes render here
+//       <ToastProvider> notifications surface above the routed content;
+//                       no router/auth deps but it goes here so any
+//                       routed page can fire toasts via useToast()
+//         <Outlet/>     LoginRoutes + MainRoutes render here
+//       </ToastProvider>
 //     </SWRProvider>
 //   </AuthProvider>
 //
@@ -26,7 +31,9 @@ import MainRoutes from './MainRoutes';
 const RootProviders = () => (
   <AuthProvider>
     <SWRProvider>
-      <Outlet />
+      <ToastProvider>
+        <Outlet />
+      </ToastProvider>
     </SWRProvider>
   </AuthProvider>
 );

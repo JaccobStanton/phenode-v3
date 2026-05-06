@@ -17,7 +17,10 @@ import IdcardOutlined from '@ant-design/icons/IdcardOutlined';
 import SearchOutlined from '@ant-design/icons/SearchOutlined';
 import SortAscendingOutlined from '@ant-design/icons/SortAscendingOutlined';
 
+import ConfirmRenameModal from 'components/ConfirmRenameModal';
+import EditableLabel from 'components/EditableLabel';
 import MainCard from 'components/MainCard';
+import { useToast } from 'providers/ToastProvider';
 
 // Fleet-overview pages use a slightly different glass surface (more saturated background)
 // and a thinner box-outline-blue border than the rest of the app, so these tokens stay local.
@@ -356,6 +359,13 @@ function renderEmptyStateCard({ rows, isLoading, error, onRetry, searchValue, em
  * @param {boolean} [props.isLoading]
  * @param {Error} [props.error] - SWR error from the calling hook, if any
  * @param {Function} [props.onRetry] - Optional retry handler (e.g., the hook's mutate())
+ * @param {Function} [props.onRename] - Async (externalId, newLabel) → Promise<void>. When
+ *                                      supplied, each card's site name becomes a
+ *                                      click-to-edit label gated by the MAC toggle.
+ *                                      Container is responsible for the mutation
+ *                                      (see services/mutations.js) and for calling
+ *                                      mutate() on its SWR hook to revalidate.
+ *                                      When omitted, labels render plain (read-only).
  * @param {string} [props.emptyMessage] - Override for state #3's message — wireless-sensor
  *                                        page may want different copy than the device page
  */
@@ -376,6 +386,7 @@ export default function FleetOverviewView({
   isLoading = false,
   error,
   onRetry,
+  onRename,
   emptyMessage = 'No devices in your fleet yet.'
 }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -411,6 +422,14 @@ export default function FleetOverviewView({
   // Imperative handle on the scroll container so the scroll listener
   // and the page-change reset effect can read/write scrollTop.
   const scrollContainerRef = useRef(null);
+
+  // Rename flow state. `null` when no rename is in flight; otherwise
+  // `{ externalId, oldName, newName }` carrying everything the
+  // ConfirmRenameModal needs to render. Single piece of state instead
+  // of separate flags so we can never get into a half-open modal where
+  // e.g. open=true but no name to render.
+  const [renameDraft, setRenameDraft] = useState(null);
+  const toast = useToast();
 
   const visibleRows = useMemo(() => {
     const loweredSearch = searchValue.trim().toLowerCase();
@@ -590,7 +609,42 @@ export default function FleetOverviewView({
     return { label: `Total ${entityLabel}:`, count: rows.length };
   }, [rows, statusFilter, entityLabel]);
 
+  // Singular form of entityLabel for tooltip / toast / modal copy.
+  // "PheNodes" → "PheNode", "Sensors" → "Sensor". Same heuristic the
+  // MAC button tooltip uses; centralized so both consumers share it.
+  const entityNounSingular = entityLabel.endsWith('s') ? entityLabel.slice(0, -1) : entityLabel;
+
+  // Confirmation handler — runs when the user clicks Continue in the
+  // ConfirmRenameModal. Drives the actual mutation, surfaces the
+  // success/error toast, and decides whether to close the modal.
+  //
+  // Success path: close the modal, fire success toast naming the new
+  // label so the user sees the same name in the toast as on the card
+  // (which has just rerendered with the new name post-mutate).
+  //
+  // Error path: surface backend `detail` if present (Yup validation,
+  // 400 messages, etc.), otherwise the generic "Failed to rename …"
+  // string. Modal stays open so the user can retry without re-typing
+  // the new name; they can cancel out of the modal to abandon.
+  const handleConfirmRename = async () => {
+    if (!renameDraft || !onRename) return;
+    const { externalId, newName } = renameDraft;
+    try {
+      await onRename(externalId, newName);
+      toast.success(`'${newName}' renamed successfully`);
+      setRenameDraft(null);
+    } catch (err) {
+      const backendMessage = typeof err?.detail === 'string' ? err.detail : null;
+      const fallback = `Failed to rename ${entityNounSingular.toLowerCase()}`;
+      toast.error(backendMessage ? `${fallback}: ${backendMessage}` : fallback);
+      // Intentionally do NOT clear renameDraft — modal stays open for
+      // retry. The Continue button re-enables (its internal isSubmitting
+      // resets in its `finally`) and the user can click again.
+    }
+  };
+
   return (
+    <>
     <MainCard content={false} sx={{ width: '100%', minWidth: 0, overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
       <Box sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 2.5 } }}>
         <Stack
@@ -1057,26 +1111,46 @@ export default function FleetOverviewView({
                           minWidth: 0
                         }}
                       >
-                        <Typography
+                        <EditableLabel
+                          value={displayedTitle}
+                          // Explicit variant — preserves the MUI h4
+                          // font-weight + leading the bare Typography
+                          // had before this became editable. Without
+                          // it, EditableLabel's Typography would fall
+                          // back to body1 weight and the label would
+                          // read noticeably thinner than the values
+                          // beside it.
                           variant="h4"
-                          title={displayedTitle}
-                          sx={{
+                          // Lock when MAC is being shown (the immutable
+                          // hardware id is read-only by definition) OR
+                          // when the parent didn't supply an onRename
+                          // (in dev showcase / contexts without a
+                          // mutation handler). Either lock condition
+                          // makes EditableLabel render as a plain
+                          // Typography with no pencil affordance.
+                          locked={showMacAddress || !onRename}
+                          onSubmit={(newName) =>
+                            setRenameDraft({
+                              externalId: row.externalId,
+                              oldName: row.siteName,
+                              newName
+                            })
+                          }
+                          ariaLabel={`Rename ${row.siteName}`}
+                          containerSx={{
+                            // Layout-affecting props go on the outer
+                            // wrapper so the label participates in the
+                            // parent flex/column the same way the bare
+                            // Typography did.
+                            flex: { xs: 1, md: 'unset' },
+                            minWidth: 0
+                          }}
+                          typographySx={{
                             color: 'var(--green)',
                             fontSize: { xs: '1.1rem', sm: '1.25rem' },
-                            textAlign: 'left',
-                            // Mobile: flex-grow:1 so the title takes all
-                            // available room and pushes caption/date to
-                            // the right. Desktop: unset so it sits at
-                            // its natural width inside the column Stack
-                            // (flex-grow in column direction would make
-                            // it stretch vertically — not what we want).
-                            flex: { xs: 1, md: 'unset' },
-                            minWidth: 0,
-                            ...truncateLineSx
+                            textAlign: 'left'
                           }}
-                        >
-                          {displayedTitle}
-                        </Typography>
+                        />
                         <Stack
                           spacing={0}
                           sx={{
@@ -1259,5 +1333,27 @@ export default function FleetOverviewView({
         </Stack>
       </Box>
     </MainCard>
+    {/*
+      Single mounted ConfirmRenameModal for the whole table — opened
+      by setting renameDraft, closed by clearing it. MUI Dialog uses a
+      Portal internally so it visually escapes the MainCard chrome and
+      sits above the rest of the page content with the backdrop blur.
+    */}
+    <ConfirmRenameModal
+      open={Boolean(renameDraft)}
+      entityNoun={entityNounSingular}
+      // Immutable hardware id rendered as a read-only badge near the
+      // top of the modal so the user can verify which physical unit
+      // they're renaming. The label can be the same on two units in
+      // a fleet (rare but possible — and in the wireless-sensor case
+      // the backend doesn't even reject duplicates yet); the
+      // external_id never collides.
+      externalId={renameDraft?.externalId}
+      oldName={renameDraft?.oldName}
+      newName={renameDraft?.newName}
+      onConfirm={handleConfirmRename}
+      onCancel={() => setRenameDraft(null)}
+    />
+    </>
   );
 }
