@@ -1,28 +1,54 @@
+import { useMemo } from 'react';
+
 import FleetOverviewView from 'sections/fleet-overview/FleetOverviewView';
 import useMyWirelessSensors from 'hooks/data/useMyWirelessSensors';
+import { wirelessSensorToFleetRow } from 'utils/transforms/wirelessSensor';
 
 // Container for the wireless-sensor fleet overview page.
 //
-// Currently mock-backed (see hooks/data/useMyWirelessSensors.js for the
-// reasoning). The hook returns rows already in view shape, so this
-// container has no transformation to do — it's a straight pass-through.
+// Data flow (mirrors the PheNode container in fleet-overview.jsx):
 //
-// When the backend ships the parallel-to-DeviceRead list response, the
-// hook will return raw `WirelessSensorListItem[]` and a transformer
-// (similar to deviceReadToFleetRow in utils/transforms/device.js) will
-// land here. The view contract stays identical — only this container
-// and the hook change.
+//   useMyWirelessSensors() → WirelessSensorListItem[] from
+//                            GET /api/wireless-sensors/my-sensors
+//                            (validated against services/schemas/
+//                             wirelessSensor.js, SWR-cached by URL+token,
+//                             deduped via SWRConfig)
+//        ↓
+//   wirelessSensorToFleetRow → row shape { siteName, lastMeasurements,
+//                              metrics[] }
+//        ↓
+//   FleetOverviewView renders the cards (or a state-appropriate
+//   loading / empty / error card if rows aren't ready).
+//
+// Why the transformation lives here, not in the hook:
+//   The hook returns the API's actual shape so other consumers (a future
+//   map view, an admin table, a CSV exporter) don't first have to
+//   un-transform. The "view vocabulary" (siteName, metrics[].label)
+//   belongs in the container that renders the view.
 
 export default function SensorFleetOverview() {
-  const { rows, isLoading, error, mutate } = useMyWirelessSensors();
+  const { sensors, isLoading, error, mutate } = useMyWirelessSensors();
+
+  // useMemo so the transformed array reference is stable across renders
+  // when `sensors` hasn't changed — that keeps FleetOverviewView's
+  // useMemo (filter + sort) from re-running on every parent render.
+  const rows = useMemo(() => (sensors ?? []).map(wirelessSensorToFleetRow), [sensors]);
+
+  // 'Live' is the string the backend emits for sensors seen in the last
+  // 30 minutes (see _health_status() in
+  // phenodeX/phenode_backend/api/wireless_sensors/routes.py:161-167).
+  // Reading it off the metric we already built (rather than off the raw
+  // sensors[]) keeps "what counts as active" defined in exactly one
+  // place — the transformer.
+  const activeCount = rows.filter((row) => row.metrics.find((m) => m.label === 'Health Status:')?.value === 'Live').length;
 
   return (
     <FleetOverviewView
       title="Your Fleet"
       activeLabel="Sensors Active:"
-      activeCount={12}
+      activeCount={activeCount}
       searchPlaceholder="Search Wireless Sensors..."
-      rows={rows ?? []}
+      rows={rows}
       isLoading={isLoading}
       error={error}
       onRetry={mutate}

@@ -1,19 +1,113 @@
-// Placeholder — wireless-sensor transformers shelved until the backend
-// ships a richer /api/wireless-sensors/my-sensors response.
+// Pure transformers from backend `WirelessSensorListItem` shape to the row
+// shape that `FleetOverviewView` consumes.
 //
-// Plan: when WirelessSensorListItem is extended to mirror DeviceRead
-// (carrying last_measurement_at, health_status, battery_percent,
-// soil_moisture, soil_temperature_c, rssi server-side), a transformer
-// `wirelessSensorToFleetRow(sensor)` will live here — analogous to
-// `deviceReadToFleetRow` in ./device.js. Container code in
-// sections/fleet-overview/sensor-fleet-overview.jsx will then map
-// useMyWirelessSensors() output through it.
+// Why these live here, not inside the hook:
 //
-// This file is otherwise empty and safe to delete:
+//   The hook's job is fetch + cache; it returns the raw API shape so any
+//   future consumer (a map view, an export, an admin table) doesn't have
+//   to un-transform first. The container component owns "API shape →
+//   view shape" — that's where the view's vocabulary ("siteName",
+//   "metrics[].label") belongs.
 //
-//     rm src/utils/transforms/wirelessSensor.js
+//   Pure functions: trivial to unit-test, reusable from any container
+//   that ends up rendering the same row card.
 //
-// (The sandbox couldn't unlink it on the macOS-mounted volume, hence
-// this stub.)
+// Field reference (camelCase aliases — see services/schemas/
+// wirelessSensor.js for why):
+//   phenodeX/phenode_backend/schemas/wireless_sensors.py:70-81
+//     (WirelessSensorListItem)
+//   phenodeX/phenode_backend/api/wireless_sensors/routes.py:138-190
+//     (route handler — health_status uses the same 30-min Live/Offline
+//      cutoff as devices)
 
-export {};
+const FAHRENHEIT_RATIO = 9 / 5;
+
+/**
+ * Format an ISO 8601 datetime into a localized "M/D/YYYY, h:mm:ss A"
+ * string. Returns 'Never' when the sensor has never reported.
+ *
+ * Why localized: `lastMeasurementAt` is the kind of value users glance
+ * at to ask "is this thing live?" — a localized representation is far
+ * more readable than the raw ISO. If we ever need a user-timezone
+ * preference, this is the single place to inject it. (Same rationale
+ * as utils/transforms/device.js — duplicated rather than extracted to
+ * a shared util because the device + sensor formatters have already
+ * diverged on temperature and unit handling, and a shared module
+ * would hide that.)
+ */
+export function formatLastMeasurement(iso) {
+  if (!iso) return 'Never';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return 'Unknown';
+  return date.toLocaleString();
+}
+
+/**
+ * Backend returns Celsius (`soilTemperatureC`). Display in Fahrenheit
+ * to match the device fleet card's temperature convention so the two
+ * fleet views read consistently. If a unit-preference toggle ships,
+ * this is the single place to flip it.
+ */
+export function formatSoilTemperature(celsius) {
+  if (celsius == null || Number.isNaN(celsius)) return 'N/A';
+  const fahrenheit = celsius * FAHRENHEIT_RATIO + 32;
+  return `${fahrenheit.toFixed(2)}°F`;
+}
+
+/**
+ * `soilMoisture` is already a 0–100 percent on the wire — the backend
+ * normalizes via `_as_percent` (routes.py:45-49) which scales raw 0–1
+ * VWC into a percent. We just format with two decimals to match the
+ * battery convention.
+ */
+export function formatSoilMoisture(percent) {
+  if (percent == null || Number.isNaN(percent)) return 'N/A';
+  return `${percent.toFixed(2)}%`;
+}
+
+export function formatBatteryPercent(percent) {
+  if (percent == null || Number.isNaN(percent)) return 'N/A';
+  return `${percent.toFixed(2)}%`;
+}
+
+/**
+ * RSSI is a received-signal-strength indicator in dBm (typically a
+ * negative integer like -65). No unit conversion needed — the value
+ * comes straight from the radio. Showing the unit makes the negative
+ * sign less surprising for non-RF readers.
+ */
+export function formatRssi(value) {
+  if (value == null || Number.isNaN(value)) return 'N/A';
+  return `${value.toFixed(0)} dBm`;
+}
+
+/**
+ * Map a single `WirelessSensorListItem` to the row shape `FleetOverviewView`
+ * renders.
+ *
+ * Field choices:
+ *   - siteName: prefer the user-set `label`. Fall back to the immutable
+ *     `externalSensorId` so a freshly provisioned sensor with no label
+ *     yet still has a stable identifier on screen. (Mirrors the device
+ *     transformer's behavior.)
+ *   - metrics: 5 sensor-appropriate values that fit the 5-column grid
+ *     in FleetOverviewView. The wireless-sensor mock previously used
+ *     PheNode metrics (Temperature/Rainfall/Wind Speed) that the sensor
+ *     backend doesn't actually expose — those were misleading. The
+ *     metrics now reflect what wireless soil sensors really measure.
+ *   - healthStatus: backend computes the "Live"/"Offline" string using
+ *     a 30-min cutoff (routes.py:161-167) — we pass it through unchanged.
+ */
+export function wirelessSensorToFleetRow(sensor) {
+  return {
+    siteName: sensor?.label || sensor?.externalSensorId || 'Unnamed sensor',
+    lastMeasurements: formatLastMeasurement(sensor?.lastMeasurementAt),
+    metrics: [
+      { label: 'Health Status:', value: sensor?.healthStatus ?? 'Unknown' },
+      { label: 'Soil Moisture:', value: formatSoilMoisture(sensor?.soilMoisture) },
+      { label: 'Soil Temp:', value: formatSoilTemperature(sensor?.soilTemperatureC) },
+      { label: 'RSSI:', value: formatRssi(sensor?.rssi) },
+      { label: 'Battery:', value: formatBatteryPercent(sensor?.batteryPercent) }
+    ]
+  };
+}

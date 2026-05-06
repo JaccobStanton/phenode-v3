@@ -31,10 +31,15 @@ const API = {
   },
   wirelessSensors: {
     // GET — { success, sensors: WirelessSensorListItem[] } visible to current user.
-    // Source: phenodeX/docs/frontend-backend-api.md:580
+    // Each item now carries summary fields (lastMeasurementAt, healthStatus,
+    // batteryPercent, soilMoisture, soilTemperatureC, rssi) populated
+    // server-side via a batched latest-reading query — parallel to how
+    // /devices/my-devices exposes DeviceRead summary fields.
+    // Source: phenodeX/phenode_backend/api/wireless_sensors/routes.py:138-190
+    //         phenodeX/phenode_backend/schemas/wireless_sensors.py:70-86
     mySensors: '/wireless-sensors/my-sensors',
     // GET — { success, sensor: WirelessSensorDetail }.
-    // Source: same doc, line 605.
+    // Source: phenodeX/docs/frontend-backend-api.md:605
     detail: (externalSensorId) => `/wireless-sensors/${externalSensorId}`
   },
   user: {
