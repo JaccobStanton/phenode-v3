@@ -165,9 +165,9 @@ const PAGE_SIZE = 20;
 const STATUS_FILTER_CYCLE = ['', 'active', 'offline'];
 const STATUS_LABELS = { '': 'Status', active: 'Active', offline: 'Offline' };
 const STATUS_TOOLTIPS = {
-  '': 'Filter by status (currently off — click to filter to Active)',
-  active: 'Showing Active only — click for Offline',
-  offline: 'Showing Offline only — click to clear filter'
+  '': 'Filter by Status',
+  active: 'Showing Active only',
+  offline: 'Showing Offline only'
 };
 
 // Retry-button style for the error state. Mirrors the controlBaseSx
@@ -209,13 +209,66 @@ const retryButtonSx = {
  * first place; we use the unfiltered count to tell apart "no devices"
  * from "no search matches."
  */
-function renderEmptyStateCard({ rows, isLoading, error, onRetry, searchValue, emptyMessage }) {
+function renderEmptyStateCard({ rows, isLoading, error, onRetry, searchValue, emptyMessage, entityLabel }) {
   // 1. Loading first time (no data yet)
   if (isLoading && (!rows || rows.length === 0)) {
     return (
       <Card sx={emptyRowCardSx}>
-        <Typography variant="body1" sx={{ color: 'var(--blue)' }}>
-          Loading fleet…
+        <Typography
+          variant="h5"
+          sx={{
+            // Bigger + greener + glowing so the loading state pops
+            // visually rather than reading as a quiet info line. Same
+            // textShadow recipe as the metric values inside cards so
+            // it feels like part of the chrome's vocabulary.
+            color: 'var(--green)',
+            fontWeight: 600,
+            fontSize: { xs: '0.85rem', sm: '0.95rem' },
+            textShadow: '0 1px 9px #1a75e0c9',
+            display: 'inline-flex',
+            alignItems: 'baseline',
+            gap: 0.25
+          }}
+        >
+          Loading {entityLabel}
+          {/*
+            Three dots that pulse in sequence (each delayed 0.2s after
+            the previous) using a shared `pheno-loading-dot` keyframe
+            animation. Visually the row of dots reads as a wave of
+            opacity moving left-to-right and looping — communicates
+            "still working" without rotation or spinner.
+
+            We render the dots as separate spans (rather than animating
+            a single text content) because CSS `content` animations
+            have inconsistent browser support; opacity on individual
+            spans is universally supported.
+
+            `inline-block` on each dot is required for `transform` /
+            `opacity` to take their own animation timeline rather than
+            inheriting the parent's text flow.
+          */}
+          <Box
+            component="span"
+            sx={{
+              display: 'inline-flex',
+              ml: 0.25,
+              '@keyframes pheno-loading-dot': {
+                '0%, 80%, 100%': { opacity: 0.25 },
+                '40%': { opacity: 1 }
+              },
+              '& > span': {
+                display: 'inline-block',
+                animation: 'pheno-loading-dot 1.4s infinite ease-in-out both'
+              },
+              '& > span:nth-of-type(1)': { animationDelay: '0s' },
+              '& > span:nth-of-type(2)': { animationDelay: '0.2s' },
+              '& > span:nth-of-type(3)': { animationDelay: '0.4s' }
+            }}
+          >
+            <span>.</span>
+            <span>.</span>
+            <span>.</span>
+          </Box>
         </Typography>
       </Card>
     );
@@ -829,27 +882,50 @@ export default function FleetOverviewView({
               overflowY: 'auto',
               overflowX: { xs: 'auto', md: 'hidden' },
               pb: 1,
-              // Hide the native scrollbar entirely. Reason: a visible
-              // scrollbar takes ~13px of width inside the scroll
-              // container, which means cards (width: 100% of inner
-              // content area) end up ~13px short of the wrapper's right
-              // edge. That's why the table's bordered chrome and the
-              // toolbar's Status button were extending past the cards
-              // on the right. With the scrollbar hidden, cards extend
-              // to the wrapper's right edge — and the borders + Status
-              // button already sit at the wrapper's right edge, so all
-              // three line up naturally without manual offsets.
+              // Shift the scrollbar gutter ~8px to the right.
               //
-              // The scroll itself still works: mouse wheel, touchpad
-              // two-finger swipe, touch drag, keyboard PgUp/PgDown,
-              // arrow keys all continue to operate on the overflowing
-              // content. The only thing missing is the visible
-              // scrollbar thumb — which the scroll-edge fade and the
-              // top/bottom border lines together communicate well
-              // enough ("there's more above/below").
-              scrollbarWidth: 'none', // Firefox
+              // The negative right margin lets the scroll container
+              // extend past the wrapper's right edge by 8px — the
+              // scrollbar is rendered at the scroll container's right
+              // edge, so it follows. The matching paddingRight pushes
+              // the cards back to their original position so they
+              // stay visually aligned with the wrapper's right edge.
+              //
+              // Net effect: cards stay where they are, scrollbar
+              // appears 8px further right (out into the MainCard's
+              // own right padding gutter). Without this, the scrollbar
+              // sits at the cards' right edge — visually reading as
+              // "to the left" of where the table chrome ends.
+              mr: '-8px',
+              pr: '8px',
+              // Thin themed scrollbar. Visible on scroll but narrow
+              // (8px) so the difference between card right edge and
+              // wrapper right edge stays small. Track is transparent
+              // — the chrome's saturated dark navy is what shows
+              // through behind the thumb. Thumb is the same dark blue
+              // we use elsewhere for filled-in interactive accents,
+              // bumped to higher opacity on hover so the affordance
+              // grows when the user actually goes for it.
+              //
+              // Firefox uses the `scrollbar-width` / `scrollbar-color`
+              // standard properties; Chrome/Safari/Edge use the
+              // `::-webkit-scrollbar` pseudo-element family. Both are
+              // styled here so the look is consistent across browsers.
+              scrollbarWidth: 'thin',
+              scrollbarColor: 'rgba(0, 68, 143, 0.6) transparent',
               '&::-webkit-scrollbar': {
-                display: 'none' // Chrome / Safari / Edge
+                width: '8px',
+                height: '8px'
+              },
+              '&::-webkit-scrollbar-track': {
+                background: 'transparent'
+              },
+              '&::-webkit-scrollbar-thumb': {
+                backgroundColor: 'rgba(0, 68, 143, 0.6)',
+                borderRadius: '4px'
+              },
+              '&::-webkit-scrollbar-thumb:hover': {
+                backgroundColor: 'rgba(0, 68, 143, 0.9)'
               },
               // Subtle scroll-edge fade. Cards passing the boundary
               // dim from 100% to ~85% opacity over an 8px band — the
@@ -1026,7 +1102,7 @@ export default function FleetOverviewView({
                 </Card>
                 );
               })}
-              {visibleRows.length === 0 && renderEmptyStateCard({ rows, isLoading, error, onRetry, searchValue, emptyMessage })}
+              {visibleRows.length === 0 && renderEmptyStateCard({ rows, isLoading, error, onRetry, searchValue, emptyMessage, entityLabel })}
             </Stack>
           </Box>
           </Box>
