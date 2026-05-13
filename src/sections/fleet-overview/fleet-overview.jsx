@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import FleetOverviewView from 'sections/fleet-overview/FleetOverviewView';
 import useAuth from 'hooks/useAuth';
@@ -27,11 +28,36 @@ import { deviceReadToFleetRow } from 'utils/transforms/device';
 export default function FleetOverview() {
   const { devices, isLoading, error, mutate } = useMyDevices();
   const { accessToken } = useAuth();
+  const navigate = useNavigate();
 
   // useMemo so the transformed array reference is stable across renders
   // when `devices` hasn't changed — that keeps FleetOverviewView's
   // useMemo (filter + sort) from re-running on every parent render.
   const rows = useMemo(() => (devices ?? []).map(deviceReadToFleetRow), [devices]);
+
+  // Card click → deep-link into the sensor-measurements page scoped to
+  // the clicked PheNode.
+  //
+  // Why a URL search param instead of nav state:
+  //   - URL is shareable (paste the link in chat, it opens to the same
+  //     device).
+  //   - Refresh-safe (browser reload preserves the device selection).
+  //   - Honest history (back/forward navigates between distinct device
+  //     views, not the same route twice).
+  //
+  // We pass row.externalId — the immutable external_device_id — rather
+  // than row.siteName because the label is mutable; using it would
+  // break deep links the moment the user renames the device.
+  //
+  // encodeURIComponent guards against any external_device_id that
+  // contains URL-unsafe characters (current convention is MAC-style
+  // strings, but future formats might include slashes or colons).
+  const handleRowClick = useCallback(
+    (row) => {
+      navigate(`/dashboard/sensor-measurements?device=${encodeURIComponent(row.externalId)}`);
+    },
+    [navigate]
+  );
 
   // Rename handler — the view fires this from its ConfirmRenameModal's
   // Continue button. We perform the PUT, then call SWR's `mutate` to
@@ -69,6 +95,7 @@ export default function FleetOverview() {
       error={error}
       onRetry={mutate}
       onRename={handleRename}
+      onRowClick={handleRowClick}
       emptyMessage="No PheNodes assigned to your account yet."
     />
   );

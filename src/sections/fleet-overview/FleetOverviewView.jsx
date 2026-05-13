@@ -366,8 +366,25 @@ function renderEmptyStateCard({ rows, isLoading, error, onRetry, searchValue, em
  *                                      (see services/mutations.js) and for calling
  *                                      mutate() on its SWR hook to revalidate.
  *                                      When omitted, labels render plain (read-only).
+ * @param {React.ReactNode} [props.scopeSelector] - Optional element rendered between the
+ *                                                  header row and the toolbar. Used by
+ *                                                  the wireless-sensor fleet to host the
+ *                                                  PheNode selector — the dropdown that
+ *                                                  scopes the visible sensors to one
+ *                                                  PheNode's connected cohort. PheNode
+ *                                                  fleet page omits it.
  * @param {string} [props.emptyMessage] - Override for state #3's message — wireless-sensor
  *                                        page may want different copy than the device page
+ * @param {Function} [props.onRowClick] - (row) => void. When supplied, each card becomes
+ *                                        clickable (role="button" + Enter/Space keyboard
+ *                                        activation) and invokes this handler with the
+ *                                        clicked row. Used by the PheNode fleet to deep-link
+ *                                        into the sensor-measurements page scoped to the
+ *                                        clicked device. EditableLabel internally stops
+ *                                        propagation so the rename pencil keeps working
+ *                                        without firing navigation. When omitted, cards are
+ *                                        non-interactive (no role, no cursor change beyond
+ *                                        the existing hover treatment).
  */
 export default function FleetOverviewView({
   title = 'Your Fleet',
@@ -387,7 +404,9 @@ export default function FleetOverviewView({
   error,
   onRetry,
   onRename,
-  emptyMessage = 'No devices in your fleet yet.'
+  scopeSelector,
+  emptyMessage = 'No devices in your fleet yet.',
+  onRowClick
 }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchValue, setSearchValue] = useState('');
@@ -414,10 +433,12 @@ export default function FleetOverviewView({
   // every row, label or not.
   const [showMacAddress, setShowMacAddress] = useState(false);
   // Whether the card list is scrolled away from the top. Drives the
-  // top-border treatment on the table wrapper — a thin var(--blue)
-  // hairline appears the moment a card scrolls past the upper boundary,
-  // and disappears again when the user scrolls back to the top. Tells
-  // the user "there's content above" without needing a permanent rule.
+  // top-border treatment on the table wrapper — a thin
+  // var(--box-outline-blue) hairline appears the moment a card scrolls
+  // past the upper boundary, and disappears again when the user
+  // scrolls back to the top. Tells the user "there's content above"
+  // without imposing a permanent rule that would blend into the page
+  // gradient at rest.
   const [isScrolledFromTop, setIsScrolledFromTop] = useState(false);
   // Imperative handle on the scroll container so the scroll listener
   // and the page-change reset effect can read/write scrollTop.
@@ -679,15 +700,34 @@ export default function FleetOverviewView({
           spacing={1}
           sx={{
             mb: 2,
-            alignItems: 'center',
+            // `flex-end` (was `center`) so all toolbar controls
+            // bottom-align with the PhenodeSelector's dropdown bottom.
+            // The selector is the tallest item in the row (label
+            // floats above the dropdown), and centering against it
+            // would push the search icon + sort/filter buttons down
+            // to the row's vertical middle, leaving them out of line
+            // with the dropdown they share a row with. Bottom-aligning
+            // puts every interactive element on the same baseline;
+            // the label sits above as visual context for the dropdown.
+            alignItems: 'flex-end',
             justifyContent: 'space-between'
           }}
         >
           <Stack
             direction="row"
             spacing={1}
-            sx={{ alignItems: 'center', width: { xs: '100%', sm: 'auto' }, flex: { xs: 1, sm: '0 1 auto' }, minWidth: 0 }}
+            sx={{ alignItems: 'flex-end', width: { xs: '100%', sm: 'auto' }, flex: { xs: 1, sm: '0 1 auto' }, minWidth: 0 }}
           >
+            {/*
+              Optional scope-selector slot. When supplied (currently by
+              the wireless-sensor fleet to host the PheNode dropdown),
+              it sits at the LEFT of the toolbar row, before the
+              search icon. The scope selector logically belongs WITH
+              the search/filter controls — they're all "narrow what's
+              visible" tools — and putting it inline keeps the toolbar
+              a single row instead of growing taller.
+            */}
+            {scopeSelector}
             <Tooltip title="Search" arrow={false} slotProps={tooltipSlotProps}>
               <IconButton
                 aria-label="open search"
@@ -920,7 +960,10 @@ export default function FleetOverviewView({
           hairline appears the moment a card scrolls past the upper
           boundary. Driven by `isScrolledFromTop` (toggled in the scroll
           listener useEffect above). When the user scrolls back to the
-          top the border disappears again.
+          top the border disappears again. An always-on top rule blends
+          too much into the page gradient at rest; only painting it
+          when there's content above keeps the chrome quiet most of
+          the time and useful precisely when it carries information.
 
           Borders are hidden during the loading / empty-fleet state
           (no `rows`) — a bordered "table" framing an inert "Loading…"
@@ -1039,6 +1082,25 @@ export default function FleetOverviewView({
                 // (label || externalId), so cards without a label
                 // still show something useful by default.
                 const displayedTitle = showMacAddress ? row.externalId : row.siteName;
+                // Card is clickable iff the container supplied an
+                // onRowClick handler. We attach role + tabIndex + key
+                // activation conditionally so the non-clickable case
+                // (showcase / dev preview without a handler) doesn't
+                // expose a misleading "button" affordance to AT users.
+                //
+                // Enter/Space mirror native button keyboard activation;
+                // preventDefault on Space stops the page from scrolling
+                // when the user activates a card with the spacebar.
+                const isClickable = Boolean(onRowClick);
+                const handleCardClick = isClickable ? () => onRowClick(row) : undefined;
+                const handleCardKeyDown = isClickable
+                  ? (event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        onRowClick(row);
+                      }
+                    }
+                  : undefined;
                 return (
                 <Card
                   // Key on the immutable external_id (not the user-set
@@ -1046,6 +1108,17 @@ export default function FleetOverviewView({
                   // collisions cause React to incorrectly reconcile/reuse
                   // wrong Card instances on re-render.
                   key={row.externalId}
+                  // Conditional interaction attributes — only present
+                  // when onRowClick is wired. role="button" + tabIndex=0
+                  // make the card focusable and announce as activatable
+                  // to screen readers; aria-label uses the human-readable
+                  // siteName (not the MAC-style externalId) so the SR
+                  // announcement is meaningful.
+                  role={isClickable ? 'button' : undefined}
+                  tabIndex={isClickable ? 0 : undefined}
+                  aria-label={isClickable ? `View measurements for ${row.siteName}` : undefined}
+                  onClick={handleCardClick}
+                  onKeyDown={handleCardKeyDown}
                   sx={{
                     width: '100%',
                     // No fixed minWidth — the card sizes to its container
@@ -1062,13 +1135,33 @@ export default function FleetOverviewView({
                     boxSizing: 'border-box',
                     textAlign: 'center',
                     opacity: 1,
+                    // Only show the pointer cursor when the card is
+                    // actually clickable. The previous hover-only
+                    // pointer cursor was misleading on the
+                    // wireless-sensor fleet page where cards weren't
+                    // wired to navigate anywhere yet.
+                    cursor: isClickable ? 'pointer' : 'default',
                     transition: 'background-color 120ms ease, border-color 120ms ease',
+                    // Keyboard focus ring — matches the green hover
+                    // border treatment so focus and hover read as the
+                    // same affordance. `outline: none` suppresses the
+                    // browser default (which would draw a separate
+                    // ring inside the card) in favor of our themed
+                    // border treatment.
+                    '&:focus-visible': isClickable
+                      ? {
+                          outline: 'none',
+                          borderLeft: '0.5px solid var(--green)',
+                          borderRight: '0.5px solid var(--green)',
+                          backgroundColor: 'rgba(56, 152, 236, 0.1)'
+                        }
+                      : undefined,
                     '&:hover': {
                       backgroundColor: 'rgba(56, 152, 236, 0.1)',
                       borderLeft: '0.5px solid var(--green)',
                       borderRight: '0.5px solid var(--green)',
                       boxShadow: '0 4px 10px rgba(0, 0, 0, 0.3)',
-                      cursor: 'pointer'
+                      cursor: isClickable ? 'pointer' : 'default'
                     }
                   }}
                 >
