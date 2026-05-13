@@ -13,7 +13,9 @@
     "prettier": "prettier --write \"src/**/*.{js,jsx,ts,tsx}\"",
     "audit:login": "lighthouse http://localhost:4173/login --output=json --output-path=../Lighthouse_Reports/lighthouse-login.json --chrome-flags=\"--headless=new --no-sandbox\" --quiet",
     "audit:register": "lighthouse http://localhost:4173/register --output=json --output-path=../Lighthouse_Reports/lighthouse-register.json --chrome-flags=\"--headless=new --no-sandbox\" --quiet",
-    "audit": "npm run audit:login && npm run audit:register"
+    "audit:authenticated": "node --env-file=.env ./scripts/lighthouse-audit-authenticated.mjs",
+    "audit": "npm run audit:login && npm run audit:register",
+    "audit:all": "npm run audit && npm run audit:authenticated"
   },
   "dependencies": {
     "@ant-design/colors": "7.2.1",
@@ -73,6 +75,7 @@
     "eslint-plugin-react": "7.37.5",
     "eslint-plugin-react-hooks": "7.0.1",
     "lighthouse": "^12.0.0",
-    "prettier": "3.7.4"
+    "prettier": "3.7.4",
+    "puppeteer-core": "^23.0.0"
   }
 }
