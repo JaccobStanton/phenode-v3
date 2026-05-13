@@ -27,6 +27,8 @@ import tempSensorIcon from 'assets/sensor-measurements/Temp.svg';
 import windSensorIcon from 'assets/sensor-measurements/Wind.svg';
 import mapIconActive from 'assets/toggle_buttons/Map_Icon_Active.svg';
 import mapIconInactive from 'assets/toggle_buttons/Map_Icon_Inactive.svg';
+import phenodeFleetIcon from 'assets/drawer-icons/PheNode_Fleet.svg';
+import phenodeFleetIconActive from 'assets/drawer-icons/PheNode_Fleet_Active.svg';
 
 import AppstoreOutlined from '@ant-design/icons/AppstoreOutlined';
 import ClockCircleOutlined from '@ant-design/icons/ClockCircleOutlined';
@@ -137,18 +139,30 @@ export default function SensorMeasurements() {
   // soil-probe context across toggles.
   const { infoCardMode, setInfoCardMode, selectedSoilProbe, setSelectedSoilProbe } = useInfoCard();
 
-  // Icon variant for the map toggle button. Two visual states:
-  //   - active (highlighted): when the button is hovered OR when
-  //     we're currently in map view (so the button visibly reads as
-  //     "currently selected").
-  //   - inactive (quiet): the resting state when neither of the above
-  //     applies.
-  // This is a small deviation from sensor-network's three-icon scheme
-  // (it also swaps to soilProbe icons when in map view) — here the
-  // alternate view is the regular measurements view and we don't have
-  // a dedicated "go back to circles" icon. Reusing the same map icon
-  // with a selected state is the closest accurate signal.
-  const mapToggleIcon = isMapView || isMapToggleHovered ? mapIconActive : mapIconInactive;
+  // Icon variant for the map toggle button. Four visual states organized
+  // around two axes (which view is open × pointer/focus hover):
+  //
+  //   NOT in map view:
+  //     - hovered    → mapIconActive    (tinted map icon)
+  //     - resting    → mapIconInactive  (quiet map icon)
+  //   IN map view:
+  //     - hovered    → phenodeFleetIconActive   (tinted "go back to fleet" icon)
+  //     - resting    → phenodeFleetIcon         (quiet "go back to fleet" icon)
+  //
+  // The button never stays in a permanently-active state. When the
+  // user opens the map, the icon flips to the PheNode_Fleet glyph in
+  // its inactive variant — communicating "the next click goes back to
+  // the fleet measurements view" — and only highlights on hover. This
+  // matches the affordance pattern used in sensor-network.jsx where
+  // the icon always represents the *destination* of the next click,
+  // not the *current* state of the toggle.
+  const mapToggleIcon = isMapView
+    ? isMapToggleHovered
+      ? phenodeFleetIconActive
+      : phenodeFleetIcon
+    : isMapToggleHovered
+      ? mapIconActive
+      : mapIconInactive;
   const mapToggleTooltip = isMapView ? 'Sensor Measurements' : 'Map View';
 
   // URL search params drive which PheNode this page is scoped to. URL
