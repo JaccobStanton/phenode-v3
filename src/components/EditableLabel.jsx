@@ -217,11 +217,31 @@ export default function EditableLabel({
       role={locked ? undefined : 'button'}
       tabIndex={locked ? undefined : 0}
       aria-label={locked ? undefined : ariaLabel}
-      onClick={startEditing}
+      // stopPropagation on both pointer + keyboard activation so a
+      // parent clickable wrapper (the fleet card, in particular) does
+      // NOT also fire on rename clicks. Without this guard, clicking
+      // the pencil to rename would simultaneously navigate the user
+      // away from the page they're trying to edit on.
+      //
+      // Calls happen BEFORE the local startEditing handler runs — order
+      // doesn't actually matter for stopPropagation (it controls
+      // bubbling to ancestors, which happens after this handler
+      // completes), but the local-then-stop sequence is also fine.
+      // Locked labels never start editing, so we still stop
+      // propagation when locked is true? No — we should only stop
+      // propagation when we ourselves are handling the event. When
+      // locked, the card click should pass through. So we gate on
+      // !locked.
+      onClick={(event) => {
+        if (locked) return;
+        event.stopPropagation();
+        startEditing();
+      }}
       onKeyDown={(event) => {
         if (locked) return;
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
+          event.stopPropagation();
           startEditing();
         }
       }}
