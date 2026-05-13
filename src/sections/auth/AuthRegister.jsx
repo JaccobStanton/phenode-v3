@@ -28,18 +28,17 @@ import Logo from 'components/logo/LogoIcon';
 //      admin approves the account, then jumps to the dashboard.
 //   6. If 200, we go straight to the dashboard.
 //
-// Until AuthContext + the /oauth/callback page are built, the handler below
-// is a console-info stub. The relative URL is left in a comment so wiring
-// it up later is a one-liner.
-//
 // All colors come from project CSS variables (src/assets/style.css) and
 // the shared sx-tokens conventions in src/themes/sx-tokens.js.
 
+// Same handoff as AuthLogin's Google button — see that file for the
+// full flow notes. The only difference here is the user's intent: they
+// expect to be a new account, so the very common landing is
+// /approval-pending (the backend creates the row with is_approved=false
+// and the /oauth/callback page detects the 403 from POST /api/auth/token).
 const handleGoogleSignIn = () => {
-  // TODO: enable once AuthContext + /oauth/callback are added:
-  // window.location.href = `${import.meta.env.VITE_API_URL || '/api'}/auth/google/login`;
-  // eslint-disable-next-line no-console
-  console.info('[auth] Request access (Google) clicked — backend wiring pending. Will land on /approval-pending after first sign-in.');
+  const apiBase = import.meta.env.VITE_API_URL || '/api';
+  window.location.assign(`${apiBase}/auth/google/login`);
 };
 
 // ----------------------------------------------------------------------

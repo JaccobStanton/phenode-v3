@@ -710,13 +710,42 @@ export default function FleetOverviewView({
             // puts every interactive element on the same baseline;
             // the label sits above as visual context for the dropdown.
             alignItems: 'flex-end',
-            justifyContent: 'space-between'
+            justifyContent: 'space-between',
+            // `flexWrap: 'wrap'` is here to fix a layout bug on narrow
+            // viewports (~412px / Lighthouse mobile profile). When the
+            // PheNode scope selector is present (sensor-fleet only),
+            // the combined width of [scopeSelector + search icon +
+            // search input + sort + status + MAC] exceeds the viewport.
+            // Without wrap, `justify-content: space-between` shoved the
+            // two sub-stacks to opposite ends and their CONTENTS
+            // visually overlapped in the middle — the audit captured
+            // the sort button (x=205–245) sitting under the search
+            // button (x=241–281) on a 412px screen, leaving the search
+            // IconButton with only 8×40 of unobscured clickable area
+            // (WCAG 2.5.8 needs 24×24). With wrap on, the left
+            // sub-stack's `width: { xs: '100%' }` pushes the right
+            // sub-stack to a second row on narrow viewports, but on
+            // wider screens everything still fits on one row exactly
+            // as before. Cheap correction that only engages when
+            // needed.
+            flexWrap: 'wrap'
           }}
         >
           <Stack
             direction="row"
             spacing={1}
-            sx={{ alignItems: 'flex-end', width: { xs: '100%', sm: 'auto' }, flex: { xs: 1, sm: '0 1 auto' }, minWidth: 0 }}
+            // `flex: '0 0 100%'` on mobile is what actually makes the
+            // parent's `flexWrap: 'wrap'` engage. With `flex: 1`
+            // (=`flex: 1 1 0%`) the flex algorithm thinks this stack
+            // wants 0 width as its basis and "fits" alongside the
+            // right stack on the same row, even when their natural
+            // content widths overlap. Forcing the flex-basis to 100%
+            // makes the wrap line break for real, dropping the right
+            // sub-stack onto a second row on narrow viewports.
+            // `width: 100%` alone doesn't do it because `flex: 1`
+            // sets `flex-basis: 0`, which overrides width for the
+            // flex algorithm's hypothetical-main-size calc.
+            sx={{ alignItems: 'flex-end', width: { xs: '100%', sm: 'auto' }, flex: { xs: '0 0 100%', sm: '0 1 auto' }, minWidth: 0 }}
           >
             {/*
               Optional scope-selector slot. When supplied (currently by
@@ -899,10 +928,33 @@ export default function FleetOverviewView({
                 value="status"
                 selected={statusFilter !== ''}
                 onChange={cycleStatusFilter}
-                aria-label={`Filter by status. Currently: ${STATUS_LABELS[statusFilter]}.`}
+                // The aria-label MUST lead with the visible button text
+                // (STATUS_LABELS[statusFilter] — "Status" / "Active" /
+                // "Offline") to satisfy WCAG 2.5.3 "Label in Name". If
+                // the visible word doesn't appear at the start of the
+                // accessible name, voice-control users can't activate
+                // the button by speaking its visible text, and
+                // Lighthouse's label-content-name-mismatch audit fails.
+                aria-label={`${STATUS_LABELS[statusFilter]} — filter by status`}
                 sx={sortToggleSx}
               >
-                <CheckCircleOutlined />
+                {/*
+                  `aria-hidden` on the icon is load-bearing for the
+                  label-content-name-mismatch audit. Ant Design's
+                  CheckCircleOutlined ships with its own `aria-label`
+                  ("check-circle") on the wrapping span — fine for
+                  isolated decorative use, but inside an aria-labeled
+                  button it pollutes axe-core's "visible text"
+                  computation. axe then sees the visible text as
+                  "check-circle Status" and looks for THAT substring
+                  in the button's aria-label "Status — filter by
+                  status", doesn't find it, and the audit fails even
+                  though the visible word "Status" is in the
+                  accessible name. Hiding the decorative icon from
+                  the a11y tree means visible text resolves to plain
+                  "Status" again — which matches.
+                */}
+                <CheckCircleOutlined aria-hidden="true" />
                 <Typography variant="caption" sx={{ color: 'inherit' }}>
                   {STATUS_LABELS[statusFilter]}
                 </Typography>
@@ -1258,6 +1310,13 @@ export default function FleetOverviewView({
                         >
                           <Typography
                             variant="subtitle1"
+                            // component="span" opts the field label out of
+                            // being rendered as <h6> (Typography's default
+                            // element for subtitle1). This is a label, not
+                            // a section heading — keeping it as <h6> caused
+                            // Lighthouse's heading-order audit to fail
+                            // because there's no <h1>–<h5> above it.
+                            component="span"
                             sx={{
                               color: 'var(--blue)',
                               fontSize: { xs: '0.78rem', sm: '0.84rem' },
@@ -1308,6 +1367,11 @@ export default function FleetOverviewView({
                           >
                             <Typography
                               variant="subtitle1"
+                              // Same rationale as the "Last measurements
+                              // taken:" label above — these are metric
+                              // field labels, not section headings, so
+                              // they must not render as <h6>.
+                              component="span"
                               title={metric.label}
                               sx={{
                                 color: 'var(--blue)',

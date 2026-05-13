@@ -3,7 +3,11 @@ import useSWR from 'swr';
 import useAuth from 'hooks/useAuth';
 import API from 'services/endpoints';
 import { buildUrl, fetcher } from 'services/fetcher';
-import { validateDeviceListResponse } from 'services/schemas/device';
+// schemas/device is dynamically-imported INSIDE the fetcher below — see
+// the comment there for the reason. Static-importing it would pull yup
+// (and its deps: property-expr, tiny-case, toposort) into the eager
+// dashboard bundle, adding ~14 KB compressed to first paint for code
+// that doesn't run until the API response arrives.
 
 // =============================================================================
 // useMyDevices — SWR hook for GET /api/devices/my-devices.
@@ -49,7 +53,17 @@ import { validateDeviceListResponse } from 'services/schemas/device';
 // call mutate() directly.
 
 const fetchAndValidateDevices = async (key) => {
-  const data = await fetcher(key);
+  // Kick off both the network request AND the schema module load in
+  // parallel. Yup + the schema file are ~14 KB compressed; pulling them
+  // off the eager dashboard bundle means the entry chunk is smaller
+  // and first paint can happen sooner. The two awaits are sequential
+  // here only because we need the data before we can validate it, but
+  // the second `import()` is effectively free after the first call —
+  // ES module loading is cached by the runtime, so subsequent SWR
+  // refreshes don't re-fetch the chunk.
+  const fetchPromise = fetcher(key);
+  const schemaModulePromise = import('services/schemas/device');
+  const [data, { validateDeviceListResponse }] = await Promise.all([fetchPromise, schemaModulePromise]);
   return validateDeviceListResponse(data);
 };
 
@@ -59,7 +73,23 @@ export default function useMyDevices() {
   const swrKey = isAuthenticated && accessToken ? [buildUrl(API.devices.myDevices), accessToken] : null;
 
   const { data, error, isLoading, mutate } = useSWR(swrKey, fetchAndValidateDevices, {
-    refreshInterval: 60000
+    refreshInterval: 60000,
+    // compare: structural-equality check SWR runs against the existing
+    // cached data on every revalidation. When it returns true, SWR keeps
+    // the existing reference and skips the state update — meaning no
+    // re-render in any consumer of this hook.
+    //
+    // Why this matters: without it, every 60s SWR poll returns a FRESH
+    // array reference (even if the backend data is byte-identical to
+    // what we already have), which cascades through every downstream
+    // useMemo with `[devices]` deps — recomputing fleet rows, plottable
+    // arrays, marker icons, etc. — and visibly redrawing the map / cards
+    // for no reason. JSON.stringify is the cheapest "good enough" deep
+    // compare for the response sizes we get back (<1ms for a few hundred
+    // devices). When the backend HAS genuinely-new data the strings
+    // differ and SWR re-renders normally — same behavior in the changed
+    // case, just no spurious renders in the no-op case.
+    compare: (a, b) => JSON.stringify(a) === JSON.stringify(b)
     // dedupingInterval / revalidateOnFocus / shouldRetryOnError / onError
     // come from <SWRConfig> in providers/SWRProvider.jsx — no per-hook
     // override needed.

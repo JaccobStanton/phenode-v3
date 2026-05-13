@@ -50,14 +50,22 @@ import CloseOutlined from '@ant-design/icons/CloseOutlined';
 // On 403 we route to /approval-pending — that page polls until the admin
 // approves and then sends the user on to the dashboard.
 
-// Stub handler — will redirect to backend Google OAuth start once the
-// /oauth/callback page is added in V3 to handle the Google ID token round
-// trip (mirrors phenodeX/src/pages/LoginPage.jsx).
+// Google OAuth handoff. The backend owns the consent screen and the
+// Google → token exchange; from the frontend's perspective it's just a
+// full-page navigation to GET /api/auth/google/login. The backend then
+// bounces through Google's consent screen and ultimately redirects the
+// browser back to ${FRONTEND_ORIGIN}/oauth/callback?token=<id_token>,
+// where AuthOAuthCallback.jsx finishes the exchange via
+// POST /api/auth/token and dispatches via the same routing matrix as
+// the email/password flow above (200 → dashboard, 403 pending →
+// /approval-pending, anything else → /login with an inline error).
+//
+// Use window.location.assign (not href = ...) because OAuth requires a
+// real top-level navigation — react-router's <Navigate> would do an
+// in-app push that the backend cookie/session machinery doesn't see.
 const handleGoogleSignIn = () => {
-  // TODO: enable once /oauth/callback page is wired to POST /api/auth/token:
-  // window.location.href = `${import.meta.env.VITE_API_URL || '/api'}/auth/google/login`;
-  // eslint-disable-next-line no-console
-  console.info('[auth] Google sign-in clicked — /oauth/callback page wiring pending');
+  const apiBase = import.meta.env.VITE_API_URL || '/api';
+  window.location.assign(`${apiBase}/auth/google/login`);
 };
 
 // ----------------------------------------------------------------------

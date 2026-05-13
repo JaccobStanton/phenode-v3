@@ -62,13 +62,17 @@ export function formatTodaysRainfall(mm) {
 }
 
 /**
- * `wind_speed` is unitless on the backend; the frontend displays mph
- * (matching mock convention). If the backend ever clarifies its unit
- * the conversion goes here.
+ * Wind speed is m/s straight from the backend. We surface the raw
+ * unit here rather than converting to mph — that decision was made
+ * after confirming the chart endpoint emits m/s and choosing to
+ * keep both displays (fleet cards + sensor-measurements page) on a
+ * single unit so users never have to mentally swap between the two.
+ * If a unit toggle later joins the dashboard, this is the single
+ * place to flip it.
  */
 export function formatWindSpeed(value) {
   if (value == null || Number.isNaN(value)) return 'N/A';
-  return `${value.toFixed(2)} mph`;
+  return `${value.toFixed(2)} m/s`;
 }
 
 export function formatBatteryPercent(percent) {

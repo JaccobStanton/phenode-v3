@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { DownloadOutlined } from '@ant-design/icons';
+// Subpath import (matches the rest of the codebase) — avoids
+// pulling the @ant-design/icons barrel module, which can drag
+// extra icon code into the chunk when tree-shaking can't fully
+// eliminate the barrel's re-export side-effects.
+import DownloadOutlined from '@ant-design/icons/DownloadOutlined';
 import { Link } from 'react-router-dom';
 
 import Autocomplete from '@mui/material/Autocomplete';

@@ -33,7 +33,8 @@ export const soilProbeReadings = {
 
 export const sensorInfoReadings = [
   { label: 'Sensor ID', value: 'WS-1234568' },
-  { label: 'GPS', value: '32 42 23 43, 92 89' },
+  { label: 'Latitude', value: '32.421' },
+  { label: 'Longitude', value: '-92.890' },
   { label: 'Altitude', value: '793.95ft' },
   { label: 'Battery', value: '87.52%' },
   { label: 'Probes Connected', value: '2' }

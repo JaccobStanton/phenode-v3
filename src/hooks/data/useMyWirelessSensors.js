@@ -3,7 +3,13 @@ import useSWR from 'swr';
 import useAuth from 'hooks/useAuth';
 import API from 'services/endpoints';
 import { buildUrl, fetcher } from 'services/fetcher';
-import { validateSensorListResponse } from 'services/schemas/wirelessSensor';
+// schemas/wirelessSensor is dynamically-imported INSIDE the fetcher
+// below — see the comment there for the reason. Static-importing it
+// would pull yup (and its deps: property-expr, tiny-case, toposort)
+// into the eager dashboard bundle. Both device and wireless-sensor
+// hooks share that chunk, so the dynamic import is co-amortized:
+// the first hook to fire downloads the schema module, the second
+// reuses the cached one.
 
 // =============================================================================
 // useMyWirelessSensors — SWR hook for GET /api/wireless-sensors/my-sensors.
@@ -62,7 +68,16 @@ import { validateSensorListResponse } from 'services/schemas/wirelessSensor';
 //   is what flipped this hook from mock to live.
 
 const fetchAndValidateSensors = async (key) => {
-  const data = await fetcher(key);
+  // Kick off the network request AND the schema-module load in parallel.
+  // The two operations have no dependency on each other until we're
+  // ready to validate the response, so issuing both at once means the
+  // schema chunk download overlaps with the API round-trip (no
+  // sequential cost in the common case). The dynamic import keeps yup
+  // off the eager dashboard bundle. See useMyDevices for the same
+  // pattern — both hooks share the schema chunk after first load.
+  const fetchPromise = fetcher(key);
+  const schemaModulePromise = import('services/schemas/wirelessSensor');
+  const [data, { validateSensorListResponse }] = await Promise.all([fetchPromise, schemaModulePromise]);
   return validateSensorListResponse(data);
 };
 

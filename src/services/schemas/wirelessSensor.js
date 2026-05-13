@@ -31,19 +31,27 @@ import * as yup from 'yup';
 //   - REQUIRED: id (`_id`), externalSensorId — without these you
 //     can't reference the sensor at all.
 //   - OPTIONAL summary fields (lastMeasurementAt, healthStatus,
-//     batteryPercent, soilMoisture, soilTemperatureC, rssi) are all
+//     batteryPercent, soilMoisture, soilTemperatureC, rssi) and the
+//     optional location fields (latitude, longitude) are all
 //     `.nullable().optional()` — a freshly provisioned sensor with
 //     no measurements yet still validates, and the row transformer's
-//     formatters render 'N/A' for missing values.
+//     formatters render 'N/A' for missing values. Coordinates are
+//     additionally sanitized server-side (Null-Island, out-of-range,
+//     and NaN values are nulled before they ever leave the API), so
+//     we treat any non-null lat/lng received here as plottable.
 //   - Unknown keys pass through (default Yup behavior). The backend
 //     can extend the response without breaking us.
 //
 // Backend reference:
-//   phenodeX/phenode_backend/schemas/wireless_sensors.py:70-81
+//   phenodeX/phenode_backend/schemas/wireless_sensors.py:70-83
 //     (WirelessSensorListItem, WirelessSensorsListResponse)
-//   phenodeX/phenode_backend/api/wireless_sensors/routes.py:138-190
-//     (route handler — health_status computed via 30-min cutoff to
-//      match the device convention)
+//   phenodeX/phenode_backend/api/wireless_sensors/routes.py:69-89
+//     (_clean_location helper — Null-Island, bounds, NaN guards
+//      applied to both list and detail endpoints)
+//   phenodeX/phenode_backend/api/wireless_sensors/routes.py:139-240
+//     (list route — health_status computed via 30-min cutoff to
+//      match the device convention; location resolved from latest
+//      reading with fallback to the static sensor row, then cleaned)
 
 const wirelessSensorListItemSchema = yup.object({
   // Required identifiers — the backend always populates these.
@@ -62,6 +70,13 @@ const wirelessSensorListItemSchema = yup.object({
   batteryPercent: yup.number().nullable().optional(),
   soilMoisture: yup.number().nullable().optional(),
   soilTemperatureC: yup.number().nullable().optional(),
+
+  // Location — sanitized server-side via _clean_location (routes.py:69-89)
+  // so any non-null value here is safe to plot. Order matches the backend
+  // payload ordering (routes.py:184-185, 198-201) for grep parity.
+  latitude: yup.number().nullable().optional(),
+  longitude: yup.number().nullable().optional(),
+
   rssi: yup.number().nullable().optional()
 });
 

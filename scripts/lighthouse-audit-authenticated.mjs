@@ -109,21 +109,28 @@ async function login({ username, password, apiBase }) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: username, password })
   });
+  // Read the body ONCE as text. We then try to JSON.parse it in memory.
+  // Earlier versions called res.json() then res.text() in a fallback —
+  // that throws "Body is unusable" because the first read consumes the
+  // stream. Reading once as text and parsing locally is the safe pattern.
+  const rawBody = await res.text();
+  let parsed = null;
+  try {
+    parsed = rawBody ? JSON.parse(rawBody) : null;
+  } catch {
+    // Leave parsed as null; body is non-JSON (HTML error page, plain text, etc.)
+  }
   if (!res.ok) {
-    let detail;
-    try {
-      const body = await res.json();
-      detail = body?.detail || JSON.stringify(body);
-    } catch {
-      detail = await res.text();
-    }
+    const detail = parsed?.detail || (parsed && JSON.stringify(parsed)) || rawBody || '(empty response body)';
     fail(`Login failed at ${url} — HTTP ${res.status}: ${detail}`);
   }
-  const data = await res.json();
-  if (!data.access_token || !data.refresh_token) {
-    fail(`Login response missing tokens. Got keys: ${Object.keys(data).join(', ')}`);
+  if (!parsed) {
+    fail(`Login response was not JSON. HTTP ${res.status}. First 200 chars: ${rawBody.slice(0, 200)}`);
   }
-  return { accessToken: data.access_token, refreshToken: data.refresh_token };
+  if (!parsed.access_token || !parsed.refresh_token) {
+    fail(`Login response missing tokens. Got keys: ${Object.keys(parsed).join(', ')}`);
+  }
+  return { accessToken: parsed.access_token, refreshToken: parsed.refresh_token };
 }
 
 async function injectTokens(chromePort, { accessToken, refreshToken }) {

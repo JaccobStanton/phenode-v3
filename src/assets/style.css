@@ -6,6 +6,13 @@
   --midnight-blue-2: #000d30;
   --medium-grey: #797979;
   --blue: #1a76e0;
+  /* Lighter blue for text on the --midnight-blue (#001244) background.
+     The base --blue (#1a76e0) only meets 4.03:1 on that background,
+     which fails WCAG 2.1 AA's 4.5:1 minimum for normal text. This
+     variant lands at 5.01:1 while staying visually close to --blue.
+     Use it anywhere blue text needs to sit directly on the dark navy
+     app background (footer links, etc.). */
+  --blue-on-dark: #4287e8;
   --background-blue: #001f449c;
   --transparent: #48f7f500;
   --green: #48f7f5;
