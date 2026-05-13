@@ -192,7 +192,7 @@ export default function AuthWrapper({ children }) {
                 maxWidth: 380
               }}
             >
-              The Environmental Intelligence Platform
+              A Modular Environmental Intelligence Platform
             </Typography>
           </Box>
         )}
