@@ -158,7 +158,6 @@ const paginationSx = {
 // density expectation.
 const PAGE_SIZE = 20;
 
-
 // Cycle order for the tri-state Status filter. Single source of truth —
 // the click handler reads (current → next) from this array, the button
 // label reads from STATUS_LABELS[current], and the filter logic checks
@@ -475,7 +474,12 @@ export default function FleetOverviewView({
         // a user can find a card by either its label OR its MAC/external
         // id, regardless of which one is currently being displayed in
         // the card title (controlled by the MAC Address toggle).
-        const searchableText = [row.siteName, row.externalId, row.lastMeasurements, ...row.metrics.map((metric) => `${metric.label} ${metric.value}`)]
+        const searchableText = [
+          row.siteName,
+          row.externalId,
+          row.lastMeasurements,
+          ...row.metrics.map((metric) => `${metric.label} ${metric.value}`)
+        ]
           .join(' ')
           .toLowerCase();
         if (!searchableText.includes(loweredSearch)) return false;
@@ -666,88 +670,91 @@ export default function FleetOverviewView({
 
   return (
     <>
-    <MainCard content={false} sx={{ width: '100%', minWidth: 0, overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
-      <Box sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 2.5 } }}>
-        <Stack
-          direction="row"
-          spacing={1}
-          sx={{
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            width: '100%',
-            borderBottom: '1px solid',
-            borderBottomColor: 'var(--orange)',
-            pb: 1.25
-          }}
-        >
-          <Typography variant="h4" sx={{ color: 'var(--blue)' }}>
-            {title}
-          </Typography>
-          <Typography variant="body1" sx={{ ml: 'auto', textAlign: 'right' }}>
-            <Box component="span" sx={{ color: 'var(--blue)', fontSize: { xs: '0.9rem', sm: '1rem' } }}>
-              {headerStatus.label}
-            </Box>
-            <Box component="span" sx={{ ...greenGlowTextSx, ml: 1.5, display: 'inline-block', fontSize: { xs: '0.9rem', sm: '1rem' } }}>
-              {headerStatus.count}
-            </Box>
-          </Typography>
-        </Stack>
-      </Box>
-
-      <Box sx={{ px: { xs: 2, sm: 3 }, pt: 0, pb: { xs: 2, sm: 3 } }}>
-        <Stack
-          direction="row"
-          spacing={1}
-          sx={{
-            mb: 2,
-            // `flex-end` (was `center`) so all toolbar controls
-            // bottom-align with the PhenodeSelector's dropdown bottom.
-            // The selector is the tallest item in the row (label
-            // floats above the dropdown), and centering against it
-            // would push the search icon + sort/filter buttons down
-            // to the row's vertical middle, leaving them out of line
-            // with the dropdown they share a row with. Bottom-aligning
-            // puts every interactive element on the same baseline;
-            // the label sits above as visual context for the dropdown.
-            alignItems: 'flex-end',
-            justifyContent: 'space-between',
-            // `flexWrap: 'wrap'` is here to fix a layout bug on narrow
-            // viewports (~412px / Lighthouse mobile profile). When the
-            // PheNode scope selector is present (sensor-fleet only),
-            // the combined width of [scopeSelector + search icon +
-            // search input + sort + status + MAC] exceeds the viewport.
-            // Without wrap, `justify-content: space-between` shoved the
-            // two sub-stacks to opposite ends and their CONTENTS
-            // visually overlapped in the middle — the audit captured
-            // the sort button (x=205–245) sitting under the search
-            // button (x=241–281) on a 412px screen, leaving the search
-            // IconButton with only 8×40 of unobscured clickable area
-            // (WCAG 2.5.8 needs 24×24). With wrap on, the left
-            // sub-stack's `width: { xs: '100%' }` pushes the right
-            // sub-stack to a second row on narrow viewports, but on
-            // wider screens everything still fits on one row exactly
-            // as before. Cheap correction that only engages when
-            // needed.
-            flexWrap: 'wrap'
-          }}
-        >
+      <MainCard
+        content={false}
+        sx={{ width: '100%', flex: 1, minWidth: 0, overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}
+      >
+        <Box sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 2.5 } }}>
           <Stack
             direction="row"
             spacing={1}
-            // `flex: '0 0 100%'` on mobile is what actually makes the
-            // parent's `flexWrap: 'wrap'` engage. With `flex: 1`
-            // (=`flex: 1 1 0%`) the flex algorithm thinks this stack
-            // wants 0 width as its basis and "fits" alongside the
-            // right stack on the same row, even when their natural
-            // content widths overlap. Forcing the flex-basis to 100%
-            // makes the wrap line break for real, dropping the right
-            // sub-stack onto a second row on narrow viewports.
-            // `width: 100%` alone doesn't do it because `flex: 1`
-            // sets `flex-basis: 0`, which overrides width for the
-            // flex algorithm's hypothetical-main-size calc.
-            sx={{ alignItems: 'flex-end', width: { xs: '100%', sm: 'auto' }, flex: { xs: '0 0 100%', sm: '0 1 auto' }, minWidth: 0 }}
+            sx={{
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              width: '100%',
+              borderBottom: '1px solid',
+              borderBottomColor: 'var(--orange)',
+              pb: 1.25
+            }}
           >
-            {/*
+            <Typography variant="h4" sx={{ color: 'var(--blue)' }}>
+              {title}
+            </Typography>
+            <Typography variant="body1" sx={{ ml: 'auto', textAlign: 'right' }}>
+              <Box component="span" sx={{ color: 'var(--blue)', fontSize: { xs: '0.9rem', sm: '1rem' } }}>
+                {headerStatus.label}
+              </Box>
+              <Box component="span" sx={{ ...greenGlowTextSx, ml: 1.5, display: 'inline-block', fontSize: { xs: '0.9rem', sm: '1rem' } }}>
+                {headerStatus.count}
+              </Box>
+            </Typography>
+          </Stack>
+        </Box>
+
+        <Box sx={{ px: { xs: 2, sm: 3 }, pt: 0, pb: { xs: 2, sm: 3 } }}>
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{
+              mb: 2,
+              // `flex-end` (was `center`) so all toolbar controls
+              // bottom-align with the PhenodeSelector's dropdown bottom.
+              // The selector is the tallest item in the row (label
+              // floats above the dropdown), and centering against it
+              // would push the search icon + sort/filter buttons down
+              // to the row's vertical middle, leaving them out of line
+              // with the dropdown they share a row with. Bottom-aligning
+              // puts every interactive element on the same baseline;
+              // the label sits above as visual context for the dropdown.
+              alignItems: 'flex-end',
+              justifyContent: 'space-between',
+              // `flexWrap: 'wrap'` is here to fix a layout bug on narrow
+              // viewports (~412px / Lighthouse mobile profile). When the
+              // PheNode scope selector is present (sensor-fleet only),
+              // the combined width of [scopeSelector + search icon +
+              // search input + sort + status + MAC] exceeds the viewport.
+              // Without wrap, `justify-content: space-between` shoved the
+              // two sub-stacks to opposite ends and their CONTENTS
+              // visually overlapped in the middle — the audit captured
+              // the sort button (x=205–245) sitting under the search
+              // button (x=241–281) on a 412px screen, leaving the search
+              // IconButton with only 8×40 of unobscured clickable area
+              // (WCAG 2.5.8 needs 24×24). With wrap on, the left
+              // sub-stack's `width: { xs: '100%' }` pushes the right
+              // sub-stack to a second row on narrow viewports, but on
+              // wider screens everything still fits on one row exactly
+              // as before. Cheap correction that only engages when
+              // needed.
+              flexWrap: 'wrap'
+            }}
+          >
+            <Stack
+              direction="row"
+              spacing={1}
+              // `flex: '0 0 100%'` on mobile is what actually makes the
+              // parent's `flexWrap: 'wrap'` engage. With `flex: 1`
+              // (=`flex: 1 1 0%`) the flex algorithm thinks this stack
+              // wants 0 width as its basis and "fits" alongside the
+              // right stack on the same row, even when their natural
+              // content widths overlap. Forcing the flex-basis to 100%
+              // makes the wrap line break for real, dropping the right
+              // sub-stack onto a second row on narrow viewports.
+              // `width: 100%` alone doesn't do it because `flex: 1`
+              // sets `flex-basis: 0`, which overrides width for the
+              // flex algorithm's hypothetical-main-size calc.
+              sx={{ alignItems: 'flex-end', width: { xs: '100%', sm: 'auto' }, flex: { xs: '0 0 100%', sm: '0 1 auto' }, minWidth: 0 }}
+            >
+              {/*
               Optional scope-selector slot. When supplied (currently by
               the wireless-sensor fleet to host the PheNode dropdown),
               it sits at the LEFT of the toolbar row, before the
@@ -756,165 +763,165 @@ export default function FleetOverviewView({
               visible" tools — and putting it inline keeps the toolbar
               a single row instead of growing taller.
             */}
-            {scopeSelector}
-            <Tooltip title="Search" arrow={false} slotProps={tooltipSlotProps}>
-              <IconButton
-                aria-label="open search"
-                onClick={() => setIsSearchOpen((previous) => !previous)}
-                sx={{
-                  width: 40,
-                  height: 40,
-                  ...controlBaseSx,
-                  '&:hover': {
-                    borderColor: 'var(--green)',
-                    color: 'var(--green)',
-                    backgroundColor: 'rgba(0, 17, 48, 0.03)',
-                    backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))'
-                  },
-                  ...(isSearchOpen && {
-                    borderColor: 'var(--green)',
-                    color: 'var(--green)'
-                  })
-                }}
-              >
-                <SearchOutlined />
-              </IconButton>
-            </Tooltip>
+              {scopeSelector}
+              <Tooltip title="Search" arrow={false} slotProps={tooltipSlotProps}>
+                <IconButton
+                  aria-label="open search"
+                  onClick={() => setIsSearchOpen((previous) => !previous)}
+                  sx={{
+                    width: 40,
+                    height: 40,
+                    ...controlBaseSx,
+                    '&:hover': {
+                      borderColor: 'var(--green)',
+                      color: 'var(--green)',
+                      backgroundColor: 'rgba(0, 17, 48, 0.03)',
+                      backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))'
+                    },
+                    ...(isSearchOpen && {
+                      borderColor: 'var(--green)',
+                      color: 'var(--green)'
+                    })
+                  }}
+                >
+                  <SearchOutlined />
+                </IconButton>
+              </Tooltip>
 
-            <Box
-              sx={{
-                width: isSearchOpen ? { xs: '100%', sm: 260 } : 0,
-                maxWidth: { sm: 260 },
-                flexGrow: isSearchOpen ? 1 : 0,
-                minWidth: 0,
-                opacity: isSearchOpen ? 1 : 0,
-                overflow: 'hidden',
-                transition: 'width 220ms ease, opacity 220ms ease, flex-grow 220ms ease'
-              }}
-            >
-              <OutlinedInput
-                value={searchValue}
-                onChange={(event) => setSearchValue(event.target.value)}
-                size="small"
-                placeholder={searchPlaceholder}
-                fullWidth
-                inputProps={{ 'aria-label': 'Search fleet table' }}
-                startAdornment={
-                  <InputAdornment position="start">
-                    <SearchOutlined style={{ color: 'var(--blue)' }} />
-                  </InputAdornment>
-                }
+              <Box
                 sx={{
-                  minHeight: 40,
-                  // No CSS border on the root at all. The visible bottom
-                  // hairline is drawn entirely by the ::after pseudo-
-                  // element below. Why this is the right move here:
-                  //
-                  //   A real CSS `border-bottom` follows the box's
-                  //   border-radius — at the rounded bottom-left and
-                  //   bottom-right corners the colored line curves up
-                  //   the 8px arc. With var(--reflected-light) (subtle)
-                  //   that's barely visible, but with var(--green) on
-                  //   hover the curve reads as "green tint in the side
-                  //   borders." A pseudo-element is a separate
-                  //   absolutely-positioned rectangle that doesn't
-                  //   inherit the parent's border-radius — it stays a
-                  //   straight line.
-                  //
-                  // `position: relative` makes the pseudo-element's
-                  // absolute positioning resolve against this box.
-                  // `overflow: hidden` is the part that ties the
-                  // straight-line pseudo-element back to the rounded
-                  // visual shape: at the bottom corners the rounded
-                  // mask clips the line so it terminates exactly where
-                  // the corner curve begins. Cleaner than the line
-                  // extending outside the visual box would have been.
-                  position: 'relative',
+                  width: isSearchOpen ? { xs: '100%', sm: 260 } : 0,
+                  maxWidth: { sm: 260 },
+                  flexGrow: isSearchOpen ? 1 : 0,
+                  minWidth: 0,
+                  opacity: isSearchOpen ? 1 : 0,
                   overflow: 'hidden',
-                  color: 'var(--blue)',
-                  backgroundColor: '#00143642',
-                  boxShadow: 'inset 1px 4px 5px #0003',
-                  borderRadius: 1,
-                  // Bottom hairline. Default state: 2px tall,
-                  // var(--reflected-light). The transition smooths the
-                  // height + color swap into hover so the change reads
-                  // as a deliberate UI signal rather than a snap.
-                  '&::after': {
-                    content: '""',
-                    position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    height: '2px',
-                    background: 'var(--reflected-light)',
-                    pointerEvents: 'none',
-                    transition: 'height 150ms ease, background 150ms ease',
-                    zIndex: 1
-                  },
-                  // Hover (when not focused): line shrinks 2px → 1px
-                  // and tints from --reflected-light to var(--green).
-                  // Because this is a pseudo-element (not the box's
-                  // border), changing its height does NOT affect the
-                  // box's content area or padding — so the input text
-                  // never shifts up or down on hover.
-                  //
-                  // `:not(.Mui-focused)` keeps this rule from applying
-                  // when the input is focused; focus styling wins
-                  // alone once the user has clicked in.
-                  '&:hover:not(.Mui-focused):not(.Mui-disabled)::after': {
-                    height: '1px',
-                    background: 'var(--green)'
-                  },
-                  // Focused/selected: line returns to the default 2px
-                  // var(--reflected-light) — explicitly re-asserted so
-                  // the focus state is unambiguous and doesn't carry
-                  // the hover treatment forward.
-                  '&.Mui-focused::after': {
-                    height: '2px',
-                    background: 'var(--reflected-light)'
-                  },
-                  // Suppress MUI's notched outline in every state.
-                  // Belt-and-braces — there's no border on the root
-                  // anymore so the notched outline is the only place
-                  // MUI could try to repaint a colored border.
-                  '& .MuiOutlinedInput-notchedOutline': {
-                    border: 'none'
-                  },
-                  '&:hover .MuiOutlinedInput-notchedOutline, &.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    border: 'none'
-                  },
-                  // Typed text in var(--blue) so it matches the
-                  // placeholder.
-                  '& .MuiInputBase-input': {
-                    color: 'var(--blue)'
-                  },
-                  '& .MuiInputBase-input::placeholder': {
-                    color: 'var(--blue)',
-                    opacity: 1
-                  }
+                  transition: 'width 220ms ease, opacity 220ms ease, flex-grow 220ms ease'
                 }}
-              />
-            </Box>
-          </Stack>
-
-          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'flex-end', flexShrink: 0 }}>
-            <Tooltip title="Sort Alphabetically" arrow={false} slotProps={tooltipSlotProps}>
-              <ToggleButton
-                value="alpha"
-                selected={sortMode === 'alpha'}
-                onChange={() => setSortMode((previous) => (previous === 'alpha' ? '' : 'alpha'))}
-                aria-label="sort fleet alphabetically"
-                sx={sortToggleSx}
               >
-                <SortAscendingOutlined />
-                <Typography variant="caption" sx={{ display: { xs: 'none', md: 'inline' }, color: 'inherit' }}>
-                  A-Z
-                </Typography>
-              </ToggleButton>
-            </Tooltip>
+                <OutlinedInput
+                  value={searchValue}
+                  onChange={(event) => setSearchValue(event.target.value)}
+                  size="small"
+                  placeholder={searchPlaceholder}
+                  fullWidth
+                  inputProps={{ 'aria-label': 'Search fleet table' }}
+                  startAdornment={
+                    <InputAdornment position="start">
+                      <SearchOutlined style={{ color: 'var(--blue)' }} />
+                    </InputAdornment>
+                  }
+                  sx={{
+                    minHeight: 40,
+                    // No CSS border on the root at all. The visible bottom
+                    // hairline is drawn entirely by the ::after pseudo-
+                    // element below. Why this is the right move here:
+                    //
+                    //   A real CSS `border-bottom` follows the box's
+                    //   border-radius — at the rounded bottom-left and
+                    //   bottom-right corners the colored line curves up
+                    //   the 8px arc. With var(--reflected-light) (subtle)
+                    //   that's barely visible, but with var(--green) on
+                    //   hover the curve reads as "green tint in the side
+                    //   borders." A pseudo-element is a separate
+                    //   absolutely-positioned rectangle that doesn't
+                    //   inherit the parent's border-radius — it stays a
+                    //   straight line.
+                    //
+                    // `position: relative` makes the pseudo-element's
+                    // absolute positioning resolve against this box.
+                    // `overflow: hidden` is the part that ties the
+                    // straight-line pseudo-element back to the rounded
+                    // visual shape: at the bottom corners the rounded
+                    // mask clips the line so it terminates exactly where
+                    // the corner curve begins. Cleaner than the line
+                    // extending outside the visual box would have been.
+                    position: 'relative',
+                    overflow: 'hidden',
+                    color: 'var(--blue)',
+                    backgroundColor: '#00143642',
+                    boxShadow: 'inset 1px 4px 5px #0003',
+                    borderRadius: 1,
+                    // Bottom hairline. Default state: 2px tall,
+                    // var(--reflected-light). The transition smooths the
+                    // height + color swap into hover so the change reads
+                    // as a deliberate UI signal rather than a snap.
+                    '&::after': {
+                      content: '""',
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      height: '2px',
+                      background: 'var(--reflected-light)',
+                      pointerEvents: 'none',
+                      transition: 'height 150ms ease, background 150ms ease',
+                      zIndex: 1
+                    },
+                    // Hover (when not focused): line shrinks 2px → 1px
+                    // and tints from --reflected-light to var(--green).
+                    // Because this is a pseudo-element (not the box's
+                    // border), changing its height does NOT affect the
+                    // box's content area or padding — so the input text
+                    // never shifts up or down on hover.
+                    //
+                    // `:not(.Mui-focused)` keeps this rule from applying
+                    // when the input is focused; focus styling wins
+                    // alone once the user has clicked in.
+                    '&:hover:not(.Mui-focused):not(.Mui-disabled)::after': {
+                      height: '1px',
+                      background: 'var(--green)'
+                    },
+                    // Focused/selected: line returns to the default 2px
+                    // var(--reflected-light) — explicitly re-asserted so
+                    // the focus state is unambiguous and doesn't carry
+                    // the hover treatment forward.
+                    '&.Mui-focused::after': {
+                      height: '2px',
+                      background: 'var(--reflected-light)'
+                    },
+                    // Suppress MUI's notched outline in every state.
+                    // Belt-and-braces — there's no border on the root
+                    // anymore so the notched outline is the only place
+                    // MUI could try to repaint a colored border.
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      border: 'none'
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline, &.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      border: 'none'
+                    },
+                    // Typed text in var(--blue) so it matches the
+                    // placeholder.
+                    '& .MuiInputBase-input': {
+                      color: 'var(--blue)'
+                    },
+                    '& .MuiInputBase-input::placeholder': {
+                      color: 'var(--blue)',
+                      opacity: 1
+                    }
+                  }}
+                />
+              </Box>
+            </Stack>
 
-            <Tooltip title={STATUS_TOOLTIPS[statusFilter]} arrow={false} slotProps={tooltipSlotProps}>
-              {/*
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'flex-end', flexShrink: 0 }}>
+              <Tooltip title="Sort Alphabetically" arrow={false} slotProps={tooltipSlotProps}>
+                <ToggleButton
+                  value="alpha"
+                  selected={sortMode === 'alpha'}
+                  onChange={() => setSortMode((previous) => (previous === 'alpha' ? '' : 'alpha'))}
+                  aria-label="sort fleet alphabetically"
+                  sx={sortToggleSx}
+                >
+                  <SortAscendingOutlined />
+                  <Typography variant="caption" sx={{ display: { xs: 'none', md: 'inline' }, color: 'inherit' }}>
+                    A-Z
+                  </Typography>
+                </ToggleButton>
+              </Tooltip>
+
+              <Tooltip title={STATUS_TOOLTIPS[statusFilter]} arrow={false} slotProps={tooltipSlotProps}>
+                {/*
                 Tri-state cycle button — clicks advance through:
                   Status (no filter) → Live → Offline → Status …
                 ToggleButton's `selected` is binary, so we treat any
@@ -924,21 +931,21 @@ export default function FleetOverviewView({
                 alone conveys meaning) because the icon doesn't tell
                 you Live vs Offline.
               */}
-              <ToggleButton
-                value="status"
-                selected={statusFilter !== ''}
-                onChange={cycleStatusFilter}
-                // The aria-label MUST lead with the visible button text
-                // (STATUS_LABELS[statusFilter] — "Status" / "Active" /
-                // "Offline") to satisfy WCAG 2.5.3 "Label in Name". If
-                // the visible word doesn't appear at the start of the
-                // accessible name, voice-control users can't activate
-                // the button by speaking its visible text, and
-                // Lighthouse's label-content-name-mismatch audit fails.
-                aria-label={`${STATUS_LABELS[statusFilter]} — filter by status`}
-                sx={sortToggleSx}
-              >
-                {/*
+                <ToggleButton
+                  value="status"
+                  selected={statusFilter !== ''}
+                  onChange={cycleStatusFilter}
+                  // The aria-label MUST lead with the visible button text
+                  // (STATUS_LABELS[statusFilter] — "Status" / "Active" /
+                  // "Offline") to satisfy WCAG 2.5.3 "Label in Name". If
+                  // the visible word doesn't appear at the start of the
+                  // accessible name, voice-control users can't activate
+                  // the button by speaking its visible text, and
+                  // Lighthouse's label-content-name-mismatch audit fails.
+                  aria-label={`${STATUS_LABELS[statusFilter]} — filter by status`}
+                  sx={sortToggleSx}
+                >
+                  {/*
                   `aria-hidden` on the icon is load-bearing for the
                   label-content-name-mismatch audit. Ant Design's
                   CheckCircleOutlined ships with its own `aria-label`
@@ -954,14 +961,14 @@ export default function FleetOverviewView({
                   the a11y tree means visible text resolves to plain
                   "Status" again — which matches.
                 */}
-                <CheckCircleOutlined aria-hidden="true" />
-                <Typography variant="caption" sx={{ color: 'inherit' }}>
-                  {STATUS_LABELS[statusFilter]}
-                </Typography>
-              </ToggleButton>
-            </Tooltip>
+                  <CheckCircleOutlined aria-hidden="true" />
+                  <Typography variant="caption" sx={{ color: 'inherit' }}>
+                    {STATUS_LABELS[statusFilter]}
+                  </Typography>
+                </ToggleButton>
+              </Tooltip>
 
-            {/*
+              {/*
               MAC Address toggle — flips each card title between the user-
               friendly label (default) and the immutable external_id.
               The transformer always falls back to the external_id when no
@@ -979,32 +986,32 @@ export default function FleetOverviewView({
               reads naturally without the container needing to pass it in
               separately.
             */}
-            <Tooltip
-              title={showMacAddress ? `${entityLabel.replace(/s$/, '')} Name` : 'MAC Address'}
-              arrow={false}
-              slotProps={tooltipSlotProps}
-            >
-              <ToggleButton
-                value="mac"
-                selected={showMacAddress}
-                onChange={() => setShowMacAddress((previous) => !previous)}
-                aria-label={
-                  showMacAddress
-                    ? `Show ${entityLabel.replace(/s$/, '').toLowerCase()} name (currently showing MAC address)`
-                    : 'Show MAC address (currently showing name)'
-                }
-                sx={sortToggleSx}
+              <Tooltip
+                title={showMacAddress ? `${entityLabel.replace(/s$/, '')} Name` : 'MAC Address'}
+                arrow={false}
+                slotProps={tooltipSlotProps}
               >
-                <IdcardOutlined />
-                <Typography variant="caption" sx={{ display: { xs: 'none', md: 'inline' }, color: 'inherit' }}>
-                  MAC
-                </Typography>
-              </ToggleButton>
-            </Tooltip>
+                <ToggleButton
+                  value="mac"
+                  selected={showMacAddress}
+                  onChange={() => setShowMacAddress((previous) => !previous)}
+                  aria-label={
+                    showMacAddress
+                      ? `Show ${entityLabel.replace(/s$/, '').toLowerCase()} name (currently showing MAC address)`
+                      : 'Show MAC address (currently showing name)'
+                  }
+                  sx={sortToggleSx}
+                >
+                  <IdcardOutlined />
+                  <Typography variant="caption" sx={{ display: { xs: 'none', md: 'inline' }, color: 'inherit' }}>
+                    MAC
+                  </Typography>
+                </ToggleButton>
+              </Tooltip>
+            </Stack>
           </Stack>
-        </Stack>
 
-        {/*
+          {/*
           Scroll boundary wrapper. Carries the visible top/bottom hairlines
           that mark where the scroll viewport ends.
 
@@ -1021,87 +1028,96 @@ export default function FleetOverviewView({
           (no `rows`) — a bordered "table" framing an inert "Loading…"
           message reads as a UI error.
         */}
-        <Box
-          sx={{
-            borderTop: rows && rows.length > 0 && isScrolledFromTop ? '1px solid var(--box-outline-blue)' : 'none',
-            borderBottom: rows && rows.length > 0 ? '1px solid var(--box-outline-blue)' : 'none'
-          }}
-        >
           <Box
-            ref={scrollContainerRef}
             sx={{
-              // Fixed `height` (not `maxHeight`) so the table stays a
-              // constant size regardless of how many cards are inside.
-              // With one card and `maxHeight`, the wrapper would shrink
-              // to that one card's height and the bottom border + the
-              // results count below would slide up under it. With fixed
-              // `height`, the bottom border stays at the bottom of the
-              // allotted area and the count below stays anchored at the
-              // page-bottom position the user is used to seeing.
-              height: { xs: 'calc(100vh - 280px)', md: 635 },
-              overflowY: 'auto',
-              // overflowX hidden on every breakpoint — the cards no
-              // longer have a fixed minWidth that overflows mobile
-              // viewports, so there's nothing to scroll horizontally.
-              overflowX: 'hidden',
-              pb: 1,
-              // Shift the scrollbar gutter ~8px to the right.
-              //
-              // The negative right margin lets the scroll container
-              // extend past the wrapper's right edge by 8px — the
-              // scrollbar is rendered at the scroll container's right
-              // edge, so it follows. The matching paddingRight pushes
-              // the cards back to their original position so they
-              // stay visually aligned with the wrapper's right edge.
-              //
-              // Net effect: cards stay where they are, scrollbar
-              // appears 8px further right (out into the MainCard's
-              // own right padding gutter). Without this, the scrollbar
-              // sits at the cards' right edge — visually reading as
-              // "to the left" of where the table chrome ends.
-              mr: '-8px',
-              pr: '8px',
-              // Thin themed scrollbar. Visible on scroll but narrow
-              // (8px) so the difference between card right edge and
-              // wrapper right edge stays small. Track is transparent
-              // — the chrome's saturated dark navy is what shows
-              // through behind the thumb. Thumb is the same dark blue
-              // we use elsewhere for filled-in interactive accents,
-              // bumped to higher opacity on hover so the affordance
-              // grows when the user actually goes for it.
-              //
-              // Firefox uses the `scrollbar-width` / `scrollbar-color`
-              // standard properties; Chrome/Safari/Edge use the
-              // `::-webkit-scrollbar` pseudo-element family. Both are
-              // styled here so the look is consistent across browsers.
-              scrollbarWidth: 'thin',
-              scrollbarColor: 'rgba(0, 68, 143, 0.6) transparent',
-              '&::-webkit-scrollbar': {
-                width: '8px',
-                height: '8px'
-              },
-              '&::-webkit-scrollbar-track': {
-                background: 'transparent'
-              },
-              '&::-webkit-scrollbar-thumb': {
-                backgroundColor: 'rgba(0, 68, 143, 0.6)',
-                borderRadius: '4px'
-              },
-              '&::-webkit-scrollbar-thumb:hover': {
-                backgroundColor: 'rgba(0, 68, 143, 0.9)'
-              },
-              // Subtle scroll-edge fade. Cards passing the boundary
-              // dim from 100% to ~85% opacity over an 8px band — the
-              // effect is barely perceptible on its own; the
-              // borderTop/borderBottom on the wrapper provides the
-              // crisp visual delimiter.
-              maskImage:
-                'linear-gradient(to bottom, rgba(0,0,0,0.85) 0px, black 8px, black calc(100% - 8px), rgba(0,0,0,0.85) 100%)',
-              WebkitMaskImage:
-                'linear-gradient(to bottom, rgba(0,0,0,0.85) 0px, black 8px, black calc(100% - 8px), rgba(0,0,0,0.85) 100%)'
+              borderTop: rows && rows.length > 0 && isScrolledFromTop ? '1px solid var(--box-outline-blue)' : 'none',
+              borderBottom: rows && rows.length > 0 ? '1px solid var(--box-outline-blue)' : 'none'
             }}
           >
-          {/*
+            <Box
+              ref={scrollContainerRef}
+              sx={{
+                // Fixed `height` (not `maxHeight`) so the table stays a
+                // constant size regardless of how many cards are inside.
+                // With one card and `maxHeight`, the wrapper would shrink
+                // to that one card's height and the bottom border + the
+                // results count below would slide up under it. With fixed
+                // `height`, the bottom border stays at the bottom of the
+                // allotted area and the count below stays anchored at the
+                // page-bottom position the user is used to seeing.
+                //
+                // Viewport-relative height across all breakpoints so the
+                // table grows with the screen — important on xl monitors
+                // where a fixed-pixel cap (the previous `md: 635`) left
+                // hundreds of pixels of unused vertical space below the
+                // pagination on a 1440+ px tall display. The `100vh - 280`
+                // subtracts the header (60), page padding (24×2), the
+                // MainCard's title bar + toolbar (~120), and the
+                // pagination + footer area (~50) — same recipe the xs
+                // branch was already using, just applied universally.
+                height: 'calc(100vh - 280px)',
+                overflowY: 'auto',
+                // overflowX hidden on every breakpoint — the cards no
+                // longer have a fixed minWidth that overflows mobile
+                // viewports, so there's nothing to scroll horizontally.
+                overflowX: 'hidden',
+                pb: 1,
+                // Shift the scrollbar gutter ~8px to the right.
+                //
+                // The negative right margin lets the scroll container
+                // extend past the wrapper's right edge by 8px — the
+                // scrollbar is rendered at the scroll container's right
+                // edge, so it follows. The matching paddingRight pushes
+                // the cards back to their original position so they
+                // stay visually aligned with the wrapper's right edge.
+                //
+                // Net effect: cards stay where they are, scrollbar
+                // appears 8px further right (out into the MainCard's
+                // own right padding gutter). Without this, the scrollbar
+                // sits at the cards' right edge — visually reading as
+                // "to the left" of where the table chrome ends.
+                mr: '-8px',
+                pr: '8px',
+                // Thin themed scrollbar. Visible on scroll but narrow
+                // (8px) so the difference between card right edge and
+                // wrapper right edge stays small. Track is transparent
+                // — the chrome's saturated dark navy is what shows
+                // through behind the thumb. Thumb is the same dark blue
+                // we use elsewhere for filled-in interactive accents,
+                // bumped to higher opacity on hover so the affordance
+                // grows when the user actually goes for it.
+                //
+                // Firefox uses the `scrollbar-width` / `scrollbar-color`
+                // standard properties; Chrome/Safari/Edge use the
+                // `::-webkit-scrollbar` pseudo-element family. Both are
+                // styled here so the look is consistent across browsers.
+                scrollbarWidth: 'thin',
+                scrollbarColor: 'rgba(0, 68, 143, 0.6) transparent',
+                '&::-webkit-scrollbar': {
+                  width: '8px',
+                  height: '8px'
+                },
+                '&::-webkit-scrollbar-track': {
+                  background: 'transparent'
+                },
+                '&::-webkit-scrollbar-thumb': {
+                  backgroundColor: 'rgba(0, 68, 143, 0.6)',
+                  borderRadius: '4px'
+                },
+                '&::-webkit-scrollbar-thumb:hover': {
+                  backgroundColor: 'rgba(0, 68, 143, 0.9)'
+                },
+                // Subtle scroll-edge fade. Cards passing the boundary
+                // dim from 100% to ~85% opacity over an 8px band — the
+                // effect is barely perceptible on its own; the
+                // borderTop/borderBottom on the wrapper provides the
+                // crisp visual delimiter.
+                maskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.85) 0px, black 8px, black calc(100% - 8px), rgba(0,0,0,0.85) 100%)',
+                WebkitMaskImage:
+                  'linear-gradient(to bottom, rgba(0,0,0,0.85) 0px, black 8px, black calc(100% - 8px), rgba(0,0,0,0.85) 100%)'
+              }}
+            >
+              {/*
             Inner content wrapper — used to be a fixed-width sled
             (860/920px) that forced horizontal scroll on mobile so the
             5-column metric grid could fit. Now that the metric grid
@@ -1109,16 +1125,16 @@ export default function FleetOverviewView({
             viewport and this wrapper just transparently fills the
             scroll container's width.
           */}
-          <Box>
-            <Stack
-              sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '1.5rem',
-                boxSizing: 'border-box'
-              }}
-            >
-              {/*
+              <Box>
+                <Stack
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1.5rem',
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  {/*
                 Render only the current page slice. `visibleRows` (the
                 full filtered+sorted set) is still used for the empty-state
                 check below and for the pagination total — search and
@@ -1126,98 +1142,98 @@ export default function FleetOverviewView({
                 always reaches every row in the fleet, not just what's
                 currently on screen.
               */}
-              {pagedRows.map((row) => {
-                // Pick which identifier to render as the card title.
-                // The MAC button toggles `showMacAddress`; when on we
-                // force the immutable externalId for every card. When
-                // off, siteName retains its existing fallback chain
-                // (label || externalId), so cards without a label
-                // still show something useful by default.
-                const displayedTitle = showMacAddress ? row.externalId : row.siteName;
-                // Card is clickable iff the container supplied an
-                // onRowClick handler. We attach role + tabIndex + key
-                // activation conditionally so the non-clickable case
-                // (showcase / dev preview without a handler) doesn't
-                // expose a misleading "button" affordance to AT users.
-                //
-                // Enter/Space mirror native button keyboard activation;
-                // preventDefault on Space stops the page from scrolling
-                // when the user activates a card with the spacebar.
-                const isClickable = Boolean(onRowClick);
-                const handleCardClick = isClickable ? () => onRowClick(row) : undefined;
-                const handleCardKeyDown = isClickable
-                  ? (event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        onRowClick(row);
-                      }
-                    }
-                  : undefined;
-                return (
-                <Card
-                  // Key on the immutable external_id (not the user-set
-                  // label) — labels can collide between two devices and
-                  // collisions cause React to incorrectly reconcile/reuse
-                  // wrong Card instances on re-render.
-                  key={row.externalId}
-                  // Conditional interaction attributes — only present
-                  // when onRowClick is wired. role="button" + tabIndex=0
-                  // make the card focusable and announce as activatable
-                  // to screen readers; aria-label uses the human-readable
-                  // siteName (not the MAC-style externalId) so the SR
-                  // announcement is meaningful.
-                  role={isClickable ? 'button' : undefined}
-                  tabIndex={isClickable ? 0 : undefined}
-                  aria-label={isClickable ? `View measurements for ${row.siteName}` : undefined}
-                  onClick={handleCardClick}
-                  onKeyDown={handleCardKeyDown}
-                  sx={{
-                    width: '100%',
-                    // No fixed minWidth — the card sizes to its container
-                    // (the scroll content area). The previous 840-900px
-                    // floor forced horizontal scroll on mobile because
-                    // the metric grid was always 5 columns wide. With
-                    // the metric grid now collapsing to 2 cols on xs,
-                    // 3 on sm, and 5 on md+, the card fits comfortably
-                    // at every breakpoint without overflow.
-                    backgroundColor: 'rgba(12, 35, 80, 0.359)',
-                    p: 2,
-                    border: '0.5px solid var(--box-outline-blue)',
-                    boxShadow: '0 4px 10px rgba(0, 0, 0, 0.3)',
-                    boxSizing: 'border-box',
-                    textAlign: 'center',
-                    opacity: 1,
-                    // Only show the pointer cursor when the card is
-                    // actually clickable. The previous hover-only
-                    // pointer cursor was misleading on the
-                    // wireless-sensor fleet page where cards weren't
-                    // wired to navigate anywhere yet.
-                    cursor: isClickable ? 'pointer' : 'default',
-                    transition: 'background-color 120ms ease, border-color 120ms ease',
-                    // Keyboard focus ring — matches the green hover
-                    // border treatment so focus and hover read as the
-                    // same affordance. `outline: none` suppresses the
-                    // browser default (which would draw a separate
-                    // ring inside the card) in favor of our themed
-                    // border treatment.
-                    '&:focus-visible': isClickable
-                      ? {
-                          outline: 'none',
-                          borderLeft: '0.5px solid var(--green)',
-                          borderRight: '0.5px solid var(--green)',
-                          backgroundColor: 'rgba(56, 152, 236, 0.1)'
+                  {pagedRows.map((row) => {
+                    // Pick which identifier to render as the card title.
+                    // The MAC button toggles `showMacAddress`; when on we
+                    // force the immutable externalId for every card. When
+                    // off, siteName retains its existing fallback chain
+                    // (label || externalId), so cards without a label
+                    // still show something useful by default.
+                    const displayedTitle = showMacAddress ? row.externalId : row.siteName;
+                    // Card is clickable iff the container supplied an
+                    // onRowClick handler. We attach role + tabIndex + key
+                    // activation conditionally so the non-clickable case
+                    // (showcase / dev preview without a handler) doesn't
+                    // expose a misleading "button" affordance to AT users.
+                    //
+                    // Enter/Space mirror native button keyboard activation;
+                    // preventDefault on Space stops the page from scrolling
+                    // when the user activates a card with the spacebar.
+                    const isClickable = Boolean(onRowClick);
+                    const handleCardClick = isClickable ? () => onRowClick(row) : undefined;
+                    const handleCardKeyDown = isClickable
+                      ? (event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            onRowClick(row);
+                          }
                         }
-                      : undefined,
-                    '&:hover': {
-                      backgroundColor: 'rgba(56, 152, 236, 0.1)',
-                      borderLeft: '0.5px solid var(--green)',
-                      borderRight: '0.5px solid var(--green)',
-                      boxShadow: '0 4px 10px rgba(0, 0, 0, 0.3)',
-                      cursor: isClickable ? 'pointer' : 'default'
-                    }
-                  }}
-                >
-                  {/*
+                      : undefined;
+                    return (
+                      <Card
+                        // Key on the immutable external_id (not the user-set
+                        // label) — labels can collide between two devices and
+                        // collisions cause React to incorrectly reconcile/reuse
+                        // wrong Card instances on re-render.
+                        key={row.externalId}
+                        // Conditional interaction attributes — only present
+                        // when onRowClick is wired. role="button" + tabIndex=0
+                        // make the card focusable and announce as activatable
+                        // to screen readers; aria-label uses the human-readable
+                        // siteName (not the MAC-style externalId) so the SR
+                        // announcement is meaningful.
+                        role={isClickable ? 'button' : undefined}
+                        tabIndex={isClickable ? 0 : undefined}
+                        aria-label={isClickable ? `View measurements for ${row.siteName}` : undefined}
+                        onClick={handleCardClick}
+                        onKeyDown={handleCardKeyDown}
+                        sx={{
+                          width: '100%',
+                          // No fixed minWidth — the card sizes to its container
+                          // (the scroll content area). The previous 840-900px
+                          // floor forced horizontal scroll on mobile because
+                          // the metric grid was always 5 columns wide. With
+                          // the metric grid now collapsing to 2 cols on xs,
+                          // 3 on sm, and 5 on md+, the card fits comfortably
+                          // at every breakpoint without overflow.
+                          backgroundColor: 'rgba(12, 35, 80, 0.359)',
+                          p: 2,
+                          border: '0.5px solid var(--box-outline-blue)',
+                          boxShadow: '0 4px 10px rgba(0, 0, 0, 0.3)',
+                          boxSizing: 'border-box',
+                          textAlign: 'center',
+                          opacity: 1,
+                          // Only show the pointer cursor when the card is
+                          // actually clickable. The previous hover-only
+                          // pointer cursor was misleading on the
+                          // wireless-sensor fleet page where cards weren't
+                          // wired to navigate anywhere yet.
+                          cursor: isClickable ? 'pointer' : 'default',
+                          transition: 'background-color 120ms ease, border-color 120ms ease',
+                          // Keyboard focus ring — matches the green hover
+                          // border treatment so focus and hover read as the
+                          // same affordance. `outline: none` suppresses the
+                          // browser default (which would draw a separate
+                          // ring inside the card) in favor of our themed
+                          // border treatment.
+                          '&:focus-visible': isClickable
+                            ? {
+                                outline: 'none',
+                                borderLeft: '0.5px solid var(--green)',
+                                borderRight: '0.5px solid var(--green)',
+                                backgroundColor: 'rgba(56, 152, 236, 0.1)'
+                              }
+                            : undefined,
+                          '&:hover': {
+                            backgroundColor: 'rgba(56, 152, 236, 0.1)',
+                            borderLeft: '0.5px solid var(--green)',
+                            borderRight: '0.5px solid var(--green)',
+                            boxShadow: '0 4px 10px rgba(0, 0, 0, 0.3)',
+                            cursor: isClickable ? 'pointer' : 'default'
+                          }
+                        }}
+                      >
+                        {/*
                     Card layout responds to viewport width.
 
                     Mobile (xs / sm) — Grid is single-column:
@@ -1242,198 +1258,196 @@ export default function FleetOverviewView({
                     vertically centers the left column against the
                     taller metric grid.
                   */}
-                  <Grid container spacing={{ xs: 1.5, md: 2 }} sx={{ alignItems: 'center' }}>
-                    <Grid size={{ xs: 12, md: 3 }} sx={{ minWidth: 0 }}>
-                      <Stack
-                        direction={{ xs: 'row', md: 'column' }}
-                        spacing={{ xs: 1.5, md: 1.25 }}
-                        sx={{
-                          // Mobile (row): top-align since the right side
-                          // is two lines tall.
-                          // Desktop (column): stretch so children fill
-                          // the column's full width.
-                          alignItems: { xs: 'flex-start', md: 'stretch' },
-                          minWidth: 0
-                        }}
-                      >
-                        <EditableLabel
-                          value={displayedTitle}
-                          // Explicit variant — preserves the MUI h4
-                          // font-weight + leading the bare Typography
-                          // had before this became editable. Without
-                          // it, EditableLabel's Typography would fall
-                          // back to body1 weight and the label would
-                          // read noticeably thinner than the values
-                          // beside it.
-                          variant="h4"
-                          // Lock when MAC is being shown (the immutable
-                          // hardware id is read-only by definition) OR
-                          // when the parent didn't supply an onRename
-                          // (in dev showcase / contexts without a
-                          // mutation handler). Either lock condition
-                          // makes EditableLabel render as a plain
-                          // Typography with no pencil affordance.
-                          locked={showMacAddress || !onRename}
-                          onSubmit={(newName) =>
-                            setRenameDraft({
-                              externalId: row.externalId,
-                              oldName: row.siteName,
-                              newName
-                            })
-                          }
-                          ariaLabel={`Rename ${row.siteName}`}
-                          containerSx={{
-                            // Layout-affecting props go on the outer
-                            // wrapper so the label participates in the
-                            // parent flex/column the same way the bare
-                            // Typography did.
-                            flex: { xs: 1, md: 'unset' },
-                            minWidth: 0
-                          }}
-                          typographySx={{
-                            color: 'var(--green)',
-                            fontSize: { xs: '1.1rem', sm: '1.25rem' },
-                            textAlign: 'left'
-                          }}
-                        />
-                        <Stack
-                          spacing={0}
-                          sx={{
-                            // Mobile: right-align both lines so they sit
-                            // flush with the card's right edge.
-                            // Desktop: left-align as in the original
-                            // (caption + date sit under the siteName).
-                            alignItems: { xs: 'flex-end', md: 'flex-start' },
-                            flexShrink: 0,
-                            minWidth: 0
-                          }}
-                        >
-                          <Typography
-                            variant="subtitle1"
-                            // component="span" opts the field label out of
-                            // being rendered as <h6> (Typography's default
-                            // element for subtitle1). This is a label, not
-                            // a section heading — keeping it as <h6> caused
-                            // Lighthouse's heading-order audit to fail
-                            // because there's no <h1>–<h5> above it.
-                            component="span"
-                            sx={{
-                              color: 'var(--blue)',
-                              fontSize: { xs: '0.78rem', sm: '0.84rem' },
-                              ...truncateLineSx
-                            }}
-                          >
-                            Last measurements taken:
-                          </Typography>
-                          <Typography
-                            variant="body1"
-                            title={row.lastMeasurements}
-                            sx={{
-                              color: 'var(--green)',
-                              fontSize: { xs: '0.8rem', sm: '0.88rem' },
-                              ...truncateLineSx
-                            }}
-                          >
-                            {row.lastMeasurements}
-                          </Typography>
-                        </Stack>
-                      </Stack>
-                    </Grid>
+                        <Grid container spacing={{ xs: 1.5, md: 2 }} sx={{ alignItems: 'center' }}>
+                          <Grid size={{ xs: 12, md: 3 }} sx={{ minWidth: 0 }}>
+                            <Stack
+                              direction={{ xs: 'row', md: 'column' }}
+                              spacing={{ xs: 1.5, md: 1.25 }}
+                              sx={{
+                                // Mobile (row): top-align since the right side
+                                // is two lines tall.
+                                // Desktop (column): stretch so children fill
+                                // the column's full width.
+                                alignItems: { xs: 'flex-start', md: 'stretch' },
+                                minWidth: 0
+                              }}
+                            >
+                              <EditableLabel
+                                value={displayedTitle}
+                                // Explicit variant — preserves the MUI h4
+                                // font-weight + leading the bare Typography
+                                // had before this became editable. Without
+                                // it, EditableLabel's Typography would fall
+                                // back to body1 weight and the label would
+                                // read noticeably thinner than the values
+                                // beside it.
+                                variant="h4"
+                                // Lock when MAC is being shown (the immutable
+                                // hardware id is read-only by definition) OR
+                                // when the parent didn't supply an onRename
+                                // (in dev showcase / contexts without a
+                                // mutation handler). Either lock condition
+                                // makes EditableLabel render as a plain
+                                // Typography with no pencil affordance.
+                                locked={showMacAddress || !onRename}
+                                onSubmit={(newName) =>
+                                  setRenameDraft({
+                                    externalId: row.externalId,
+                                    oldName: row.siteName,
+                                    newName
+                                  })
+                                }
+                                ariaLabel={`Rename ${row.siteName}`}
+                                containerSx={{
+                                  // Layout-affecting props go on the outer
+                                  // wrapper so the label participates in the
+                                  // parent flex/column the same way the bare
+                                  // Typography did.
+                                  flex: { xs: 1, md: 'unset' },
+                                  minWidth: 0
+                                }}
+                                typographySx={{
+                                  color: 'var(--green)',
+                                  fontSize: { xs: '1.1rem', sm: '1.25rem' },
+                                  textAlign: 'left'
+                                }}
+                              />
+                              <Stack
+                                spacing={0}
+                                sx={{
+                                  // Mobile: right-align both lines so they sit
+                                  // flush with the card's right edge.
+                                  // Desktop: left-align as in the original
+                                  // (caption + date sit under the siteName).
+                                  alignItems: { xs: 'flex-end', md: 'flex-start' },
+                                  flexShrink: 0,
+                                  minWidth: 0
+                                }}
+                              >
+                                <Typography
+                                  variant="subtitle1"
+                                  // component="span" opts the field label out of
+                                  // being rendered as <h6> (Typography's default
+                                  // element for subtitle1). This is a label, not
+                                  // a section heading — keeping it as <h6> caused
+                                  // Lighthouse's heading-order audit to fail
+                                  // because there's no <h1>–<h5> above it.
+                                  component="span"
+                                  sx={{
+                                    color: 'var(--blue)',
+                                    fontSize: { xs: '0.78rem', sm: '0.84rem' },
+                                    ...truncateLineSx
+                                  }}
+                                >
+                                  Last measurements taken:
+                                </Typography>
+                                <Typography
+                                  variant="body1"
+                                  title={row.lastMeasurements}
+                                  sx={{
+                                    color: 'var(--green)',
+                                    fontSize: { xs: '0.8rem', sm: '0.88rem' },
+                                    ...truncateLineSx
+                                  }}
+                                >
+                                  {row.lastMeasurements}
+                                </Typography>
+                              </Stack>
+                            </Stack>
+                          </Grid>
 
-                    <Grid size={{ xs: 12, md: 9 }}>
-                      {/*
+                          <Grid size={{ xs: 12, md: 9 }}>
+                            {/*
                         Metric grid columns step down on smaller viewports:
                           xs — 2 columns
                           sm — 3 columns
                           md+ — 5 columns (original)
                       */}
-                      <Box
-                        sx={{
-                          display: 'grid',
-                          gridTemplateColumns: {
-                            xs: 'repeat(2, minmax(0, 1fr))',
-                            sm: 'repeat(3, minmax(0, 1fr))',
-                            md: 'repeat(5, minmax(0, 1fr))'
-                          },
-                          gap: { xs: 1.25, sm: 1.5, lg: 2 },
-                          justifyItems: 'stretch'
-                        }}
-                      >
-                        {row.metrics.map((metric) => (
-                          <Stack
-                            key={`${row.siteName}-${metric.label}`}
-                            spacing={0.2}
-                            sx={{ alignItems: 'stretch', minWidth: 0, width: '100%' }}
-                          >
-                            <Typography
-                              variant="subtitle1"
-                              // Same rationale as the "Last measurements
-                              // taken:" label above — these are metric
-                              // field labels, not section headings, so
-                              // they must not render as <h6>.
-                              component="span"
-                              title={metric.label}
+                            <Box
                               sx={{
-                                color: 'var(--blue)',
-                                fontSize: { xs: '0.82rem', sm: '0.9rem' },
-                                textAlign: 'center',
-                                ...truncateLineSx
+                                display: 'grid',
+                                gridTemplateColumns: {
+                                  xs: 'repeat(2, minmax(0, 1fr))',
+                                  sm: 'repeat(3, minmax(0, 1fr))',
+                                  md: 'repeat(5, minmax(0, 1fr))'
+                                },
+                                gap: { xs: 1.25, sm: 1.5, lg: 2 },
+                                justifyItems: 'stretch'
                               }}
                             >
-                              {metric.label}
-                            </Typography>
-                            <Typography
-                              variant="h4"
-                              title={metric.value}
-                              sx={{
-                                // Spread greenGlowTextSx first (color +
-                                // textShadow), then override the two
-                                // pieces that depend on the metric's
-                                // own color:
-                                //   1. `color` — Health Status and
-                                //      Battery supply their own; all
-                                //      other metrics fall through to
-                                //      the default green.
-                                //   2. `textShadow` — for the purple
-                                //      Offline state, use a reduced-
-                                //      intensity shadow (smaller blur,
-                                //      lower alpha). The default
-                                //      shadow is tuned for the green
-                                //      glow recipe and reads heavy
-                                //      under purple text on the dark
-                                //      surface; softening it keeps
-                                //      "Offline" feeling like a state
-                                //      indicator without competing
-                                //      visually with the bright green
-                                //      Active values around it.
-                                ...greenGlowTextSx,
-                                color: metric.color ?? 'var(--green)',
-                                textShadow:
-                                  metric.color === 'var(--purple)'
-                                    ? '0 1px 5px #1a75e060'
-                                    : greenGlowTextSx.textShadow,
-                                fontSize: { xs: '1rem', sm: '1.15rem' },
-                                textAlign: 'center',
-                                ...truncateLineSx
-                              }}
-                            >
-                              {metric.value}
-                            </Typography>
-                          </Stack>
-                        ))}
-                      </Box>
-                    </Grid>
-                  </Grid>
-                </Card>
-                );
-              })}
-              {visibleRows.length === 0 && renderEmptyStateCard({ rows, isLoading, error, onRetry, searchValue, emptyMessage, entityLabel })}
-            </Stack>
+                              {row.metrics.map((metric) => (
+                                <Stack
+                                  key={`${row.siteName}-${metric.label}`}
+                                  spacing={0.2}
+                                  sx={{ alignItems: 'stretch', minWidth: 0, width: '100%' }}
+                                >
+                                  <Typography
+                                    variant="subtitle1"
+                                    // Same rationale as the "Last measurements
+                                    // taken:" label above — these are metric
+                                    // field labels, not section headings, so
+                                    // they must not render as <h6>.
+                                    component="span"
+                                    title={metric.label}
+                                    sx={{
+                                      color: 'var(--blue)',
+                                      fontSize: { xs: '0.82rem', sm: '0.9rem' },
+                                      textAlign: 'center',
+                                      ...truncateLineSx
+                                    }}
+                                  >
+                                    {metric.label}
+                                  </Typography>
+                                  <Typography
+                                    variant="h4"
+                                    title={metric.value}
+                                    sx={{
+                                      // Spread greenGlowTextSx first (color +
+                                      // textShadow), then override the two
+                                      // pieces that depend on the metric's
+                                      // own color:
+                                      //   1. `color` — Health Status and
+                                      //      Battery supply their own; all
+                                      //      other metrics fall through to
+                                      //      the default green.
+                                      //   2. `textShadow` — for the purple
+                                      //      Offline state, use a reduced-
+                                      //      intensity shadow (smaller blur,
+                                      //      lower alpha). The default
+                                      //      shadow is tuned for the green
+                                      //      glow recipe and reads heavy
+                                      //      under purple text on the dark
+                                      //      surface; softening it keeps
+                                      //      "Offline" feeling like a state
+                                      //      indicator without competing
+                                      //      visually with the bright green
+                                      //      Active values around it.
+                                      ...greenGlowTextSx,
+                                      color: metric.color ?? 'var(--green)',
+                                      textShadow: metric.color === 'var(--purple)' ? '0 1px 5px #1a75e060' : greenGlowTextSx.textShadow,
+                                      fontSize: { xs: '1rem', sm: '1.15rem' },
+                                      textAlign: 'center',
+                                      ...truncateLineSx
+                                    }}
+                                  >
+                                    {metric.value}
+                                  </Typography>
+                                </Stack>
+                              ))}
+                            </Box>
+                          </Grid>
+                        </Grid>
+                      </Card>
+                    );
+                  })}
+                  {visibleRows.length === 0 &&
+                    renderEmptyStateCard({ rows, isLoading, error, onRetry, searchValue, emptyMessage, entityLabel })}
+                </Stack>
+              </Box>
+            </Box>
           </Box>
-          </Box>
-        </Box>
 
-        {/*
+          {/*
           Footer row — pagination centered, results count right-justified.
           - Pagination only renders when there's more than one page; a
             lone "1" pager adds visual noise without a function.
@@ -1446,71 +1460,71 @@ export default function FleetOverviewView({
             room), side-by-side from sm+ with pagination centered and
             count pushed to the right via the spacer Box on the left.
         */}
-        <Stack
-          direction={{ xs: 'column', sm: 'row' }}
-          alignItems="center"
-          spacing={{ xs: 1, sm: 0 }}
-          sx={{ pt: 2.5, pb: { xs: 1, sm: 1.5 } }}
-        >
-          {/* Left spacer — keeps Pagination optically centered when the
+          <Stack
+            direction={{ xs: 'column', sm: 'row' }}
+            alignItems="center"
+            spacing={{ xs: 1, sm: 0 }}
+            sx={{ pt: 2.5, pb: { xs: 1, sm: 1.5 } }}
+          >
+            {/* Left spacer — keeps Pagination optically centered when the
               count Box on the right has variable width. Hidden when
               there's no pagination so the count snaps right cleanly. */}
-          {totalPages > 1 && <Box sx={{ flex: 1, display: { xs: 'none', sm: 'block' } }} />}
-          {totalPages > 1 && (
-            <Pagination
-              count={totalPages}
-              page={currentPage}
-              onChange={(_, page) => setCurrentPage(page)}
-              shape="rounded"
-              size="medium"
-              siblingCount={1}
-              boundaryCount={1}
-              sx={paginationSx}
-            />
-          )}
-          <Box
-            sx={{
-              flex: 1,
-              display: 'flex',
-              justifyContent: 'flex-end',
-              width: { xs: '100%', sm: 'auto' }
-            }}
-          >
-            <Typography
-              variant="caption"
+            {totalPages > 1 && <Box sx={{ flex: 1, display: { xs: 'none', sm: 'block' } }} />}
+            {totalPages > 1 && (
+              <Pagination
+                count={totalPages}
+                page={currentPage}
+                onChange={(_, page) => setCurrentPage(page)}
+                shape="rounded"
+                size="medium"
+                siblingCount={1}
+                boundaryCount={1}
+                sx={paginationSx}
+              />
+            )}
+            <Box
               sx={{
-                color: 'var(--blue)',
-                fontSize: { xs: '0.78rem', sm: '0.85rem' },
-                whiteSpace: 'nowrap'
+                flex: 1,
+                display: 'flex',
+                justifyContent: 'flex-end',
+                width: { xs: '100%', sm: 'auto' }
               }}
             >
-              Showing {visibleRows.length.toLocaleString()} of {rows.length.toLocaleString()}
-            </Typography>
-          </Box>
-        </Stack>
-      </Box>
-    </MainCard>
-    {/*
+              <Typography
+                variant="caption"
+                sx={{
+                  color: 'var(--blue)',
+                  fontSize: { xs: '0.78rem', sm: '0.85rem' },
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                Showing {visibleRows.length.toLocaleString()} of {rows.length.toLocaleString()}
+              </Typography>
+            </Box>
+          </Stack>
+        </Box>
+      </MainCard>
+      {/*
       Single mounted ConfirmRenameModal for the whole table — opened
       by setting renameDraft, closed by clearing it. MUI Dialog uses a
       Portal internally so it visually escapes the MainCard chrome and
       sits above the rest of the page content with the backdrop blur.
     */}
-    <ConfirmRenameModal
-      open={Boolean(renameDraft)}
-      entityNoun={entityNounSingular}
-      // Immutable hardware id rendered as a read-only badge near the
-      // top of the modal so the user can verify which physical unit
-      // they're renaming. The label can be the same on two units in
-      // a fleet (rare but possible — and in the wireless-sensor case
-      // the backend doesn't even reject duplicates yet); the
-      // external_id never collides.
-      externalId={renameDraft?.externalId}
-      oldName={renameDraft?.oldName}
-      newName={renameDraft?.newName}
-      onConfirm={handleConfirmRename}
-      onCancel={() => setRenameDraft(null)}
-    />
+      <ConfirmRenameModal
+        open={Boolean(renameDraft)}
+        entityNoun={entityNounSingular}
+        // Immutable hardware id rendered as a read-only badge near the
+        // top of the modal so the user can verify which physical unit
+        // they're renaming. The label can be the same on two units in
+        // a fleet (rare but possible — and in the wireless-sensor case
+        // the backend doesn't even reject duplicates yet); the
+        // external_id never collides.
+        externalId={renameDraft?.externalId}
+        oldName={renameDraft?.oldName}
+        newName={renameDraft?.newName}
+        onConfirm={handleConfirmRename}
+        onCancel={() => setRenameDraft(null)}
+      />
     </>
   );
 }
