@@ -240,7 +240,7 @@ export default function useDeviceMeasurements(
   // round-trip.
   const swrKey = isAuthenticated && accessToken && url ? [url, accessToken] : null;
 
-  const { data, error, isLoading, mutate } = useSWR(swrKey, fetchAndValidateMeasurements, {
+  const { data, error, isLoading, isValidating, mutate } = useSWR(swrKey, fetchAndValidateMeasurements, {
     refreshInterval: refreshIntervalMs,
     // Skip the state update when the response is structurally identical
     // to the cached data — see useMyDevices for the full rationale. For
@@ -265,6 +265,13 @@ export default function useDeviceMeasurements(
     from: data?.from,
     to: data?.to,
     isLoading,
+    // isValidating is true any time SWR has a fetch in flight — first
+    // load, background poll, manual mutate(). Exposed alongside isLoading
+    // so the UI can show a "refresh in progress" affordance on the
+    // refresh button even when cached data is already on screen
+    // (stale-while-revalidate). Difference: isLoading is true ONLY when
+    // there's no cached data yet; isValidating is true for ALL fetches.
+    isValidating,
     error,
     mutate
   };

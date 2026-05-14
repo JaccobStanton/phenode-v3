@@ -2,6 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import Box from '@mui/material/Box';
+import CircularProgress from '@mui/material/CircularProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import FormControl from '@mui/material/FormControl';
 import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
@@ -11,6 +15,8 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { LineChart } from '@mui/x-charts/LineChart';
 
+import CloseOutlined from '@ant-design/icons/CloseOutlined';
+
 import MainCard from 'components/MainCard';
 import PhenodeSelector from 'components/PhenodeSelector';
 import PheNodeFleetMap from 'sections/sensor-measurements/phenode-fleet-map';
@@ -19,7 +25,15 @@ import useMyDevices from 'hooks/data/useMyDevices';
 import useDeviceMeasurements from 'hooks/data/useDeviceMeasurements';
 import { renameDevice } from 'services/mutations';
 import { formatLastMeasurement, formatTemperature, formatTodaysRainfall, formatWindSpeed } from 'utils/transforms/device';
-import { CHART_TIME_RANGE_LABELS, DEFAULT_CHART_TIME_RANGE, computeChartWindow, formatAxisTick } from 'utils/chartTimeRanges';
+import {
+  CHART_TIME_RANGE_LABELS,
+  DEFAULT_CHART_TIME_RANGE,
+  axisTickNumberFor,
+  computeAxisTicks,
+  computeChartWindow,
+  formatAxisTick,
+  formatTooltipDate
+} from 'utils/chartTimeRanges';
 import rainSensorIcon from 'assets/sensor-measurements/Rain.svg';
 import tempSensorIcon from 'assets/sensor-measurements/Temp.svg';
 import windSensorIcon from 'assets/sensor-measurements/Wind.svg';
@@ -60,140 +74,6 @@ const chartSurfaceSx = {
 // between the two pages discoverable in one place — if we ever rename
 // the param, both sides flip together.
 const DEVICE_PARAM = 'device';
-
-// =============================================================================
-// DEV-ONLY MOCK NEARBY DEVICES — REMOVE WHEN FLEET HAS MULTIPLE REAL DEVICES
-// =============================================================================
-//
-// Synthesizes 5 fake PheNodes at small lat/lng offsets from the first real
-// device with valid coordinates. Lets us exercise the proximity feature
-// (radius circle, dim outside-radius pins, fit-to-neighbors, nearby list)
-// when the user's account only has one real device.
-//
-// To disable: flip MOCK_NEARBY_DEVICES_FOR_TESTING to false. To remove
-// entirely: delete this constant, makeMockNearbyDevices(), and the
-// augmentedDevices useMemo inside SensorMeasurements (search for
-// "MOCK_NEARBY_DEVICES_FOR_TESTING").
-//
-// Caveats while this is on:
-//   - The mocks appear in the PheNodeSelector dropdown too. Selecting one
-//     will load empty chart data (useDeviceMeasurements 404s on a mock id).
-//     The map view is unaffected.
-//   - Renaming a mock will hit a backend 404. Don't.
-const MOCK_NEARBY_DEVICES_FOR_TESTING = true;
-
-// Fixed "15 minutes before page load" timestamp shared by every mock.
-// MUST be computed at module load (not inside makeMockNearbyDevices),
-// otherwise every call regenerates timestamps and the augmented devices
-// array gets a genuinely-different value on every SWR refresh — defeating
-// the compare-based skip in useMyDevices and reintroducing the periodic
-// re-render that was the whole reason we wired compare up.
-const MOCK_RECENT_ISO = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-
-function makeMockNearbyDevices(reference) {
-  if (!reference || typeof reference.latitude !== 'number' || typeof reference.longitude !== 'number') {
-    return [];
-  }
-  const { latitude: lat, longitude: lng } = reference;
-  const recentISO = MOCK_RECENT_ISO;
-  // Skeleton fields shared by every mock — saves repetition. Each mock
-  // overrides label, lat/lng offsets, and a few "varied" metric values.
-  const skeleton = {
-    organization_id: null,
-    timezone: null,
-    health: null,
-    sensors: null,
-    fw_version: 'mock-1.0.0',
-    hw_version: 'mock-1',
-    created_at: recentISO,
-    updated_at: recentISO,
-    assigned_user: null,
-    wireless_sensors: [],
-    virtual_wireless_sensors: []
-  };
-  // Offsets chosen to span "well inside the 10mi proximity radius" through
-  // "well outside" so the proximity feature has both kinds of pins to
-  // demonstrate:
-  //   FIELD-A:       ~1.5 mi    inside radius
-  //   FIELD-B:       ~2.7 mi    inside radius
-  //   WEST-RIDGE:    ~6.0 mi    inside radius
-  //   NORTH-FIELD:   ~3.4 mi    inside radius
-  //   FAR-EAST:     ~19.4 mi    OUTSIDE radius — exercises the dim effect
-  // (0.01° latitude ≈ 0.69 mi; longitude scales by cos(lat), but this is
-  // close enough for demo data — exact distances render via haversine.)
-  return [
-    {
-      ...skeleton,
-      id: 99001,
-      external_device_id: 'MOCK-FIELD-A',
-      label: 'Field A',
-      latitude: lat + 0.02,
-      longitude: lng + 0.015,
-      last_measurement_at: recentISO,
-      health_status: 'Active',
-      temperature_c: 22.5,
-      rainfall_today_mm: 0.2,
-      wind_speed: 4.1,
-      battery_percent: 87.5
-    },
-    {
-      ...skeleton,
-      id: 99002,
-      external_device_id: 'MOCK-FIELD-B',
-      label: 'Field B',
-      latitude: lat - 0.025,
-      longitude: lng + 0.03,
-      last_measurement_at: recentISO,
-      health_status: 'Active',
-      temperature_c: 24.1,
-      rainfall_today_mm: 0,
-      wind_speed: 6.8,
-      battery_percent: 92.0
-    },
-    {
-      ...skeleton,
-      id: 99003,
-      external_device_id: 'MOCK-WEST-RIDGE',
-      label: 'West Ridge',
-      latitude: lat + 0.06,
-      longitude: lng - 0.05,
-      last_measurement_at: recentISO,
-      health_status: 'Active',
-      temperature_c: 19.8,
-      rainfall_today_mm: 1.2,
-      wind_speed: 9.4,
-      battery_percent: 64.2
-    },
-    {
-      ...skeleton,
-      id: 99004,
-      external_device_id: 'MOCK-NORTH-FIELD',
-      label: 'North Field',
-      latitude: lat + 0.05,
-      longitude: lng + 0.005,
-      last_measurement_at: recentISO,
-      health_status: 'Active',
-      temperature_c: 21.0,
-      rainfall_today_mm: 0,
-      wind_speed: 5.5,
-      battery_percent: 78.3
-    },
-    {
-      ...skeleton,
-      id: 99005,
-      external_device_id: 'MOCK-FAR-EAST',
-      label: 'Far Eastern Plot',
-      latitude: lat + 0.22,
-      longitude: lng + 0.18, // ~19mi — OUTSIDE proximity radius
-      last_measurement_at: recentISO,
-      health_status: 'Offline',
-      temperature_c: 18.3,
-      rainfall_today_mm: 0.5,
-      wind_speed: 2.1,
-      battery_percent: 41.8
-    }
-  ];
-}
 
 // Conversion ratio for °C → °F. Local consts (not magic numbers in the
 // transform) make the intent obvious at the call site.
@@ -310,6 +190,17 @@ const chartSx = {
   '& .MuiChartsAxis-left .MuiChartsAxis-line, & .MuiChartsAxis-bottom .MuiChartsAxis-line': {
     stroke: 'rgba(232, 232, 232, 0.55)'
   },
+  // Hover indicator (the dashed vertical line that follows the cursor).
+  // MUI's default is black on light themes / white on dark — neither
+  // matches the chart line color. Pulling it from the per-chart CSS
+  // variable means each chart's indicator picks up its own line color
+  // automatically. !important is required because the styled component
+  // ships its stroke as a styled-component-level rule.
+  '& .MuiChartsAxisHighlight-root': {
+    stroke: 'var(--chart-line-color) !important',
+    strokeOpacity: 0.75,
+    strokeWidth: 1.25
+  },
   background: 'transparent',
   borderRadius: 1
 };
@@ -392,6 +283,16 @@ export default function SensorMeasurements() {
   //   property of the same range selection — fewer hooks, simpler.
   const { from, to, axisFormat } = useMemo(() => computeChartWindow(timeRange), [timeRange]);
 
+  // Explicit X-axis tick positions for ranges that need them — currently
+  // MONTH only (Last 6 months / 1 year / 2 years / 5 years), where MUI's
+  // auto-placement would propose ticks at sub-month resolution and the
+  // MMM-YY format would render duplicate labels (e.g. "Mar 26 / Mar 26 /
+  // Apr 26 / Apr 26"). For other formats this returns undefined, and
+  // MUI's auto-placement + axisTickNumberFor hint handles them fine.
+  // Memoized on [from, to, axisFormat] so SWR refreshes don't keep
+  // recomputing the array.
+  const xAxisTicks = useMemo(() => computeAxisTicks(from, to, axisFormat), [from, to, axisFormat]);
+
   // Map-view toggle — mirrors the same pattern used in
   // sections/wireless-sensors/sensor-network.jsx so the affordance
   // reads the same on both pages. When true, the circles + chart panel
@@ -439,25 +340,7 @@ export default function SensorMeasurements() {
   const [searchParams, setSearchParams] = useSearchParams();
   const deviceFromUrl = searchParams.get(DEVICE_PARAM);
 
-  const { devices: rawDevices, isLoading: devicesLoading, mutate: mutateDevices } = useMyDevices();
-
-  // DEV-ONLY: augment the real device list with mock nearby devices so the
-  // proximity feature has something to plot when the account only contains
-  // one real PheNode. Disable by flipping MOCK_NEARBY_DEVICES_FOR_TESTING
-  // (top of this file) to false, or remove this entire useMemo + the
-  // makeMockNearbyDevices function + the constant when done testing.
-  //
-  // Returns the raw list unchanged when the flag is off, the fleet is
-  // empty, or no real device has valid coordinates. The find() picks the
-  // first real device with coords so mocks anchor to a known-good
-  // position regardless of which device the user has selected.
-  const devices = useMemo(() => {
-    if (!MOCK_NEARBY_DEVICES_FOR_TESTING) return rawDevices;
-    if (!rawDevices?.length) return rawDevices;
-    const reference = rawDevices.find((d) => typeof d?.latitude === 'number' && typeof d?.longitude === 'number');
-    if (!reference) return rawDevices;
-    return [...rawDevices, ...makeMockNearbyDevices(reference)];
-  }, [rawDevices]);
+  const { devices, isLoading: devicesLoading, mutate: mutateDevices } = useMyDevices();
   const { accessToken } = useAuth();
 
   // Rename handler — mirrors fleet-overview.jsx's pattern. PUTs the new
@@ -590,6 +473,11 @@ export default function SensorMeasurements() {
   const {
     rows: measurementRows,
     isLoading: measurementsLoading,
+    // isValidating drives the visual "refresh in progress" cues on the
+    // toolbar (spinning Reload icon + small "Refreshing…" badge). True
+    // for ANY fetch — first load, 60s background poll, manual mutate().
+    // isLoading is the strict "no cached data yet" subset.
+    isValidating: measurementsValidating,
     error: measurementsError,
     mutate: refetchMeasurements
   } = useDeviceMeasurements(activeDeviceId, {
@@ -598,6 +486,13 @@ export default function SensorMeasurements() {
     fields: DEVICE_CHART_FIELDS,
     bucket: 'auto'
   });
+
+  // Chart-key of the chart currently displayed in the "Enlarge" Dialog,
+  // or null when no enlarged view is open. Single piece of state instead
+  // of a separate open/closed flag — `null` IS closed, anything else is
+  // the enlarged target's config.key from DEVICE_CHART_CONFIGS.
+  const [enlargedChartKey, setEnlargedChartKey] = useState(null);
+  const enlargedChartConfig = enlargedChartKey ? (DEVICE_CHART_CONFIGS.find((c) => c.key === enlargedChartKey) ?? null) : null;
 
   // Pre-compute the X-axis timestamp array once per data refresh.
   // Every chart shares this exact array (same X for every metric of
@@ -640,43 +535,47 @@ export default function SensorMeasurements() {
   }, [measurementRows]);
 
   return (
-    <MainCard content={false} sx={{ width: '100%', minWidth: 0, overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
-      <Box sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 2.5 } }}>
-        <Stack
-          direction={{ xs: 'column', md: 'row' }}
-          spacing={1}
-          sx={{
-            alignItems: { xs: 'flex-start', md: 'center' },
-            justifyContent: 'space-between',
-            width: '100%',
-            borderBottom: '1px solid',
-            borderBottomColor: 'var(--orange)',
-            pb: 1.25
-          }}
-        >
-          <Typography variant="h4" sx={{ color: 'var(--blue)' }}>
-            Sensor Measurements
-          </Typography>
-          <Typography
-            variant="subtitle1"
+    <>
+      <MainCard content={false} sx={{ width: '100%', minWidth: 0, overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
+        <Box sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 2.5 } }}>
+          <Stack
+            direction={{ xs: 'column', md: 'row' }}
+            spacing={1}
             sx={{
-              textAlign: { xs: 'left', md: 'right' },
-              width: { xs: '100%', md: 'auto' },
-              display: { xs: 'flex', md: 'block' },
-              alignItems: { xs: 'center', md: 'unset' }
+              alignItems: { xs: 'flex-start', md: 'center' },
+              justifyContent: 'space-between',
+              width: '100%',
+              borderBottom: '1px solid',
+              borderBottomColor: 'var(--orange)',
+              pb: 1.25
             }}
           >
-            <Box component="span" sx={{ color: 'var(--blue)' }}>
-              Last Measurements Taken:
-            </Box>
-            <Box component="span" sx={{ color: 'var(--green)', ml: { xs: 'auto', md: 1.5 }, display: 'inline-block', textAlign: 'right' }}>
-              {lastMeasurementsDisplay}
-            </Box>
-          </Typography>
-        </Stack>
-      </Box>
+            <Typography variant="h4" sx={{ color: 'var(--blue)' }}>
+              Sensor Measurements
+            </Typography>
+            <Typography
+              variant="subtitle1"
+              sx={{
+                textAlign: { xs: 'left', md: 'right' },
+                width: { xs: '100%', md: 'auto' },
+                display: { xs: 'flex', md: 'block' },
+                alignItems: { xs: 'center', md: 'unset' }
+              }}
+            >
+              <Box component="span" sx={{ color: 'var(--blue)' }}>
+                Last Measurements Taken:
+              </Box>
+              <Box
+                component="span"
+                sx={{ color: 'var(--green)', ml: { xs: 'auto', md: 1.5 }, display: 'inline-block', textAlign: 'right' }}
+              >
+                {lastMeasurementsDisplay}
+              </Box>
+            </Typography>
+          </Stack>
+        </Box>
 
-      {/*
+        {/*
         Toolbar row mirroring the dropdown + map-button placement used
         on the wireless-sensors page (sections/wireless-sensors/sensor-
         network.jsx). Lives in its own Box with the same px/pt/pb
@@ -693,56 +592,56 @@ export default function SensorMeasurements() {
             (circles + chart panel) and the PheNodeFleetMap (Google
             Maps view of the fleet).
       */}
-      <Box sx={{ px: { xs: 2, sm: 3 }, pt: 0, pb: { xs: 1.5, sm: 2 } }}>
-        <Stack
-          direction="row"
-          sx={{
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            mb: { xs: 1.5, sm: 2 },
-            gap: 1
-          }}
-        >
-          <PhenodeSelector
-            devices={devices}
-            selectedDeviceId={activeDeviceId}
-            onChange={handlePhenodeChange}
-            isLoading={devicesLoading}
-            label={null}
-          />
+        <Box sx={{ px: { xs: 2, sm: 3 }, pt: 0, pb: { xs: 1.5, sm: 2 } }}>
+          <Stack
+            direction="row"
+            sx={{
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              mb: { xs: 1.5, sm: 2 },
+              gap: 1
+            }}
+          >
+            <PhenodeSelector
+              devices={devices}
+              selectedDeviceId={activeDeviceId}
+              onChange={handlePhenodeChange}
+              isLoading={devicesLoading}
+              label={null}
+            />
 
-          <Tooltip title={mapToggleTooltip} arrow={false} slotProps={tooltipSlotProps}>
-            <IconButton
-              aria-label={isMapView ? 'show sensor measurements' : 'show map view'}
-              onClick={() => setIsMapView((prev) => !prev)}
-              // Hover state on pointer + focus — keyboard navigation
-              // gets the same icon swap as a mouse hover would, so the
-              // affordance is consistent for keyboard users.
-              onMouseEnter={() => setIsMapToggleHovered(true)}
-              onMouseLeave={() => setIsMapToggleHovered(false)}
-              onFocus={() => setIsMapToggleHovered(true)}
-              onBlur={() => setIsMapToggleHovered(false)}
-              sx={{
-                border: '1px solid var(--reflected-light)',
-                color: 'var(--blue)',
-                ...drawerNavButtonSurfaceSx,
-                boxShadow: '0 11px 19px 1px #0000002e'
-              }}
-            >
-              {/*
+            <Tooltip title={mapToggleTooltip} arrow={false} slotProps={tooltipSlotProps}>
+              <IconButton
+                aria-label={isMapView ? 'show sensor measurements' : 'show map view'}
+                onClick={() => setIsMapView((prev) => !prev)}
+                // Hover state on pointer + focus — keyboard navigation
+                // gets the same icon swap as a mouse hover would, so the
+                // affordance is consistent for keyboard users.
+                onMouseEnter={() => setIsMapToggleHovered(true)}
+                onMouseLeave={() => setIsMapToggleHovered(false)}
+                onFocus={() => setIsMapToggleHovered(true)}
+                onBlur={() => setIsMapToggleHovered(false)}
+                sx={{
+                  border: '1px solid var(--reflected-light)',
+                  color: 'var(--blue)',
+                  ...drawerNavButtonSurfaceSx,
+                  boxShadow: '0 11px 19px 1px #0000002e'
+                }}
+              >
+                {/*
                 Image-based icon (not an icon-font glyph) so the SVG's
                 own colors render — the active variant is a tinted
                 green and the inactive variant is the muted blue,
                 matching the same swap used on sensor-network's
                 map button.
               */}
-              <Box component="img" src={mapToggleIcon} alt="" sx={{ width: 21, height: 21 }} />
-            </IconButton>
-          </Tooltip>
-        </Stack>
-      </Box>
+                <Box component="img" src={mapToggleIcon} alt="" sx={{ width: 21, height: 21 }} />
+              </IconButton>
+            </Tooltip>
+          </Stack>
+        </Box>
 
-      {/*
+        {/*
         Content area — gates on isMapView. When the map toggle is on,
         we render the PheNodeFleetMap (Google Maps view of the fleet)
         instead of the circles + chart panel. We don't unmount the
@@ -751,260 +650,337 @@ export default function SensorMeasurements() {
         hidden (which causes MUI x-charts to compute size against a
         zero-height box on first reveal).
       */}
-      {isMapView ? (
-        <Box sx={{ px: { xs: 2, sm: 3 }, pt: 0, pb: { xs: 2, sm: 3 } }}>
-          <PheNodeFleetMap
-            devices={devices}
-            selectedDeviceId={activeDeviceId}
-            onSelectDevice={handlePhenodeChange}
-            activeDevice={activeDevice}
-            onRename={handleRename}
-            isLoading={devicesLoading}
-          />
-        </Box>
-      ) : (
-        <Box sx={{ px: { xs: 2, sm: 3 }, pt: 0, pb: { xs: 2, sm: 3 } }}>
-          <Box
-            sx={{
-              overflowX: { xs: 'auto', md: 'hidden' },
-              pb: 1.25,
-              mb: { xs: 2.5, sm: 3 },
-              '&::-webkit-scrollbar': {
-                height: '10px'
-              },
-              '&::-webkit-scrollbar-thumb': {
-                backgroundColor: 'rgba(0, 68, 143, 0.8)'
-              }
-            }}
-          >
-            <Stack direction="row" spacing={2.5} sx={{ minWidth: { xs: 930, md: 'auto' } }}>
-              {circleMetrics.map((metric) => (
-                <Box key={metric.id} sx={{ flex: 1, minWidth: 290, display: 'flex', justifyContent: 'center' }}>
-                  <Box
-                    sx={{
-                      width: { xs: 290, sm: 300, md: 315 },
-                      height: { xs: 290, sm: 300, md: 315 },
-                      borderRadius: '50%',
-                      backgroundColor: '#00143642',
-                      backgroundImage:
-                        'radial-gradient(circle at 30% 28%, rgba(255,255,255,0.06), rgba(255,255,255,0.01) 38%, transparent 55%)',
-                      boxShadow: `
+        {isMapView ? (
+          <Box sx={{ px: { xs: 2, sm: 3 }, pt: 0, pb: { xs: 2, sm: 3 } }}>
+            <PheNodeFleetMap
+              devices={devices}
+              selectedDeviceId={activeDeviceId}
+              onSelectDevice={handlePhenodeChange}
+              activeDevice={activeDevice}
+              onRename={handleRename}
+              isLoading={devicesLoading}
+            />
+          </Box>
+        ) : (
+          <Box sx={{ px: { xs: 2, sm: 3 }, pt: 0, pb: { xs: 2, sm: 3 } }}>
+            <Box
+              sx={{
+                overflowX: { xs: 'auto', md: 'hidden' },
+                pb: 1.25,
+                mb: { xs: 2.5, sm: 3 },
+                '&::-webkit-scrollbar': {
+                  height: '10px'
+                },
+                '&::-webkit-scrollbar-thumb': {
+                  backgroundColor: 'rgba(0, 68, 143, 0.8)'
+                }
+              }}
+            >
+              <Stack direction="row" spacing={2.5} sx={{ minWidth: { xs: 930, md: 'auto' } }}>
+                {circleMetrics.map((metric) => (
+                  <Box key={metric.id} sx={{ flex: 1, minWidth: 290, display: 'flex', justifyContent: 'center' }}>
+                    <Box
+                      sx={{
+                        width: { xs: 290, sm: 300, md: 315 },
+                        height: { xs: 290, sm: 300, md: 315 },
+                        borderRadius: '50%',
+                        backgroundColor: '#00143642',
+                        backgroundImage:
+                          'radial-gradient(circle at 30% 28%, rgba(255,255,255,0.06), rgba(255,255,255,0.01) 38%, transparent 55%)',
+                        boxShadow: `
       inset -12px 0 18px rgba(0, 0, 0, 0.22),
       inset -24px 0 30px rgba(0, 20, 54, 0.28),
       inset 1px 4px 5px rgba(0, 0, 0, 0.2)
     `,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      gap: 1.1
-                    }}
-                  >
-                    <Box
-                      component="img"
-                      src={metric.icon}
-                      alt={metric.iconAlt}
-                      sx={{
-                        width: metric.id === 'metric-1' ? { xs: 68, sm: 74, md: 80 } : { xs: 78, sm: 84, md: 90 },
-                        height: metric.id === 'metric-1' ? { xs: 68, sm: 74, md: 80 } : { xs: 78, sm: 84, md: 90 },
-                        border: 'none',
-                        objectFit: 'contain'
-                      }}
-                    />
-                    {metric.direction && (
-                      <Typography variant="caption" sx={{ color: 'var(--blue)', fontWeight: 600, letterSpacing: '0.04em', lineHeight: 1 }}>
-                        {metric.direction}
-                      </Typography>
-                    )}
-                    <Typography
-                      variant="h1"
-                      sx={{
-                        color: 'var(--green)',
-                        lineHeight: 1,
-                        fontWeight: 300,
-                        fontSize: { xs: '3.2rem', sm: '3.4rem', md: '3.7rem' },
-                        textShadow: '0 1px 9px #1a75e0c9'
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        gap: 1.1
                       }}
                     >
-                      {metric.value}
-                    </Typography>
-                    <Typography
-                      variant="subtitle1"
-                      sx={{ color: 'var(--blue)', textAlign: 'center', fontSize: { xs: '1rem', sm: '1.05rem' } }}
-                    >
-                      {metric.label}
-                    </Typography>
-                    {metric.gustLabel && metric.gustValue && (
-                      <Typography variant="subtitle2" sx={{ textAlign: 'center', color: 'var(--blue)' }}>
-                        <Box component="span">{metric.gustLabel}</Box>
-                        <Box component="span" sx={{ color: 'var(--green)', ml: 0.75 }}>
-                          {metric.gustValue}
-                        </Box>
+                      <Box
+                        component="img"
+                        src={metric.icon}
+                        alt={metric.iconAlt}
+                        sx={{
+                          width: metric.id === 'metric-1' ? { xs: 68, sm: 74, md: 80 } : { xs: 78, sm: 84, md: 90 },
+                          height: metric.id === 'metric-1' ? { xs: 68, sm: 74, md: 80 } : { xs: 78, sm: 84, md: 90 },
+                          border: 'none',
+                          objectFit: 'contain'
+                        }}
+                      />
+                      {metric.direction && (
+                        <Typography
+                          variant="caption"
+                          sx={{ color: 'var(--blue)', fontWeight: 600, letterSpacing: '0.04em', lineHeight: 1 }}
+                        >
+                          {metric.direction}
+                        </Typography>
+                      )}
+                      <Typography
+                        variant="h1"
+                        sx={{
+                          color: 'var(--green)',
+                          lineHeight: 1,
+                          fontWeight: 300,
+                          fontSize: { xs: '3.2rem', sm: '3.4rem', md: '3.7rem' },
+                          textShadow: '0 1px 9px #1a75e0c9'
+                        }}
+                      >
+                        {metric.value}
                       </Typography>
-                    )}
+                      <Typography
+                        variant="subtitle1"
+                        sx={{ color: 'var(--blue)', textAlign: 'center', fontSize: { xs: '1rem', sm: '1.05rem' } }}
+                      >
+                        {metric.label}
+                      </Typography>
+                      {metric.gustLabel && metric.gustValue && (
+                        <Typography variant="subtitle2" sx={{ textAlign: 'center', color: 'var(--blue)' }}>
+                          <Box component="span">{metric.gustLabel}</Box>
+                          <Box component="span" sx={{ color: 'var(--green)', ml: 0.75 }}>
+                            {metric.gustValue}
+                          </Box>
+                        </Typography>
+                      )}
+                    </Box>
                   </Box>
-                </Box>
-              ))}
-            </Stack>
-          </Box>
-
-          <Box
-            sx={{
-              borderRadius: 1,
-              p: { xs: 1.5, sm: 2 },
-              ...reflectedCardChromeSx,
-              backgroundColor: 'var(--drf)',
-              backgroundImage: 'none',
-              boxShadow: '0 14px 26px rgba(1, 13, 50, 1)'
-            }}
-          >
-            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-              <Typography variant="h5" sx={{ color: 'var(--blue)' }}>
-                Measurements Over Time
-              </Typography>
-              <Tooltip title="Orientation" arrow={false} slotProps={tooltipSlotProps}>
-                <IconButton
-                  aria-label="toggle sensor chart layout"
-                  onClick={() => setChartLayout((prev) => (prev === 'column' ? 'row' : 'column'))}
-                  sx={orientationButtonSx}
-                >
-                  <AppstoreOutlined />
-                </IconButton>
-              </Tooltip>
-            </Stack>
-
-            <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', mb: 2 }}>
-              <FormControl
-                size="small"
-                sx={{ minWidth: { xs: 0, sm: 220 }, width: { xs: '100%', sm: 220 }, flex: { xs: 1, sm: '0 0 auto' } }}
-              >
-                <Select
-                  value={timeRange}
-                  onChange={(event) => setTimeRange(event.target.value)}
-                  displayEmpty
-                  sx={{
-                    color: 'var(--green)',
-                    border: '1px solid var(--reflected-light)',
-                    borderRadius: 1,
-                    backgroundColor: 'var(--drf)',
-                    boxShadow: '0 11px 19px 1px #0000002e',
-                    '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                    '& .MuiSelect-select': { color: 'var(--green)' },
-                    '& .MuiSelect-icon': { color: 'var(--blue)' }
-                  }}
-                  MenuProps={{
-                    PaperProps: neonSelectMenuPaperProps
-                  }}
-                  renderValue={(selected) => (
-                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                      <ClockCircleOutlined style={{ color: 'var(--blue)' }} />
-                      <Box component="span" sx={{ color: 'var(--green)' }}>
-                        {selected || 'Select Time Range...'}
-                      </Box>
-                    </Stack>
-                  )}
-                >
-                  {CHART_TIME_RANGE_LABELS.map((option) => (
-                    <MenuItem
-                      key={option}
-                      value={option}
-                      sx={{
-                        color: 'var(--green)',
-                        '&:hover': { backgroundColor: 'rgba(72, 247, 245, 0.12)' },
-                        '&.Mui-selected': { backgroundColor: 'rgba(72, 247, 245, 0.18)' }
-                      }}
-                    >
-                      {option}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <Tooltip title="Refresh" arrow={false} slotProps={tooltipSlotProps}>
-                <IconButton
-                  aria-label="refresh sensor charts"
-                  // Manual revalidation — bypasses the SWR cache for
-                  // the current key, refetches, and surfaces fresh
-                  // rows. Useful when the user knows new data is
-                  // available out-of-band (e.g., they just triggered
-                  // a device reading) and doesn't want to wait for
-                  // the 60s poll cycle.
-                  onClick={() => refetchMeasurements()}
-                  sx={{
-                    border: '1px solid var(--reflected-light)',
-                    color: 'var(--purple)',
-                    backgroundColor: 'rgba(0, 20, 61, 0.72)',
-                    boxShadow: '0 11px 19px 1px #0000002e',
-                    '&:hover': {
-                      borderColor: 'var(--green)',
-                      boxShadow: '0 0 7px -5px var(--green)',
-                      color: 'var(--green)',
-                      textShadow: '0 1px 5px #007bff',
-                      backgroundColor: 'rgba(72, 247, 245, 0.08)'
-                    }
-                  }}
-                >
-                  <ReloadOutlined />
-                </IconButton>
-              </Tooltip>
-            </Stack>
+                ))}
+              </Stack>
+            </Box>
 
             <Box
               sx={{
-                display: 'grid',
-                gap: 1.5,
-                gridTemplateColumns:
-                  chartLayout === 'row' ? { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' } : '1fr'
+                borderRadius: 1,
+                p: { xs: 1.5, sm: 2 },
+                ...reflectedCardChromeSx,
+                backgroundColor: 'var(--drf)',
+                backgroundImage: 'none',
+                boxShadow: '0 14px 26px rgba(1, 13, 50, 1)'
               }}
             >
-              {DEVICE_CHART_CONFIGS.map((config) => {
-                const seriesData = chartSeriesByField[config.key] ?? [];
-                // Non-null values present in the series — drives both
-                // the empty-state branch and the Y-axis padding math.
-                // We compute this once per chart so the min/max scan
-                // doesn't run twice.
-                const numericValues = seriesData.filter((v) => v !== null && v !== undefined && !Number.isNaN(v));
-                const hasData = chartTimes.length > 0 && numericValues.length > 0;
-
-                // Y-axis padding — 4% of the range, with a 0.1 floor
-                // so a flat series (every value identical) still
-                // renders a visible band rather than collapsing the
-                // line into the axis. Original mock had the same
-                // recipe; kept here verbatim because the visual is
-                // tuned to it.
-                const minVal = hasData ? Math.min(...numericValues) : 0;
-                const maxVal = hasData ? Math.max(...numericValues) : 1;
-                const pad = Math.max(0.1, (maxVal - minVal) * 0.04);
-
-                return (
-                  <Box
-                    key={config.key}
-                    // Per-chart CSS variable for the line/glow color.
-                    // The shared `chartSx` references this var so we
-                    // don't have to build a different sx object per
-                    // chart — keeps `chartSx` a single hoisted
-                    // reference instead of N reconstructed objects.
-                    style={{ '--chart-line-color': config.color }}
-                    sx={{
-                      borderRadius: 1,
-                      p: { xs: 0.45, sm: 0.65 },
-                      minHeight: { xs: 260, sm: 286 },
-                      display: 'flex',
-                      flexDirection: 'column',
-                      ...reflectedCardChromeSx,
-                      ...chartSurfaceSx,
-                      border: '1px solid #0e346a'
-                    }}
+              <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                <Typography variant="h5" sx={{ color: 'var(--blue)' }}>
+                  Measurements Over Time
+                </Typography>
+                <Tooltip title="Orientation" arrow={false} slotProps={tooltipSlotProps}>
+                  <IconButton
+                    aria-label="toggle sensor chart layout"
+                    onClick={() => setChartLayout((prev) => (prev === 'column' ? 'row' : 'column'))}
+                    sx={orientationButtonSx}
                   >
-                    <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 0.25 }}>
-                      <Typography variant="subtitle1" sx={{ color: 'var(--blue)', ml: 1.25 }}>
-                        {config.title}
-                      </Typography>
-                      <IconButton aria-label={`zoom ${config.title}`} size="small" sx={{ color: 'var(--blue)' }}>
-                        <ZoomInOutlined />
-                      </IconButton>
-                    </Stack>
+                    <AppstoreOutlined />
+                  </IconButton>
+                </Tooltip>
+              </Stack>
 
-                    {/*
+              <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', mb: 2 }}>
+                <FormControl
+                  size="small"
+                  sx={{ minWidth: { xs: 0, sm: 220 }, width: { xs: '100%', sm: 220 }, flex: { xs: 1, sm: '0 0 auto' } }}
+                >
+                  <Select
+                    value={timeRange}
+                    onChange={(event) => setTimeRange(event.target.value)}
+                    displayEmpty
+                    sx={{
+                      color: 'var(--green)',
+                      border: '1px solid var(--reflected-light)',
+                      borderRadius: 1,
+                      backgroundColor: 'var(--drf)',
+                      boxShadow: '0 11px 19px 1px #0000002e',
+                      '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                      '& .MuiSelect-select': { color: 'var(--green)' },
+                      '& .MuiSelect-icon': { color: 'var(--blue)' }
+                    }}
+                    MenuProps={{
+                      PaperProps: neonSelectMenuPaperProps
+                    }}
+                    renderValue={(selected) => (
+                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                        <ClockCircleOutlined style={{ color: 'var(--blue)' }} />
+                        <Box component="span" sx={{ color: 'var(--green)' }}>
+                          {selected || 'Select Time Range...'}
+                        </Box>
+                      </Stack>
+                    )}
+                  >
+                    {CHART_TIME_RANGE_LABELS.map((option) => (
+                      <MenuItem
+                        key={option}
+                        value={option}
+                        sx={{
+                          color: 'var(--green)',
+                          '&:hover': { backgroundColor: 'rgba(72, 247, 245, 0.12)' },
+                          '&.Mui-selected': { backgroundColor: 'rgba(72, 247, 245, 0.18)' }
+                        }}
+                      >
+                        {option}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <Tooltip
+                  title={measurementsValidating ? 'Refreshing charts…' : 'Refresh charts'}
+                  arrow={false}
+                  slotProps={tooltipSlotProps}
+                >
+                  <Box component="span" sx={{ display: 'inline-flex' }}>
+                    <IconButton
+                      aria-label="refresh sensor charts"
+                      // Manual revalidation — bypasses the SWR cache for
+                      // the current key, refetches, and surfaces fresh
+                      // rows. Useful when the user knows new data is
+                      // available out-of-band (e.g., they just triggered
+                      // a device reading) and doesn't want to wait for
+                      // the 60s poll cycle. Only refetches CHART data —
+                      // useDeviceMeasurements is the chart-only hook,
+                      // useMyDevices (the fleet list) is untouched.
+                      onClick={() => refetchMeasurements()}
+                      disabled={measurementsValidating}
+                      sx={{
+                        border: '1px solid var(--reflected-light)',
+                        color: 'var(--purple)',
+                        backgroundColor: 'rgba(0, 20, 61, 0.72)',
+                        boxShadow: '0 11px 19px 1px #0000002e',
+                        '&:hover': {
+                          borderColor: 'var(--green)',
+                          boxShadow: '0 0 7px -5px var(--green)',
+                          color: 'var(--green)',
+                          textShadow: '0 1px 5px #007bff',
+                          backgroundColor: 'rgba(72, 247, 245, 0.08)'
+                        },
+                        // Disabled-while-validating still visually communicates
+                        // "in flight" — keep the same color so the button
+                        // doesn't grey out, and let the spinning child icon
+                        // carry the loading affordance instead.
+                        '&.Mui-disabled': {
+                          color: 'var(--green)',
+                          borderColor: 'var(--reflected-light)'
+                        },
+                        // Spin keyframes for the Reload icon while a fetch
+                        // is in flight. CSS animation rather than a state-
+                        // driven loop because CSS is GPU-accelerated and
+                        // doesn't pile up React renders.
+                        '& .reload-icon': {
+                          transition: 'transform 0.2s ease',
+                          animation: measurementsValidating ? 'phenode-reload-spin 1s linear infinite' : 'none'
+                        },
+                        '@keyframes phenode-reload-spin': {
+                          from: { transform: 'rotate(0deg)' },
+                          to: { transform: 'rotate(360deg)' }
+                        }
+                      }}
+                    >
+                      <ReloadOutlined className="reload-icon" />
+                    </IconButton>
+                  </Box>
+                </Tooltip>
+                {/*
+                Toolbar-level loading hint — visible whenever a chart
+                fetch is in flight, including the first load AND any
+                background poll or manual refresh. Sits to the right of
+                the refresh button as a compact "in-progress" cue, so
+                the user sees feedback even when stale-while-revalidate
+                keeps the existing data on screen.
+              */}
+                {measurementsValidating && (
+                  <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', color: 'var(--green)' }}>
+                    <CircularProgress size={14} sx={{ color: 'var(--green)' }} />
+                    <Typography variant="caption" sx={{ color: 'var(--green)', textShadow: '0 0 6px rgba(72, 247, 245, 0.35)' }}>
+                      {measurementRows ? 'Refreshing…' : 'Loading…'}
+                    </Typography>
+                  </Stack>
+                )}
+              </Stack>
+
+              <Box
+                sx={{
+                  display: 'grid',
+                  gap: 1.5,
+                  gridTemplateColumns:
+                    chartLayout === 'row' ? { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' } : '1fr'
+                }}
+              >
+                {DEVICE_CHART_CONFIGS.map((config) => {
+                  const seriesData = chartSeriesByField[config.key] ?? [];
+                  // Non-null values present in the series — drives both
+                  // the empty-state branch and the Y-axis padding math.
+                  // We compute this once per chart so the min/max scan
+                  // doesn't run twice.
+                  const numericValues = seriesData.filter((v) => v !== null && v !== undefined && !Number.isNaN(v));
+                  const hasData = chartTimes.length > 0 && numericValues.length > 0;
+
+                  // Y-axis padding — 4% of the range, with a 0.1 floor
+                  // so a flat series (every value identical) still
+                  // renders a visible band rather than collapsing the
+                  // line into the axis. Original mock had the same
+                  // recipe; kept here verbatim because the visual is
+                  // tuned to it.
+                  const minVal = hasData ? Math.min(...numericValues) : 0;
+                  const maxVal = hasData ? Math.max(...numericValues) : 1;
+                  const pad = Math.max(0.1, (maxVal - minVal) * 0.04);
+
+                  return (
+                    <Box
+                      key={config.key}
+                      // Per-chart CSS variable for the line/glow color.
+                      // The shared `chartSx` references this var so we
+                      // don't have to build a different sx object per
+                      // chart — keeps `chartSx` a single hoisted
+                      // reference instead of N reconstructed objects.
+                      style={{ '--chart-line-color': config.color }}
+                      sx={{
+                        borderRadius: 1,
+                        p: { xs: 0.45, sm: 0.65 },
+                        // Card min-height tuned so it exactly matches the
+                        // content height in row layout: padding-top (~5.2px
+                        // sm) + title row (~28px) + title-mb (~2px) + chart
+                        // height (228 in row, 258 in column) + padding-
+                        // bottom (~5.2px sm) ≈ 268. Previously this was 286,
+                        // forcing the card ~18px taller than its content
+                        // and parking that extra space as a visible gap
+                        // below the chart. The new value lets the bottom
+                        // padding-inside-card equal the top padding-inside-
+                        // card (both ~5.2px). For column layout the chart
+                        // is taller (258) so the card naturally grows
+                        // beyond minHeight to fit it — no gap either way.
+                        minHeight: { xs: 265, sm: 268 },
+                        display: 'flex',
+                        flexDirection: 'column',
+                        ...reflectedCardChromeSx,
+                        ...chartSurfaceSx,
+                        border: '1px solid #0e346a'
+                      }}
+                    >
+                      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 0.25 }}>
+                        <Typography variant="subtitle1" sx={{ color: 'var(--blue)', ml: 1.25 }}>
+                          {config.title}
+                          {config.unit ? (
+                            <Box component="span" sx={{ color: 'var(--green)', ml: 0.75, fontSize: '0.85em' }}>
+                              ({config.unit})
+                            </Box>
+                          ) : null}
+                        </Typography>
+                        <Tooltip title="Enlarge" arrow={false} slotProps={tooltipSlotProps}>
+                          <IconButton
+                            aria-label={`enlarge ${config.title} chart`}
+                            size="small"
+                            // Click opens a themed Dialog with the same
+                            // chart rendered at full Dialog width. The
+                            // single Dialog instance lives at the end of
+                            // this component and switches its content
+                            // based on enlargedChartKey.
+                            onClick={() => setEnlargedChartKey(config.key)}
+                            sx={{ color: 'var(--blue)', '&:hover': { color: 'var(--green)' } }}
+                          >
+                            <ZoomInOutlined />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+
+                      {/*
                       Three render branches: error → loading → empty →
                       chart. Order matters: an error during a
                       background refresh shouldn't blank a chart that
@@ -1015,10 +991,241 @@ export default function SensorMeasurements() {
                       arrived; once we have rows, we render them even
                       while a poll is in flight (stale-while-revalidate).
                     */}
+                      {measurementsError && !measurementRows ? (
+                        <Box
+                          sx={{
+                            flex: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--orange)',
+                            fontSize: '0.85rem',
+                            fontStyle: 'italic'
+                          }}
+                        >
+                          Failed to load chart data
+                        </Box>
+                      ) : measurementsLoading && !measurementRows ? (
+                        <Stack
+                          direction="row"
+                          spacing={1.5}
+                          sx={{
+                            flex: 1,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--blue)',
+                            fontSize: '0.85rem'
+                          }}
+                        >
+                          <CircularProgress size={20} sx={{ color: 'var(--green)' }} />
+                          <Box component="span">Loading chart data…</Box>
+                        </Stack>
+                      ) : !hasData ? (
+                        <Box
+                          sx={{
+                            flex: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--blue)',
+                            fontSize: '0.85rem',
+                            fontStyle: 'italic'
+                          }}
+                        >
+                          No data for this time range
+                        </Box>
+                      ) : (
+                        <LineChart
+                          xAxis={[
+                            {
+                              // Time-scale axis — was 'point' (categorical)
+                              // in the mock-data version, which meant
+                              // evenly-spaced ticks regardless of actual
+                              // timestamp gaps. 'time' draws ticks against
+                              // real wall-clock positions, so a 6h data
+                              // gap reads as a 6h gap visually.
+                              id: `${config.key}-x`,
+                              scaleType: 'time',
+                              data: chartTimes,
+                              // tickNumber caps how many ticks MUI's auto-
+                              // placement will propose. Without it, long
+                              // ranges with low-resolution formats (e.g.
+                              // "Last 6 months" → MMM YY) produce many
+                              // ticks per month that all render to the
+                              // same string ("Mar 26 Mar 26 Apr 26..."),
+                              // creating visible duplicate labels on the
+                              // axis. axisTickNumberFor picks a per-format
+                              // count that keeps each rendered label
+                              // distinct at typical chart widths.
+                              tickNumber: axisTickNumberFor(axisFormat),
+                              // Explicit tick positions when MUI's
+                              // auto-placement would produce duplicate
+                              // labels (MONTH format). undefined for
+                              // every other format → MUI auto-picks.
+                              tickInterval: xAxisTicks,
+                              // Pin the axis range to the actual data
+                              // extent + use strict (not "nice"-rounded)
+                              // bounds. Together these kill the leading
+                              // gap between the Y-axis and where the
+                              // chart line starts: without `min`/`max`
+                              // MUI auto-fits to data but with
+                              // domainLimit "nice" it pads outward to
+                              // the next nice boundary (e.g. data starts
+                              // 14:23 → axis starts 14:00 → small gap).
+                              // chartTimes is sorted ascending by the
+                              // useMemo above, so [0] is earliest and
+                              // [length-1] is latest.
+                              min: chartTimes[0],
+                              max: chartTimes[chartTimes.length - 1],
+                              domainLimit: 'strict',
+                              tickLabelStyle: { fontSize: 11, fill: 'var(--green)' },
+                              // Context-aware formatter: tooltips get
+                              // the full "Mar 15, 2026, 02:23 PM" so
+                              // hovering different points in the same
+                              // month produces distinct strings. Axis
+                              // ticks keep the coarse format chosen for
+                              // the current range (avoiding overlap).
+                              valueFormatter: (value, context) =>
+                                context?.location === 'tooltip' ? formatTooltipDate(value) : formatAxisTick(value, axisFormat)
+                            }
+                          ]}
+                          yAxis={[
+                            {
+                              id: `${config.key}-y`,
+                              min: minVal - pad,
+                              max: maxVal + pad,
+                              // Bumped from 30 → 56px so the tick label has
+                              // room for value + unit suffix together
+                              // (e.g. "23.5 m/s", "1014.2 kPa"). The
+                              // previous 30px width fit only the bare
+                              // number; the unit was getting clipped with
+                              // "..." by the axis-track edge.
+                              width: 56,
+                              tickLabelStyle: { fontSize: 11, fill: 'var(--green)' },
+                              valueFormatter: makeYAxisFormatter(config.unit)
+                            }
+                          ]}
+                          series={[
+                            {
+                              id: `${config.key}-line`,
+                              data: seriesData,
+                              color: config.color,
+                              area: true,
+                              showMark: false,
+                              curve: 'linear',
+                              // Tooltip value formatter — pretty-prints
+                              // the hover value with the chart's unit
+                              // suffix so the user can tell whether they're
+                              // looking at "23.5 m/s" vs "23.5 %".
+                              valueFormatter: (value) =>
+                                value === null || value === undefined
+                                  ? 'No data'
+                                  : `${Number(value).toFixed(2)}${config.unit ? ` ${config.unit}` : ''}`
+                            }
+                          ]}
+                          grid={{ horizontal: true, vertical: true }}
+                          height={chartLayout === 'row' ? 228 : 258}
+                          // margin.bottom is the gap BELOW the X-axis's
+                          // own labels (the X-axis has an intrinsic
+                          // 25px allocation set by MUI's
+                          // DEFAULT_AXIS_SIZE_HEIGHT where the tick
+                          // labels actually render). The previous 22
+                          // here was being added on top of that, parking
+                          // ~22px of empty space below the "Mar 26"
+                          // labels inside the chart SVG. Setting it to
+                          // 0 — combined with the card's own
+                          // padding-bottom (~5.2px) — makes the space
+                          // below the X-axis label equal the space
+                          // above the chart title at the top of the
+                          // card. Same logic for margin.right: the
+                          // card's own padding-right is the only edge
+                          // padding needed.
+                          margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+                          hideLegend
+                          sx={chartSx}
+                        />
+                      )}
+                    </Box>
+                  );
+                })}
+              </Box>
+            </Box>
+          </Box>
+        )}
+      </MainCard>
+      {/*
+      Enlarge Dialog — renders the user-selected chart at full Dialog
+      width. Single mounted instance for the whole panel: open by
+      setEnlargedChartKey(<key>), close by setEnlargedChartKey(null).
+      MUI Dialog uses a Portal internally so it visually escapes the
+      MainCard chrome and sits above the rest of the page with the
+      themed backdrop blur (same recipe used by the ConfirmRenameModal).
+
+      Data flows directly from the existing useDeviceMeasurements hook —
+      so a fetch that updates the grid charts also updates the enlarged
+      chart, and the same loading / empty / error branches handle the
+      states uniformly.
+    */}
+      <Dialog
+        open={Boolean(enlargedChartConfig)}
+        onClose={() => setEnlargedChartKey(null)}
+        maxWidth="lg"
+        fullWidth
+        slotProps={{
+          paper: {
+            sx: {
+              backgroundColor: 'rgba(0, 20, 61, 0.96)',
+              backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))',
+              border: '1px solid var(--reflected-light)',
+              boxShadow: '0 11px 19px 1px #0000002e',
+              borderRadius: 1
+            }
+          },
+          backdrop: {
+            sx: {
+              backgroundColor: 'rgba(0, 0, 0, 0.45)',
+              backdropFilter: 'blur(6px)'
+            }
+          }
+        }}
+      >
+        {enlargedChartConfig &&
+          (() => {
+            const config = enlargedChartConfig;
+            const seriesData = chartSeriesByField[config.key] ?? [];
+            const numericValues = seriesData.filter((v) => v !== null && v !== undefined && !Number.isNaN(v));
+            const hasData = chartTimes.length > 0 && numericValues.length > 0;
+            const minVal = hasData ? Math.min(...numericValues) : 0;
+            const maxVal = hasData ? Math.max(...numericValues) : 1;
+            const pad = Math.max(0.1, (maxVal - minVal) * 0.04);
+            return (
+              <>
+                <DialogTitle sx={{ pb: 1, pr: 1 }}>
+                  <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+                    <Typography variant="h5" sx={{ color: 'var(--blue)' }}>
+                      {config.title}
+                      {config.unit ? (
+                        <Box component="span" sx={{ color: 'var(--green)', ml: 1, fontSize: '0.85em' }}>
+                          ({config.unit})
+                        </Box>
+                      ) : null}
+                    </Typography>
+                    <Tooltip title="Close" arrow={false} slotProps={tooltipSlotProps}>
+                      <IconButton aria-label="close enlarged chart" onClick={() => setEnlargedChartKey(null)} sx={{ color: 'var(--blue)' }}>
+                        <CloseOutlined />
+                      </IconButton>
+                    </Tooltip>
+                  </Stack>
+                </DialogTitle>
+                <DialogContent sx={{ pt: 1.5, pb: 2.5 }}>
+                  <Box
+                    style={{ '--chart-line-color': config.color }}
+                    sx={{ ...chartSurfaceSx, border: '1px solid #0e346a', borderRadius: 1, p: { xs: 1, sm: 1.5 } }}
+                  >
                     {measurementsError && !measurementRows ? (
                       <Box
                         sx={{
-                          flex: 1,
+                          minHeight: 380,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -1030,22 +1237,18 @@ export default function SensorMeasurements() {
                         Failed to load chart data
                       </Box>
                     ) : measurementsLoading && !measurementRows ? (
-                      <Box
-                        sx={{
-                          flex: 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'var(--blue)',
-                          fontSize: '0.85rem'
-                        }}
+                      <Stack
+                        direction="row"
+                        spacing={1.5}
+                        sx={{ minHeight: 380, alignItems: 'center', justifyContent: 'center', color: 'var(--blue)', fontSize: '0.85rem' }}
                       >
-                        Loading…
-                      </Box>
+                        <CircularProgress size={22} sx={{ color: 'var(--green)' }} />
+                        <Box component="span">Loading chart data…</Box>
+                      </Stack>
                     ) : !hasData ? (
                       <Box
                         sx={{
-                          flex: 1,
+                          minHeight: 380,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -1060,41 +1263,37 @@ export default function SensorMeasurements() {
                       <LineChart
                         xAxis={[
                           {
-                            // Time-scale axis — was 'point' (categorical)
-                            // in the mock-data version, which meant
-                            // evenly-spaced ticks regardless of actual
-                            // timestamp gaps. 'time' draws ticks against
-                            // real wall-clock positions, so a 6h data
-                            // gap reads as a 6h gap visually.
-                            id: `${config.key}-x`,
+                            id: `${config.key}-x-enlarged`,
                             scaleType: 'time',
                             data: chartTimes,
-                            tickLabelStyle: { fontSize: 11, fill: 'var(--green)' },
-                            valueFormatter: (value) => formatAxisTick(value, axisFormat)
+                            tickNumber: axisTickNumberFor(axisFormat),
+                            tickInterval: xAxisTicks,
+                            min: chartTimes[0],
+                            max: chartTimes[chartTimes.length - 1],
+                            domainLimit: 'strict',
+                            tickLabelStyle: { fontSize: 12, fill: 'var(--green)' },
+                            valueFormatter: (value, context) =>
+                              context?.location === 'tooltip' ? formatTooltipDate(value) : formatAxisTick(value, axisFormat)
                           }
                         ]}
                         yAxis={[
                           {
-                            id: `${config.key}-y`,
+                            id: `${config.key}-y-enlarged`,
                             min: minVal - pad,
                             max: maxVal + pad,
-                            width: 30,
-                            tickLabelStyle: { fill: 'var(--green)' },
+                            width: 64,
+                            tickLabelStyle: { fontSize: 12, fill: 'var(--green)' },
                             valueFormatter: makeYAxisFormatter(config.unit)
                           }
                         ]}
                         series={[
                           {
-                            id: `${config.key}-line`,
+                            id: `${config.key}-line-enlarged`,
                             data: seriesData,
                             color: config.color,
                             area: true,
                             showMark: false,
                             curve: 'linear',
-                            // Tooltip value formatter — pretty-prints
-                            // the hover value with the chart's unit
-                            // suffix so the user can tell whether they're
-                            // looking at "23.5 m/s" vs "23.5 %".
                             valueFormatter: (value) =>
                               value === null || value === undefined
                                 ? 'No data'
@@ -1102,19 +1301,25 @@ export default function SensorMeasurements() {
                           }
                         ]}
                         grid={{ horizontal: true, vertical: true }}
-                        height={chartLayout === 'row' ? 228 : 258}
-                        margin={{ top: 2, right: 16, bottom: 10, left: 10 }}
+                        height={500}
+                        // Same pattern as the grid version: margin.bottom
+                        // is the gap UNDER the X-axis's own labels (the
+                        // X-axis has its own intrinsic 25px allocation
+                        // via DEFAULT_AXIS_SIZE_HEIGHT). A bottom 4 here
+                        // leaves a tiny breathing pad in the roomier
+                        // Dialog so labels don't sit flush against the
+                        // DialogContent's bottom edge.
+                        margin={{ top: 12, right: 12, bottom: 4, left: 4 }}
                         hideLegend
                         sx={chartSx}
                       />
                     )}
                   </Box>
-                );
-              })}
-            </Box>
-          </Box>
-        </Box>
-      )}
-    </MainCard>
+                </DialogContent>
+              </>
+            );
+          })()}
+      </Dialog>
+    </>
   );
 }
