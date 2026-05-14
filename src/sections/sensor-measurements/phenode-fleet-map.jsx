@@ -803,6 +803,17 @@ export default function PheNodeFleetMap({ devices, selectedDeviceId, onSelectDev
             px: 1.25,
             py: 0.4
           },
+          // Explicit hover for the UNSELECTED button. Without this MUI
+          // applies its default ToggleButton hover (a translucent
+          // theme-colored rgba overlay) on top of the solid navy bg,
+          // which then reads as see-through over the map. Same fix
+          // pattern as the Nearby button: keep the solid backgroundColor
+          // and overlay the hover hint via backgroundImage so opacity
+          // stays at 1 throughout.
+          '& .MuiToggleButtonGroup-grouped:hover': {
+            backgroundColor: '#000d29 !important',
+            backgroundImage: 'linear-gradient(rgba(72, 247, 245, 0.08), rgba(72, 247, 245, 0.08)) !important'
+          },
           '& .Mui-selected': {
             color: 'var(--green) !important',
             // Solid bg stays — the teal "active" cue is delivered by
@@ -813,6 +824,12 @@ export default function PheNodeFleetMap({ devices, selectedDeviceId, onSelectDev
             backgroundColor: '#000d29 !important',
             backgroundImage: 'linear-gradient(rgba(72, 247, 245, 0.22), rgba(72, 247, 245, 0.22)) !important',
             textShadow: '0 0 6px rgba(72, 247, 245, 0.45)'
+          },
+          // Selected-and-hovered — slightly brighter teal overlay so
+          // hover is still felt on top of the already-tinted active state.
+          '& .Mui-selected:hover': {
+            backgroundColor: '#000d29 !important',
+            backgroundImage: 'linear-gradient(rgba(72, 247, 245, 0.32), rgba(72, 247, 245, 0.32)) !important'
           }
         }
       : {
@@ -827,9 +844,19 @@ export default function PheNodeFleetMap({ devices, selectedDeviceId, onSelectDev
             py: 0.4,
             boxShadow: '0 11px 19px 1px #0000002e'
           },
+          // Satellite-mode hover — same opaque-bg pattern, just with
+          // the off-white Google-default chip aesthetic. f5f5f5 is a
+          // subtle one-step darker than #ffffff, giving the hover cue
+          // without alpha letting the map show through.
+          '& .MuiToggleButtonGroup-grouped:hover': {
+            backgroundColor: '#f5f5f5 !important'
+          },
           '& .Mui-selected': {
             color: '#000 !important',
             backgroundColor: '#f0f0f0 !important'
+          },
+          '& .Mui-selected:hover': {
+            backgroundColor: '#e8e8e8 !important'
           }
         };
 
