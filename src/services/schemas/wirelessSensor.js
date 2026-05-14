@@ -89,6 +89,100 @@ const wirelessSensorListResponseSchema = yup.object({
   sensors: yup.array().of(wirelessSensorListItemSchema).required()
 });
 
+// =============================================================================
+// WirelessSensorDetail — GET /wireless-sensors/{externalSensorId}
+// =============================================================================
+//
+// Distinct from the list shape because the detail endpoint composes the
+// latest sensor reading into nested groups (location with altitude,
+// battery with both voltage and percent, two soil-probe slots, gas
+// sensor, etc.) — see WirelessSensorDetail in
+// phenodeX/phenode_backend/schemas/wireless_sensors.py:118-131 and the
+// route handler at phenodeX/phenode_backend/api/wireless_sensors/
+// routes.py:243-306.
+//
+// Why we validate every nested group as `.nullable().optional()`:
+//   - A freshly provisioned sensor with no readings yet returns nulls
+//     across the board; the route still 200s with the sparse object.
+//   - Each formatter on the consumer side renders 'N/A' / '—' for
+//     missing values, so the UI degrades gracefully.
+//   - Pinning every field as required would make the response break
+//     for any sensor that hasn't reported all metric ports yet.
+const wirelessSensorLocationSchema = yup
+  .object({
+    latitude: yup.number().nullable().optional(),
+    longitude: yup.number().nullable().optional(),
+    altitude: yup.number().nullable().optional()
+  })
+  .nullable()
+  .optional();
+
+const wirelessSensorBatterySchema = yup
+  .object({
+    batteryVoltage: yup.number().nullable().optional(),
+    batteryPercent: yup.number().nullable().optional()
+  })
+  .nullable()
+  .optional();
+
+const wirelessSoilSensorSchema = yup.object({
+  soilMoisture: yup.number().nullable().optional(),
+  soilTemperature: yup.number().nullable().optional(),
+  electricalConductivity: yup.number().nullable().optional(),
+  vwc: yup.number().nullable().optional()
+});
+
+const wirelessGasSensorSchema = yup
+  .object({
+    temperature: yup.number().nullable().optional(),
+    airPressure: yup.number().nullable().optional(),
+    humidity: yup.number().nullable().optional(),
+    gasResistance: yup.number().nullable().optional(),
+    airQualityIndex: yup.number().nullable().optional(),
+    precisionTemperature: yup.number().nullable().optional()
+  })
+  .nullable()
+  .optional();
+
+// soilProbesConnected ships as a flat dict { teros12_1_connected: bool,
+// teros12_2_connected: bool } — see _soil_probes_connected in routes.py:
+// 92-108. Validated as a plain object so unknown future probe keys pass
+// through unmolested.
+const soilProbesConnectedSchema = yup
+  .object({
+    teros12_1_connected: yup.boolean().nullable().optional(),
+    teros12_2_connected: yup.boolean().nullable().optional()
+  })
+  .nullable()
+  .optional();
+
+const wirelessSensorDetailSchema = yup.object({
+  // Required identifier — the route returns 404 if the sensor doesn't
+  // exist, so any successful response will populate this.
+  externalSensorId: yup.string().required(),
+
+  label: yup.string().nullable().optional(),
+  lastMeasurement: yup.string().nullable().optional(),
+
+  location: wirelessSensorLocationSchema,
+  battery: wirelessSensorBatterySchema,
+  // soilSensors is always returned as a 2-element array (port 1, port 2)
+  // — _soil_sensor_for_port runs for both ports unconditionally and
+  // returns a sparse object when no probe is wired. Validated as a
+  // plain array so we don't have to assume length here.
+  soilSensors: yup.array().of(wirelessSoilSensorSchema).nullable().optional(),
+  gasSensor: wirelessGasSensorSchema,
+  lux: yup.number().nullable().optional(),
+  rssi: yup.number().nullable().optional(),
+  snr: yup.number().nullable().optional(),
+  soilProbesConnected: soilProbesConnectedSchema
+});
+
+const wirelessSensorDetailResponseSchema = yup.object({
+  success: yup.boolean().required(),
+  sensor: wirelessSensorDetailSchema.required()
+});
+
 /**
  * Validate the shape of a /api/wireless-sensors/my-sensors response and
  * return the bare sensors array.
@@ -108,4 +202,17 @@ export const validateSensorListResponse = async (data) => {
   return validated.sensors;
 };
 
-export { wirelessSensorListItemSchema, wirelessSensorListResponseSchema };
+/**
+ * Validate the shape of a /api/wireless-sensors/{externalSensorId}
+ * response and return the bare detail object.
+ *
+ * Same envelope-unwrap rationale as `validateSensorListResponse` — the
+ * hook surface stays free of the `data.sensor` indirection. The
+ * returned shape is the WirelessSensorDetail described above.
+ */
+export const validateSensorDetailResponse = async (data) => {
+  const validated = await wirelessSensorDetailResponseSchema.validate(data, { abortEarly: true, stripUnknown: false });
+  return validated.sensor;
+};
+
+export { wirelessSensorListItemSchema, wirelessSensorListResponseSchema, wirelessSensorDetailSchema, wirelessSensorDetailResponseSchema };

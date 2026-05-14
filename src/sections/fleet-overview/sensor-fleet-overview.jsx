@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import FleetOverviewView from 'sections/fleet-overview/FleetOverviewView';
 import PhenodeSelector from 'components/PhenodeSelector';
@@ -48,6 +49,7 @@ export default function SensorFleetOverview() {
   const { sensors, isLoading: sensorsLoading, error: sensorsError, mutate: mutateSensors } = useMyWirelessSensors();
   const { devices, isLoading: devicesLoading, error: devicesError, mutate: mutateDevices } = useMyDevices();
   const { accessToken } = useAuth();
+  const navigate = useNavigate();
 
   // The user's selected PheNode (external_device_id). `undefined` is
   // the "uninitialized" sentinel — distinct from `null` (no PheNode
@@ -110,10 +112,7 @@ export default function SensorFleetOverview() {
     return sensors.filter((s) => connectedSensorIds.has(s.externalSensorId));
   }, [sensors, selectedPhenodeId, connectedSensorIds]);
 
-  const rows = useMemo(
-    () => (filteredSensors ?? []).map(wirelessSensorToFleetRow),
-    [filteredSensors]
-  );
+  const rows = useMemo(() => (filteredSensors ?? []).map(wirelessSensorToFleetRow), [filteredSensors]);
 
   // Mirror of fleet-overview.jsx's handleRename. PUT then mutate the
   // sensor list to revalidate. Errors propagate to the view (which
@@ -132,6 +131,34 @@ export default function SensorFleetOverview() {
     mutateSensors();
     mutateDevices();
   }, [mutateSensors, mutateDevices]);
+
+  // Card click → deep-link into the sensor-network page scoped to the
+  // clicked wireless sensor. Mirrors the PheNode fleet's deep-link
+  // pattern (sections/fleet-overview/fleet-overview.jsx:55-60), which
+  // navigates to /sensor-measurements?device=<external_device_id>.
+  //
+  // Why a URL search param instead of nav state:
+  //   - URL is shareable: paste the link, lands on the same sensor.
+  //   - Refresh-safe: browser reload preserves the selection.
+  //   - Honest history: back/forward navigates between distinct sensor
+  //     views, not the same route twice.
+  //
+  // We pass row.externalId — the immutable externalSensorId — rather
+  // than row.siteName because the label is mutable; using it would
+  // break the deep link the moment the user renames the sensor.
+  // sensor-network reads `?sensor=<id>` and resolves the parent PheNode
+  // by scanning devices[].wireless_sensors[] for a matching id, so the
+  // PheNode dropdown autopopulates to the correct cohort without the
+  // caller needing to compute it here.
+  //
+  // encodeURIComponent guards against any externalSensorId that
+  // contains URL-unsafe characters.
+  const handleRowClick = useCallback(
+    (row) => {
+      navigate(`/dashboard/wireless-sensors?sensor=${encodeURIComponent(row.externalId)}`);
+    },
+    [navigate]
+  );
 
   // Selection-aware empty message: when a PheNode IS selected but it
   // has zero connected sensors, tell the user that explicitly rather
@@ -156,6 +183,7 @@ export default function SensorFleetOverview() {
       error={sensorsError || devicesError}
       onRetry={handleRetry}
       onRename={handleRename}
+      onRowClick={handleRowClick}
       // Render the PheNode selector via the new scopeSelector slot.
       // The selector is disabled while devices are loading; once the
       // list arrives the auto-default kicks in and the selector
