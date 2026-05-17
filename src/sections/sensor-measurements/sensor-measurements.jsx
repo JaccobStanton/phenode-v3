@@ -531,31 +531,49 @@ export default function SensorMeasurements() {
   }, [measurementRows]);
 
   // Per-chart series data. Returns an object keyed by field name with
-  // the rendered value array for that field, so the chart loop below
-  // is a simple lookup rather than a per-iteration .map() over rows.
+  // a `{ times, values }` pair PER CHART — each chart has its own
+  // X-axis timestamps containing ONLY the rows where that specific
+  // field actually has a reading. Rows where the field is missing
+  // (or its `.avg` is null) are dropped from BOTH the times and
+  // values arrays for that chart, not preserved as null gaps.
   //
-  // For raw rows the hook already collapses min/max/avg to a single
-  // value (set all three to the raw value), so reading `.avg` works
+  // Why per-chart filtering instead of preserving nulls:
+  //   The previous implementation aligned every chart to one shared
+  //   `chartTimes` array and used `null` in the values array to mark
+  //   gaps. MUI x-charts honored those nulls in two visible ways:
+  //     (1) The line broke at every null position — a connected
+  //         "Last 24 hours" stretch with intermittent missing fields
+  //         rendered as dozens of disconnected line segments.
+  //     (2) The tooltip's null branch ("No data") fired whenever the
+  //         user hovered at one of those null positions.
+  //   Per-chart filtering makes the line continuous and ensures the
+  //   tooltip only ever resolves to real data points. The shared
+  //   chartTimes (above) is still used for the X-axis min/max so all
+  //   six charts in the grid stay aligned on the same time range
+  //   even when their individual data extents differ.
+  //
+  // For raw rows the hook collapses min/max/avg to a single value
+  // (set all three to the raw value), so reading `.avg` works
   // uniformly. Bucketed rows are likewise rendered against `.avg`
   // for the line — future work could add a translucent min/max
   // envelope using the same row data, but the line alone is the
   // baseline a chart layer always supports.
-  //
-  // `null` values pass through unchanged — MUI x-charts interprets
-  // null as a "no data point" gap, so a missing reading shows as a
-  // visible break in the line rather than a misleading zero.
   const chartSeriesByField = useMemo(() => {
     if (!measurementRows) return {};
     const seriesMap = {};
     for (const config of DEVICE_CHART_CONFIGS) {
       const transform = config.transform;
-      seriesMap[config.key] = measurementRows.map((row) => {
+      const times = [];
+      const values = [];
+      for (const row of measurementRows) {
         const field = row.fields[config.key];
-        if (!field) return null;
+        if (!field) continue;
         const raw = field.avg;
-        if (raw === null || raw === undefined) return null;
-        return transform ? transform(raw) : raw;
-      });
+        if (raw === null || raw === undefined) continue;
+        times.push(new Date(row.time));
+        values.push(transform ? transform(raw) : raw);
+      }
+      seriesMap[config.key] = { times, values };
     }
     return seriesMap;
   }, [measurementRows]);
@@ -930,13 +948,18 @@ export default function SensorMeasurements() {
                 }}
               >
                 {DEVICE_CHART_CONFIGS.map((config) => {
-                  const seriesData = chartSeriesByField[config.key] ?? [];
-                  // Non-null values present in the series — drives both
-                  // the empty-state branch and the Y-axis padding math.
-                  // We compute this once per chart so the min/max scan
-                  // doesn't run twice.
-                  const numericValues = seriesData.filter((v) => v !== null && v !== undefined && !Number.isNaN(v));
-                  const hasData = chartTimes.length > 0 && numericValues.length > 0;
+                  // Per-chart series shape is now `{ times, values }` —
+                  // both arrays are null-filtered so the chart only
+                  // plots positions where this field actually has a
+                  // reading. The shared `chartTimes` above is still
+                  // used for the X-axis min/max so every chart in the
+                  // grid stays aligned on the same time range.
+                  const { times: seriesTimes, values: seriesData } = chartSeriesByField[config.key] ?? { times: [], values: [] };
+                  // `seriesData` is already null-filtered above, so
+                  // these are all real numeric values — no need to
+                  // re-filter. Length check alone tells us if there's
+                  // anything to render.
+                  const hasData = seriesData.length > 0;
 
                   // Y-axis padding — 4% of the range, with a 0.1 floor
                   // so a flat series (every value identical) still
@@ -944,8 +967,8 @@ export default function SensorMeasurements() {
                   // line into the axis. Original mock had the same
                   // recipe; kept here verbatim because the visual is
                   // tuned to it.
-                  const minVal = hasData ? Math.min(...numericValues) : 0;
-                  const maxVal = hasData ? Math.max(...numericValues) : 1;
+                  const minVal = hasData ? Math.min(...seriesData) : 0;
+                  const maxVal = hasData ? Math.max(...seriesData) : 1;
                   const pad = Math.max(0.1, (maxVal - minVal) * 0.04);
 
                   return (
@@ -1072,7 +1095,12 @@ export default function SensorMeasurements() {
                               // gap reads as a 6h gap visually.
                               id: `${config.key}-x`,
                               scaleType: 'time',
-                              data: chartTimes,
+                              // Per-chart, null-filtered timestamps —
+                              // each chart only plots the positions
+                              // where its field has a reading, so the
+                              // line stays continuous across what
+                              // would otherwise be null-gap breaks.
+                              data: seriesTimes,
                               // tickNumber caps how many ticks MUI's auto-
                               // placement will propose. Without it, long
                               // ranges with low-resolution formats (e.g.
@@ -1218,11 +1246,13 @@ export default function SensorMeasurements() {
         {enlargedChartConfig &&
           (() => {
             const config = enlargedChartConfig;
-            const seriesData = chartSeriesByField[config.key] ?? [];
-            const numericValues = seriesData.filter((v) => v !== null && v !== undefined && !Number.isNaN(v));
-            const hasData = chartTimes.length > 0 && numericValues.length > 0;
-            const minVal = hasData ? Math.min(...numericValues) : 0;
-            const maxVal = hasData ? Math.max(...numericValues) : 1;
+            // Same per-chart `{ times, values }` shape as the grid
+            // version above — null-filtered so the enlarged line is
+            // continuous and the tooltip never resolves to "No data".
+            const { times: seriesTimes, values: seriesData } = chartSeriesByField[config.key] ?? { times: [], values: [] };
+            const hasData = seriesData.length > 0;
+            const minVal = hasData ? Math.min(...seriesData) : 0;
+            const maxVal = hasData ? Math.max(...seriesData) : 1;
             const pad = Math.max(0.1, (maxVal - minVal) * 0.04);
             return (
               <>
@@ -1291,11 +1321,13 @@ export default function SensorMeasurements() {
                           {
                             id: `${config.key}-x-enlarged`,
                             scaleType: 'time',
-                            data: chartTimes,
+                            // Per-chart null-filtered timestamps —
+                            // see the grid chart's same prop above.
+                            data: seriesTimes,
                             tickNumber: axisTickNumberFor(axisFormat),
                             tickInterval: xAxisTicks,
-                            min: chartTimes[0],
-                            max: chartTimes[chartTimes.length - 1],
+                            min: seriesTimes[0],
+                            max: seriesTimes[seriesTimes.length - 1],
                             domainLimit: 'strict',
                             tickLabelStyle: { fontSize: 12, fill: 'var(--green)' },
                             valueFormatter: (value, context) =>
