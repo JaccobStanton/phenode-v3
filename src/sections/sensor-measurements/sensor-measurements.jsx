@@ -686,16 +686,23 @@ export default function SensorMeasurements() {
         </Box>
 
         {/*
-        Content area — gates on isMapView. When the map toggle is on,
-        we render the PheNodeFleetMap (Google Maps view of the fleet)
-        instead of the circles + chart panel. We don't unmount the
-        regular view by toggling display; we conditionally render the
-        whole branch so the chart components don't try to lay out while
-        hidden (which causes MUI x-charts to compute size against a
-        zero-height box on first reveal).
+        Content area — the UPPER half toggles between the map and the
+        circles via isMapView. The chart panel BELOW now renders
+        unconditionally (was previously nested inside the non-map
+        branch, so it disappeared whenever the user opened the map).
+        Mounting the chart panel in both modes preserves the user's
+        chart context when they pop the map open — they can scroll
+        down to keep comparing values over time without leaving the
+        map view.
+
+        The chart panel mounts here on first render and stays mounted
+        across map toggles, so MUI x-charts gets a real layout box
+        from the start. (Original concern about MUI x-charts measuring
+        against a zero-height box only applied to unmount → re-mount
+        of the chart inside a hidden branch — not applicable now.)
       */}
-        {isMapView ? (
-          <Box sx={{ px: { xs: 2, sm: 3 }, pt: 0, pb: { xs: 2, sm: 3 } }}>
+        <Box sx={{ px: { xs: 2, sm: 3 }, pt: 0, pb: { xs: 2, sm: 3 } }}>
+          {isMapView ? (
             <PheNodeFleetMap
               devices={devices}
               selectedDeviceId={activeDeviceId}
@@ -704,9 +711,7 @@ export default function SensorMeasurements() {
               onRename={handleRename}
               isLoading={devicesLoading}
             />
-          </Box>
-        ) : (
-          <Box sx={{ px: { xs: 2, sm: 3 }, pt: 0, pb: { xs: 2, sm: 3 } }}>
+          ) : (
             <Box
               sx={{
                 overflowX: { xs: 'auto', md: 'hidden' },
@@ -793,135 +798,141 @@ export default function SensorMeasurements() {
                 ))}
               </Stack>
             </Box>
+          )}
 
-            <Box
-              sx={{
-                borderRadius: 1,
-                p: { xs: 1.5, sm: 2 },
-                ...reflectedCardChromeSx,
-                backgroundColor: 'var(--drf)',
-                backgroundImage: 'none',
-                boxShadow: '0 14px 26px rgba(1, 13, 50, 1)'
-              }}
-            >
-              <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                <Typography variant="h5" sx={{ color: 'var(--blue)' }}>
-                  Measurements Over Time
-                </Typography>
-                <Tooltip title="Orientation" arrow={false} slotProps={tooltipSlotProps}>
-                  <IconButton
-                    aria-label="toggle sensor chart layout"
-                    onClick={() => setChartLayout((prev) => (prev === 'column' ? 'row' : 'column'))}
-                    sx={orientationButtonSx}
-                  >
-                    <AppstoreOutlined />
-                  </IconButton>
-                </Tooltip>
-              </Stack>
+          {/*
+            Chart panel — rendered UNCONDITIONALLY now so it sits
+            below either the map or the circles. mt provides the same
+            visual separation the circles-only layout used to get from
+            its own mb. Keeps the user's time-series context visible
+            whether they're looking at the snapshot circles or the
+            geographic map above.
+          */}
+          <Box
+            sx={{
+              borderRadius: 1,
+              p: { xs: 1.5, sm: 2 },
+              mt: { xs: 2.5, sm: 3 },
+              ...reflectedCardChromeSx,
+              backgroundColor: 'var(--drf)',
+              backgroundImage: 'none',
+              boxShadow: '0 14px 26px rgba(1, 13, 50, 1)'
+            }}
+          >
+            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+              <Typography variant="h5" sx={{ color: 'var(--blue)' }}>
+                Measurements Over Time
+              </Typography>
+              <Tooltip title="Orientation" arrow={false} slotProps={tooltipSlotProps}>
+                <IconButton
+                  aria-label="toggle sensor chart layout"
+                  onClick={() => setChartLayout((prev) => (prev === 'column' ? 'row' : 'column'))}
+                  sx={orientationButtonSx}
+                >
+                  <AppstoreOutlined />
+                </IconButton>
+              </Tooltip>
+            </Stack>
 
-              <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', mb: 2 }}>
-                <FormControl
-                  size="small"
-                  sx={{ minWidth: { xs: 0, sm: 220 }, width: { xs: '100%', sm: 220 }, flex: { xs: 1, sm: '0 0 auto' } }}
+            <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', mb: 2 }}>
+              <FormControl
+                size="small"
+                sx={{ minWidth: { xs: 0, sm: 220 }, width: { xs: '100%', sm: 220 }, flex: { xs: 1, sm: '0 0 auto' } }}
+              >
+                <Select
+                  value={timeRange}
+                  onChange={(event) => setTimeRange(event.target.value)}
+                  displayEmpty
+                  sx={{
+                    color: 'var(--green)',
+                    border: '1px solid var(--reflected-light)',
+                    borderRadius: 1,
+                    backgroundColor: 'var(--drf)',
+                    boxShadow: '0 11px 19px 1px #0000002e',
+                    '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                    '& .MuiSelect-select': { color: 'var(--green)' },
+                    '& .MuiSelect-icon': { color: 'var(--blue)' }
+                  }}
+                  MenuProps={{
+                    PaperProps: neonSelectMenuPaperProps
+                  }}
+                  renderValue={(selected) => (
+                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                      <ClockCircleOutlined style={{ color: 'var(--blue)' }} />
+                      <Box component="span" sx={{ color: 'var(--green)' }}>
+                        {selected || 'Select Time Range...'}
+                      </Box>
+                    </Stack>
+                  )}
                 >
-                  <Select
-                    value={timeRange}
-                    onChange={(event) => setTimeRange(event.target.value)}
-                    displayEmpty
-                    sx={{
-                      color: 'var(--green)',
-                      border: '1px solid var(--reflected-light)',
-                      borderRadius: 1,
-                      backgroundColor: 'var(--drf)',
-                      boxShadow: '0 11px 19px 1px #0000002e',
-                      '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                      '& .MuiSelect-select': { color: 'var(--green)' },
-                      '& .MuiSelect-icon': { color: 'var(--blue)' }
-                    }}
-                    MenuProps={{
-                      PaperProps: neonSelectMenuPaperProps
-                    }}
-                    renderValue={(selected) => (
-                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                        <ClockCircleOutlined style={{ color: 'var(--blue)' }} />
-                        <Box component="span" sx={{ color: 'var(--green)' }}>
-                          {selected || 'Select Time Range...'}
-                        </Box>
-                      </Stack>
-                    )}
-                  >
-                    {CHART_TIME_RANGE_LABELS.map((option) => (
-                      <MenuItem
-                        key={option}
-                        value={option}
-                        sx={{
-                          color: 'var(--green)',
-                          '&:hover': { backgroundColor: 'rgba(72, 247, 245, 0.12)' },
-                          '&.Mui-selected': { backgroundColor: 'rgba(72, 247, 245, 0.18)' }
-                        }}
-                      >
-                        {option}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                <Tooltip
-                  title={measurementsValidating ? 'Refreshing charts…' : 'Refresh charts'}
-                  arrow={false}
-                  slotProps={tooltipSlotProps}
-                >
-                  <Box component="span" sx={{ display: 'inline-flex' }}>
-                    <IconButton
-                      aria-label="refresh sensor charts"
-                      // Manual revalidation — bypasses the SWR cache for
-                      // the current key, refetches, and surfaces fresh
-                      // rows. Useful when the user knows new data is
-                      // available out-of-band (e.g., they just triggered
-                      // a device reading) and doesn't want to wait for
-                      // the 60s poll cycle. Only refetches CHART data —
-                      // useDeviceMeasurements is the chart-only hook,
-                      // useMyDevices (the fleet list) is untouched.
-                      onClick={() => refetchMeasurements()}
-                      disabled={measurementsValidating}
+                  {CHART_TIME_RANGE_LABELS.map((option) => (
+                    <MenuItem
+                      key={option}
+                      value={option}
                       sx={{
-                        border: '1px solid var(--reflected-light)',
-                        color: 'var(--purple)',
-                        backgroundColor: 'rgba(0, 20, 61, 0.72)',
-                        boxShadow: '0 11px 19px 1px #0000002e',
-                        '&:hover': {
-                          borderColor: 'var(--green)',
-                          boxShadow: '0 0 7px -5px var(--green)',
-                          color: 'var(--green)',
-                          textShadow: '0 1px 5px #007bff',
-                          backgroundColor: 'rgba(72, 247, 245, 0.08)'
-                        },
-                        // Disabled-while-validating still visually communicates
-                        // "in flight" — keep the same color so the button
-                        // doesn't grey out, and let the spinning child icon
-                        // carry the loading affordance instead.
-                        '&.Mui-disabled': {
-                          color: 'var(--green)',
-                          borderColor: 'var(--reflected-light)'
-                        },
-                        // Spin keyframes for the Reload icon while a fetch
-                        // is in flight. CSS animation rather than a state-
-                        // driven loop because CSS is GPU-accelerated and
-                        // doesn't pile up React renders.
-                        '& .reload-icon': {
-                          transition: 'transform 0.2s ease',
-                          animation: measurementsValidating ? 'phenode-reload-spin 1s linear infinite' : 'none'
-                        },
-                        '@keyframes phenode-reload-spin': {
-                          from: { transform: 'rotate(0deg)' },
-                          to: { transform: 'rotate(360deg)' }
-                        }
+                        color: 'var(--green)',
+                        '&:hover': { backgroundColor: 'rgba(72, 247, 245, 0.12)' },
+                        '&.Mui-selected': { backgroundColor: 'rgba(72, 247, 245, 0.18)' }
                       }}
                     >
-                      <ReloadOutlined className="reload-icon" />
-                    </IconButton>
-                  </Box>
-                </Tooltip>
-                {/*
+                      {option}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <Tooltip title={measurementsValidating ? 'Refreshing charts…' : 'Refresh charts'} arrow={false} slotProps={tooltipSlotProps}>
+                <Box component="span" sx={{ display: 'inline-flex' }}>
+                  <IconButton
+                    aria-label="refresh sensor charts"
+                    // Manual revalidation — bypasses the SWR cache for
+                    // the current key, refetches, and surfaces fresh
+                    // rows. Useful when the user knows new data is
+                    // available out-of-band (e.g., they just triggered
+                    // a device reading) and doesn't want to wait for
+                    // the 60s poll cycle. Only refetches CHART data —
+                    // useDeviceMeasurements is the chart-only hook,
+                    // useMyDevices (the fleet list) is untouched.
+                    onClick={() => refetchMeasurements()}
+                    disabled={measurementsValidating}
+                    sx={{
+                      border: '1px solid var(--reflected-light)',
+                      color: 'var(--purple)',
+                      backgroundColor: 'rgba(0, 20, 61, 0.72)',
+                      boxShadow: '0 11px 19px 1px #0000002e',
+                      '&:hover': {
+                        borderColor: 'var(--green)',
+                        boxShadow: '0 0 7px -5px var(--green)',
+                        color: 'var(--green)',
+                        textShadow: '0 1px 5px #007bff',
+                        backgroundColor: 'rgba(72, 247, 245, 0.08)'
+                      },
+                      // Disabled-while-validating still visually communicates
+                      // "in flight" — keep the same color so the button
+                      // doesn't grey out, and let the spinning child icon
+                      // carry the loading affordance instead.
+                      '&.Mui-disabled': {
+                        color: 'var(--green)',
+                        borderColor: 'var(--reflected-light)'
+                      },
+                      // Spin keyframes for the Reload icon while a fetch
+                      // is in flight. CSS animation rather than a state-
+                      // driven loop because CSS is GPU-accelerated and
+                      // doesn't pile up React renders.
+                      '& .reload-icon': {
+                        transition: 'transform 0.2s ease',
+                        animation: measurementsValidating ? 'phenode-reload-spin 1s linear infinite' : 'none'
+                      },
+                      '@keyframes phenode-reload-spin': {
+                        from: { transform: 'rotate(0deg)' },
+                        to: { transform: 'rotate(360deg)' }
+                      }
+                    }}
+                  >
+                    <ReloadOutlined className="reload-icon" />
+                  </IconButton>
+                </Box>
+              </Tooltip>
+              {/*
                 Toolbar-level loading hint — visible whenever a chart
                 fetch is in flight, including the first load AND any
                 background poll or manual refresh. Sits to the right of
@@ -929,107 +940,107 @@ export default function SensorMeasurements() {
                 the user sees feedback even when stale-while-revalidate
                 keeps the existing data on screen.
               */}
-                {measurementsValidating && (
-                  <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', color: 'var(--green)' }}>
-                    <CircularProgress size={14} sx={{ color: 'var(--green)' }} />
-                    <Typography variant="caption" sx={{ color: 'var(--green)', textShadow: '0 0 6px rgba(72, 247, 245, 0.35)' }}>
-                      {measurementRows ? 'Refreshing…' : 'Loading…'}
-                    </Typography>
-                  </Stack>
-                )}
-              </Stack>
+              {measurementsValidating && (
+                <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', color: 'var(--green)' }}>
+                  <CircularProgress size={14} sx={{ color: 'var(--green)' }} />
+                  <Typography variant="caption" sx={{ color: 'var(--green)', textShadow: '0 0 6px rgba(72, 247, 245, 0.35)' }}>
+                    {measurementRows ? 'Refreshing…' : 'Loading…'}
+                  </Typography>
+                </Stack>
+              )}
+            </Stack>
 
-              <Box
-                sx={{
-                  display: 'grid',
-                  gap: 1.5,
-                  gridTemplateColumns:
-                    chartLayout === 'row' ? { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' } : '1fr'
-                }}
-              >
-                {DEVICE_CHART_CONFIGS.map((config) => {
-                  // Per-chart series shape is now `{ times, values }` —
-                  // both arrays are null-filtered so the chart only
-                  // plots positions where this field actually has a
-                  // reading. The shared `chartTimes` above is still
-                  // used for the X-axis min/max so every chart in the
-                  // grid stays aligned on the same time range.
-                  const { times: seriesTimes, values: seriesData } = chartSeriesByField[config.key] ?? { times: [], values: [] };
-                  // `seriesData` is already null-filtered above, so
-                  // these are all real numeric values — no need to
-                  // re-filter. Length check alone tells us if there's
-                  // anything to render.
-                  const hasData = seriesData.length > 0;
+            <Box
+              sx={{
+                display: 'grid',
+                gap: 1.5,
+                gridTemplateColumns:
+                  chartLayout === 'row' ? { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' } : '1fr'
+              }}
+            >
+              {DEVICE_CHART_CONFIGS.map((config) => {
+                // Per-chart series shape is now `{ times, values }` —
+                // both arrays are null-filtered so the chart only
+                // plots positions where this field actually has a
+                // reading. The shared `chartTimes` above is still
+                // used for the X-axis min/max so every chart in the
+                // grid stays aligned on the same time range.
+                const { times: seriesTimes, values: seriesData } = chartSeriesByField[config.key] ?? { times: [], values: [] };
+                // `seriesData` is already null-filtered above, so
+                // these are all real numeric values — no need to
+                // re-filter. Length check alone tells us if there's
+                // anything to render.
+                const hasData = seriesData.length > 0;
 
-                  // Y-axis padding — 4% of the range, with a 0.1 floor
-                  // so a flat series (every value identical) still
-                  // renders a visible band rather than collapsing the
-                  // line into the axis. Original mock had the same
-                  // recipe; kept here verbatim because the visual is
-                  // tuned to it.
-                  const minVal = hasData ? Math.min(...seriesData) : 0;
-                  const maxVal = hasData ? Math.max(...seriesData) : 1;
-                  const pad = Math.max(0.1, (maxVal - minVal) * 0.04);
+                // Y-axis padding — 4% of the range, with a 0.1 floor
+                // so a flat series (every value identical) still
+                // renders a visible band rather than collapsing the
+                // line into the axis. Original mock had the same
+                // recipe; kept here verbatim because the visual is
+                // tuned to it.
+                const minVal = hasData ? Math.min(...seriesData) : 0;
+                const maxVal = hasData ? Math.max(...seriesData) : 1;
+                const pad = Math.max(0.1, (maxVal - minVal) * 0.04);
 
-                  return (
-                    <Box
-                      key={config.key}
-                      // Per-chart CSS variable for the line/glow color.
-                      // The shared `chartSx` references this var so we
-                      // don't have to build a different sx object per
-                      // chart — keeps `chartSx` a single hoisted
-                      // reference instead of N reconstructed objects.
-                      style={{ '--chart-line-color': config.color }}
-                      sx={{
-                        borderRadius: 1,
-                        p: { xs: 0.45, sm: 0.65 },
-                        // Card min-height tuned so it exactly matches the
-                        // content height in row layout: padding-top (~5.2px
-                        // sm) + title row (~28px) + title-mb (~2px) + chart
-                        // height (228 in row, 258 in column) + padding-
-                        // bottom (~5.2px sm) ≈ 268. Previously this was 286,
-                        // forcing the card ~18px taller than its content
-                        // and parking that extra space as a visible gap
-                        // below the chart. The new value lets the bottom
-                        // padding-inside-card equal the top padding-inside-
-                        // card (both ~5.2px). For column layout the chart
-                        // is taller (258) so the card naturally grows
-                        // beyond minHeight to fit it — no gap either way.
-                        minHeight: { xs: 265, sm: 268 },
-                        display: 'flex',
-                        flexDirection: 'column',
-                        ...reflectedCardChromeSx,
-                        ...chartSurfaceSx,
-                        border: '1px solid #0e346a'
-                      }}
-                    >
-                      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 0.25 }}>
-                        <Typography variant="subtitle1" sx={{ color: 'var(--blue)', ml: 1.25 }}>
-                          {config.title}
-                          {config.unit ? (
-                            <Box component="span" sx={{ color: 'var(--green)', ml: 0.75, fontSize: '0.85em' }}>
-                              ({config.unit})
-                            </Box>
-                          ) : null}
-                        </Typography>
-                        <Tooltip title="Enlarge" arrow={false} slotProps={tooltipSlotProps}>
-                          <IconButton
-                            aria-label={`enlarge ${config.title} chart`}
-                            size="small"
-                            // Click opens a themed Dialog with the same
-                            // chart rendered at full Dialog width. The
-                            // single Dialog instance lives at the end of
-                            // this component and switches its content
-                            // based on enlargedChartKey.
-                            onClick={() => setEnlargedChartKey(config.key)}
-                            sx={{ color: 'var(--blue)', '&:hover': { color: 'var(--green)' } }}
-                          >
-                            <ZoomInOutlined />
-                          </IconButton>
-                        </Tooltip>
-                      </Stack>
+                return (
+                  <Box
+                    key={config.key}
+                    // Per-chart CSS variable for the line/glow color.
+                    // The shared `chartSx` references this var so we
+                    // don't have to build a different sx object per
+                    // chart — keeps `chartSx` a single hoisted
+                    // reference instead of N reconstructed objects.
+                    style={{ '--chart-line-color': config.color }}
+                    sx={{
+                      borderRadius: 1,
+                      p: { xs: 0.45, sm: 0.65 },
+                      // Card min-height tuned so it exactly matches the
+                      // content height in row layout: padding-top (~5.2px
+                      // sm) + title row (~28px) + title-mb (~2px) + chart
+                      // height (228 in row, 258 in column) + padding-
+                      // bottom (~5.2px sm) ≈ 268. Previously this was 286,
+                      // forcing the card ~18px taller than its content
+                      // and parking that extra space as a visible gap
+                      // below the chart. The new value lets the bottom
+                      // padding-inside-card equal the top padding-inside-
+                      // card (both ~5.2px). For column layout the chart
+                      // is taller (258) so the card naturally grows
+                      // beyond minHeight to fit it — no gap either way.
+                      minHeight: { xs: 265, sm: 268 },
+                      display: 'flex',
+                      flexDirection: 'column',
+                      ...reflectedCardChromeSx,
+                      ...chartSurfaceSx,
+                      border: '1px solid #0e346a'
+                    }}
+                  >
+                    <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 0.25 }}>
+                      <Typography variant="subtitle1" sx={{ color: 'var(--blue)', ml: 1.25 }}>
+                        {config.title}
+                        {config.unit ? (
+                          <Box component="span" sx={{ color: 'var(--green)', ml: 0.75, fontSize: '0.85em' }}>
+                            ({config.unit})
+                          </Box>
+                        ) : null}
+                      </Typography>
+                      <Tooltip title="Enlarge" arrow={false} slotProps={tooltipSlotProps}>
+                        <IconButton
+                          aria-label={`enlarge ${config.title} chart`}
+                          size="small"
+                          // Click opens a themed Dialog with the same
+                          // chart rendered at full Dialog width. The
+                          // single Dialog instance lives at the end of
+                          // this component and switches its content
+                          // based on enlargedChartKey.
+                          onClick={() => setEnlargedChartKey(config.key)}
+                          sx={{ color: 'var(--blue)', '&:hover': { color: 'var(--green)' } }}
+                        >
+                          <ZoomInOutlined />
+                        </IconButton>
+                      </Tooltip>
+                    </Stack>
 
-                      {/*
+                    {/*
                       Three render branches: error → loading → empty →
                       chart. Order matters: an error during a
                       background refresh shouldn't blank a chart that
@@ -1040,172 +1051,171 @@ export default function SensorMeasurements() {
                       arrived; once we have rows, we render them even
                       while a poll is in flight (stale-while-revalidate).
                     */}
-                      {measurementsError && !measurementRows ? (
-                        <Box
-                          sx={{
-                            flex: 1,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'var(--orange)',
-                            fontSize: '0.85rem',
-                            fontStyle: 'italic'
-                          }}
-                        >
-                          Failed to load chart data
-                        </Box>
-                      ) : measurementsLoading && !measurementRows ? (
-                        <Stack
-                          direction="row"
-                          spacing={1.5}
-                          sx={{
-                            flex: 1,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'var(--blue)',
-                            fontSize: '0.85rem'
-                          }}
-                        >
-                          <CircularProgress size={20} sx={{ color: 'var(--green)' }} />
-                          <Box component="span">Loading chart data…</Box>
-                        </Stack>
-                      ) : !hasData ? (
-                        <Box
-                          sx={{
-                            flex: 1,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'var(--blue)',
-                            fontSize: '0.85rem',
-                            fontStyle: 'italic'
-                          }}
-                        >
-                          No data for this time range
-                        </Box>
-                      ) : (
-                        <LineChart
-                          xAxis={[
-                            {
-                              // Time-scale axis — was 'point' (categorical)
-                              // in the mock-data version, which meant
-                              // evenly-spaced ticks regardless of actual
-                              // timestamp gaps. 'time' draws ticks against
-                              // real wall-clock positions, so a 6h data
-                              // gap reads as a 6h gap visually.
-                              id: `${config.key}-x`,
-                              scaleType: 'time',
-                              // Per-chart, null-filtered timestamps —
-                              // each chart only plots the positions
-                              // where its field has a reading, so the
-                              // line stays continuous across what
-                              // would otherwise be null-gap breaks.
-                              data: seriesTimes,
-                              // tickNumber caps how many ticks MUI's auto-
-                              // placement will propose. Without it, long
-                              // ranges with low-resolution formats (e.g.
-                              // "Last 6 months" → MMM YY) produce many
-                              // ticks per month that all render to the
-                              // same string ("Mar 26 Mar 26 Apr 26..."),
-                              // creating visible duplicate labels on the
-                              // axis. axisTickNumberFor picks a per-format
-                              // count that keeps each rendered label
-                              // distinct at typical chart widths.
-                              tickNumber: axisTickNumberFor(axisFormat),
-                              // Explicit tick positions when MUI's
-                              // auto-placement would produce duplicate
-                              // labels (MONTH format). undefined for
-                              // every other format → MUI auto-picks.
-                              tickInterval: xAxisTicks,
-                              // Pin the axis range to the actual data
-                              // extent + use strict (not "nice"-rounded)
-                              // bounds. Together these kill the leading
-                              // gap between the Y-axis and where the
-                              // chart line starts: without `min`/`max`
-                              // MUI auto-fits to data but with
-                              // domainLimit "nice" it pads outward to
-                              // the next nice boundary (e.g. data starts
-                              // 14:23 → axis starts 14:00 → small gap).
-                              // chartTimes is sorted ascending by the
-                              // useMemo above, so [0] is earliest and
-                              // [length-1] is latest.
-                              min: chartTimes[0],
-                              max: chartTimes[chartTimes.length - 1],
-                              domainLimit: 'strict',
-                              tickLabelStyle: { fontSize: 11, fill: 'var(--green)' },
-                              // Context-aware formatter: tooltips get
-                              // the full "Mar 15, 2026, 02:23 PM" so
-                              // hovering different points in the same
-                              // month produces distinct strings. Axis
-                              // ticks keep the coarse format chosen for
-                              // the current range (avoiding overlap).
-                              valueFormatter: (value, context) =>
-                                context?.location === 'tooltip' ? formatTooltipDate(value) : formatAxisTick(value, axisFormat)
-                            }
-                          ]}
-                          yAxis={[
-                            {
-                              id: `${config.key}-y`,
-                              min: minVal - pad,
-                              max: maxVal + pad,
-                              // Bumped from 30 → 56px so the tick label has
-                              // room for value + unit suffix together
-                              // (e.g. "23.5 m/s", "1014.2 kPa"). The
-                              // previous 30px width fit only the bare
-                              // number; the unit was getting clipped with
-                              // "..." by the axis-track edge.
-                              width: 56,
-                              tickLabelStyle: { fontSize: 11, fill: 'var(--green)' },
-                              valueFormatter: makeYAxisFormatter(config.unit)
-                            }
-                          ]}
-                          series={[
-                            {
-                              id: `${config.key}-line`,
-                              data: seriesData,
-                              color: config.color,
-                              area: true,
-                              showMark: false,
-                              curve: 'linear',
-                              // Tooltip value formatter — pretty-prints
-                              // the hover value with the chart's unit
-                              // suffix so the user can tell whether they're
-                              // looking at "23.5 m/s" vs "23.5 %".
-                              valueFormatter: (value) =>
-                                value === null || value === undefined
-                                  ? 'No data'
-                                  : `${Number(value).toFixed(2)}${config.unit ? ` ${config.unit}` : ''}`
-                            }
-                          ]}
-                          grid={{ horizontal: true, vertical: true }}
-                          height={chartLayout === 'row' ? 228 : 258}
-                          // margin.bottom is the gap BELOW the X-axis's
-                          // own labels (the X-axis has an intrinsic
-                          // 25px allocation set by MUI's
-                          // DEFAULT_AXIS_SIZE_HEIGHT where the tick
-                          // labels actually render). The previous 22
-                          // here was being added on top of that, parking
-                          // ~22px of empty space below the "Mar 26"
-                          // labels inside the chart SVG. Setting it to
-                          // 0 — combined with the card's own
-                          // padding-bottom (~5.2px) — makes the space
-                          // below the X-axis label equal the space
-                          // above the chart title at the top of the
-                          // card. Same logic for margin.right: the
-                          // card's own padding-right is the only edge
-                          // padding needed.
-                          margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
-                          hideLegend
-                          sx={chartSx}
-                        />
-                      )}
-                    </Box>
-                  );
-                })}
-              </Box>
+                    {measurementsError && !measurementRows ? (
+                      <Box
+                        sx={{
+                          flex: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--orange)',
+                          fontSize: '0.85rem',
+                          fontStyle: 'italic'
+                        }}
+                      >
+                        Failed to load chart data
+                      </Box>
+                    ) : measurementsLoading && !measurementRows ? (
+                      <Stack
+                        direction="row"
+                        spacing={1.5}
+                        sx={{
+                          flex: 1,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--blue)',
+                          fontSize: '0.85rem'
+                        }}
+                      >
+                        <CircularProgress size={20} sx={{ color: 'var(--green)' }} />
+                        <Box component="span">Loading chart data…</Box>
+                      </Stack>
+                    ) : !hasData ? (
+                      <Box
+                        sx={{
+                          flex: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--blue)',
+                          fontSize: '0.85rem',
+                          fontStyle: 'italic'
+                        }}
+                      >
+                        No data for this time range
+                      </Box>
+                    ) : (
+                      <LineChart
+                        xAxis={[
+                          {
+                            // Time-scale axis — was 'point' (categorical)
+                            // in the mock-data version, which meant
+                            // evenly-spaced ticks regardless of actual
+                            // timestamp gaps. 'time' draws ticks against
+                            // real wall-clock positions, so a 6h data
+                            // gap reads as a 6h gap visually.
+                            id: `${config.key}-x`,
+                            scaleType: 'time',
+                            // Per-chart, null-filtered timestamps —
+                            // each chart only plots the positions
+                            // where its field has a reading, so the
+                            // line stays continuous across what
+                            // would otherwise be null-gap breaks.
+                            data: seriesTimes,
+                            // tickNumber caps how many ticks MUI's auto-
+                            // placement will propose. Without it, long
+                            // ranges with low-resolution formats (e.g.
+                            // "Last 6 months" → MMM YY) produce many
+                            // ticks per month that all render to the
+                            // same string ("Mar 26 Mar 26 Apr 26..."),
+                            // creating visible duplicate labels on the
+                            // axis. axisTickNumberFor picks a per-format
+                            // count that keeps each rendered label
+                            // distinct at typical chart widths.
+                            tickNumber: axisTickNumberFor(axisFormat),
+                            // Explicit tick positions when MUI's
+                            // auto-placement would produce duplicate
+                            // labels (MONTH format). undefined for
+                            // every other format → MUI auto-picks.
+                            tickInterval: xAxisTicks,
+                            // Pin the axis range to the actual data
+                            // extent + use strict (not "nice"-rounded)
+                            // bounds. Together these kill the leading
+                            // gap between the Y-axis and where the
+                            // chart line starts: without `min`/`max`
+                            // MUI auto-fits to data but with
+                            // domainLimit "nice" it pads outward to
+                            // the next nice boundary (e.g. data starts
+                            // 14:23 → axis starts 14:00 → small gap).
+                            // chartTimes is sorted ascending by the
+                            // useMemo above, so [0] is earliest and
+                            // [length-1] is latest.
+                            min: chartTimes[0],
+                            max: chartTimes[chartTimes.length - 1],
+                            domainLimit: 'strict',
+                            tickLabelStyle: { fontSize: 11, fill: 'var(--green)' },
+                            // Context-aware formatter: tooltips get
+                            // the full "Mar 15, 2026, 02:23 PM" so
+                            // hovering different points in the same
+                            // month produces distinct strings. Axis
+                            // ticks keep the coarse format chosen for
+                            // the current range (avoiding overlap).
+                            valueFormatter: (value, context) =>
+                              context?.location === 'tooltip' ? formatTooltipDate(value) : formatAxisTick(value, axisFormat)
+                          }
+                        ]}
+                        yAxis={[
+                          {
+                            id: `${config.key}-y`,
+                            min: minVal - pad,
+                            max: maxVal + pad,
+                            // Bumped from 30 → 56px so the tick label has
+                            // room for value + unit suffix together
+                            // (e.g. "23.5 m/s", "1014.2 kPa"). The
+                            // previous 30px width fit only the bare
+                            // number; the unit was getting clipped with
+                            // "..." by the axis-track edge.
+                            width: 56,
+                            tickLabelStyle: { fontSize: 11, fill: 'var(--green)' },
+                            valueFormatter: makeYAxisFormatter(config.unit)
+                          }
+                        ]}
+                        series={[
+                          {
+                            id: `${config.key}-line`,
+                            data: seriesData,
+                            color: config.color,
+                            area: true,
+                            showMark: false,
+                            curve: 'linear',
+                            // Tooltip value formatter — pretty-prints
+                            // the hover value with the chart's unit
+                            // suffix so the user can tell whether they're
+                            // looking at "23.5 m/s" vs "23.5 %".
+                            valueFormatter: (value) =>
+                              value === null || value === undefined
+                                ? 'No data'
+                                : `${Number(value).toFixed(2)}${config.unit ? ` ${config.unit}` : ''}`
+                          }
+                        ]}
+                        grid={{ horizontal: true, vertical: true }}
+                        height={chartLayout === 'row' ? 228 : 258}
+                        // margin.bottom is the gap BELOW the X-axis's
+                        // own labels (the X-axis has an intrinsic
+                        // 25px allocation set by MUI's
+                        // DEFAULT_AXIS_SIZE_HEIGHT where the tick
+                        // labels actually render). The previous 22
+                        // here was being added on top of that, parking
+                        // ~22px of empty space below the "Mar 26"
+                        // labels inside the chart SVG. Setting it to
+                        // 0 — combined with the card's own
+                        // padding-bottom (~5.2px) — makes the space
+                        // below the X-axis label equal the space
+                        // above the chart title at the top of the
+                        // card. Same logic for margin.right: the
+                        // card's own padding-right is the only edge
+                        // padding needed.
+                        margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+                        hideLegend
+                        sx={chartSx}
+                      />
+                    )}
+                  </Box>
+                );
+              })}
             </Box>
           </Box>
-        )}
+        </Box>
       </MainCard>
       {/*
       Enlarge Dialog — renders the user-selected chart at full Dialog
