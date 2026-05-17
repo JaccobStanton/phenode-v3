@@ -59,6 +59,15 @@ const wirelessSensorListItemSchema = yup.object({
   _id: yup.number().required(),
   externalSensorId: yup.string().required(),
 
+  // 12-char lowercase hex MAC (no separators) — derived server-side from
+  // either the externalSensorId (when it follows the WS-<MAC> convention)
+  // or from the latest reading's `wirelessDeviceMac` / `mac` field. See
+  // phenodeX/phenode_backend/api/wireless_sensors/routes.py:39-57
+  // (_mac_from_external_sensor_id / _mac_from_measurements) for the
+  // resolution chain. Optional — a freshly-provisioned sensor with no
+  // readings yet and a non-WS-prefixed externalSensorId returns null.
+  macAddress: yup.string().nullable().optional(),
+
   // Optional metadata
   label: yup.string().nullable().optional(),
 
@@ -160,6 +169,12 @@ const wirelessSensorDetailSchema = yup.object({
   // Required identifier — the route returns 404 if the sensor doesn't
   // exist, so any successful response will populate this.
   externalSensorId: yup.string().required(),
+
+  // 12-char lowercase hex MAC (no separators) — same resolution chain as
+  // the list endpoint (see wirelessSensorListItemSchema's macAddress
+  // comment above). Optional for the same reason — a sensor that hasn't
+  // reported and doesn't have a WS-<MAC> external id will return null.
+  macAddress: yup.string().nullable().optional(),
 
   label: yup.string().nullable().optional(),
   lastMeasurement: yup.string().nullable().optional(),

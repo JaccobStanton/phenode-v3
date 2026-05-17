@@ -84,6 +84,34 @@ export function formatRssi(value) {
 }
 
 /**
+ * Format a 12-char lowercase hex MAC (no separators, the shape the
+ * backend ships — see `_mac_from_external_sensor_id` and
+ * `_mac_from_measurements` in
+ * phenodeX/phenode_backend/api/wireless_sensors/routes.py:39-57) into
+ * the canonical uppercase colon-separated display form:
+ *
+ *     "e3452c89b6ff"  →  "E3:45:2C:89:B6:FF"
+ *
+ * Returns '—' for missing / non-string / wrong-length inputs so the
+ * diagram heading and any other consumer never reads as empty or
+ * mangled. We deliberately don't try to be clever about partially-
+ * valid MACs (e.g. 8 hex chars) — a wrong-length value is more likely
+ * to be a backend bug we want to surface than something we should
+ * silently pretty-print.
+ *
+ * Why a string-level check (not a regex): the regex would be roughly
+ * `/^[0-9a-f]{12}$/i` — fine, but a length check after toString +
+ * lowercase is simpler to read and the input is already trusted by
+ * the Yup schema at the API boundary.
+ */
+export function formatMacAddress(raw) {
+  if (typeof raw !== 'string') return '—';
+  const trimmed = raw.trim();
+  if (trimmed.length !== 12) return '—';
+  return trimmed.toUpperCase().match(/.{2}/g).join(':');
+}
+
+/**
  * Map a single `WirelessSensorListItem` to the row shape `FleetOverviewView`
  * renders.
  *

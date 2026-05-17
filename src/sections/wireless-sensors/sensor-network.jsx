@@ -28,7 +28,13 @@ import useMyDevices from 'hooks/data/useMyDevices';
 import useMyWirelessSensors from 'hooks/data/useMyWirelessSensors';
 import useWirelessSensorDetail from 'hooks/data/useWirelessSensorDetail';
 import { renameSensor } from 'services/mutations';
-import { formatBatteryPercent, formatLastMeasurement, formatSoilMoisture, formatSoilTemperature } from 'utils/transforms/wirelessSensor';
+import {
+  formatBatteryPercent,
+  formatLastMeasurement,
+  formatMacAddress,
+  formatSoilMoisture,
+  formatSoilTemperature
+} from 'utils/transforms/wirelessSensor';
 import wirelessSensorsDiagram from 'assets/diagrams/Wireless-Sensors-v4.svg';
 import wsFleetIcon from 'assets/drawer-icons/WS_Fleet.svg';
 import wsFleetIconActive from 'assets/drawer-icons/WS_Fleet_Active.svg';
@@ -415,12 +421,23 @@ export default function SensorNetwork() {
   // vocabulary ("Never" / "Unknown" / localized timestamp) is consistent.
   const lastMeasurementsDisplay = activeSensor ? formatLastMeasurement(activeSensor.lastMeasurementAt) : '—';
 
-  // Diagram-heading identifier. The mock displayed a placeholder MAC
-  // ("E3:45:2C:89:B6") but the wireless-sensor model carries no MAC
-  // field — externalSensorId is the immutable hardware identifier. We
-  // surface that value so the heading stays correlated with the actual
-  // selected sensor; falls back to "—" before the dropdown defaults.
-  const diagramIdentifier = selectedSensorId ?? '—';
+  // Diagram-heading identifier — the real MAC address. Backend now
+  // exposes `macAddress` (12-char lowercase hex, no separators) on
+  // both the list summary and the detail endpoint, derived from the
+  // externalSensorId's WS-<MAC> suffix or from the latest reading's
+  // `wirelessDeviceMac`/`mac` field (see
+  // phenodeX/phenode_backend/api/wireless_sensors/routes.py:39-57).
+  // We prefer the detail-fetch value (always fresh against the latest
+  // reading); fall back to the list-summary `macAddress` for the brief
+  // window between dropdown selection and detail-fetch resolution; and
+  // finally fall back to the externalSensorId itself so the heading
+  // degrades gracefully for sensors whose external id isn't in
+  // WS-<MAC> shape and that haven't reported yet. formatMacAddress
+  // turns the raw 12-char hex into the canonical colon-separated
+  // uppercase display ("e3452c89b6ff" → "E3:45:2C:89:B6:FF") or
+  // returns "—" for missing input.
+  const macAddressRaw = sensorDetail?.macAddress ?? activeSensor?.macAddress ?? null;
+  const diagramIdentifier = macAddressRaw ? formatMacAddress(macAddressRaw) : (selectedSensorId ?? '—');
 
   // Soil-data rows for the active probe. Built once per detail/probe
   // change so the .map() in the render branch doesn't recompute on
@@ -467,11 +484,21 @@ export default function SensorNetwork() {
     const trimmed = renameInput.trim();
     if (!selectedSensorId || !trimmed) return;
     setRenameDraft({
+      // externalId stays the actual external_sensor_id for the
+      // mutation; the MAC below is a display-only field the modal
+      // surfaces in its hardware-id badge.
       externalId: selectedSensorId,
+      // Pre-formatted MAC (e.g. "E3:45:2C:89:B6:FF") so the modal
+      // can render it directly. Uses the same `macAddressRaw` value
+      // the diagram heading reads from, so the badge and the heading
+      // are always in lockstep. Null when neither the detail-fetch
+      // nor the list-summary carries a MAC — the modal falls back to
+      // displaying externalId in that case.
+      macAddress: macAddressRaw ? formatMacAddress(macAddressRaw) : null,
       oldName: activeSensorOldName,
       newName: trimmed
     });
-  }, [activeSensorOldName, renameInput, selectedSensorId]);
+  }, [activeSensorOldName, macAddressRaw, renameInput, selectedSensorId]);
 
   // Continue handler — runs when the user confirms inside the modal.
   // Performs the PUT, revalidates the sensor list (so the dropdown
@@ -1170,6 +1197,7 @@ export default function SensorNetwork() {
         open={Boolean(renameDraft)}
         entityNoun="Sensor"
         externalId={renameDraft?.externalId}
+        macAddress={renameDraft?.macAddress}
         oldName={renameDraft?.oldName}
         newName={renameDraft?.newName}
         onConfirm={handleConfirmRename}

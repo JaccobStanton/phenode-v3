@@ -25,7 +25,7 @@ import {
   formatTodaysRainfall as formatDeviceTodaysRainfall,
   formatWindSpeed as formatDeviceWindSpeed
 } from 'utils/transforms/device';
-import { formatBatteryPercent, formatSoilMoisture, formatSoilTemperature } from 'utils/transforms/wirelessSensor';
+import { formatBatteryPercent, formatMacAddress, formatSoilMoisture, formatSoilTemperature } from 'utils/transforms/wirelessSensor';
 
 import wsFleetIcon from 'assets/drawer-icons/WS_Fleet.svg';
 import wsFleetIconActive from 'assets/drawer-icons/WS_Fleet_Active.svg';
@@ -688,8 +688,21 @@ export default function WirelessSensorFleetMap({
     const trimmed = renameInput.trim();
     if (!trimmed) return;
     if (trimmed === activeSensorDisplayName) return;
+    // MAC resolution mirrors the sensor-network diagram heading: prefer
+    // the detail-fetch value (always fresh against the latest reading),
+    // fall back to the list-summary, finally null. Pre-format here so
+    // the modal can render it directly.
+    const macRaw = sensorDetail?.macAddress ?? activeSensor?.macAddress ?? null;
     setPendingRename({
+      // externalId is what handleConfirmRename feeds to onRename →
+      // renameSensor for the actual PUT; keep it as the immutable
+      // externalSensorId regardless of which display id the modal
+      // surfaces above.
       externalId: activeSensor.externalSensorId,
+      // Display-only — modal shows this in its hardware-id badge in
+      // place of externalId when present. Null falls through to
+      // externalId display so the badge never renders empty.
+      macAddress: macRaw ? formatMacAddress(macRaw) : null,
       oldName: activeSensorDisplayName,
       newName: trimmed
     });
@@ -1781,6 +1794,7 @@ export default function WirelessSensorFleetMap({
         open={Boolean(pendingRename)}
         entityNoun="Sensor"
         externalId={pendingRename?.externalId}
+        macAddress={pendingRename?.macAddress}
         oldName={pendingRename?.oldName}
         newName={pendingRename?.newName}
         onConfirm={handleConfirmRename}

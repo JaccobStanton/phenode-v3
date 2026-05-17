@@ -100,7 +100,7 @@ const cancelButtonSx = {
   }
 };
 
-export default function ConfirmRenameModal({ open, entityNoun, externalId, oldName, newName, onConfirm, onCancel }) {
+export default function ConfirmRenameModal({ open, entityNoun, externalId, macAddress, oldName, newName, onConfirm, onCancel }) {
   // Loading state for the Continue button while the parent's onConfirm
   // promise is in flight. Local to the modal so the parent doesn't
   // have to thread an `isPending` prop in.
@@ -143,15 +143,24 @@ export default function ConfirmRenameModal({ open, entityNoun, externalId, oldNa
       </DialogTitle>
       <DialogContent sx={{ pb: 2 }}>
         {/*
-          Read-only MAC / external-id badge at the top of the modal.
+          Read-only hardware-identifier badge at the top of the modal.
           The user-visible label can change with renames, but the
-          external_id never does — it's the immutable hardware
-          identifier. Showing it here lets the user double-confirm
-          they're about to rename the right device/sensor before
-          committing (especially valuable in a fleet where two
-          devices might temporarily share a similar label, or where
-          the user opened the modal from a search-filtered list and
-          wants to re-verify which physical unit they're touching).
+          underlying hardware id never does — showing it here lets the
+          user double-confirm they're about to rename the right
+          device/sensor before committing (especially valuable in a
+          fleet where two devices might temporarily share a similar
+          label, or where the user opened the modal from a search-
+          filtered list and wants to re-verify which physical unit
+          they're touching).
+
+          Identifier resolution: prefer `macAddress` when supplied
+          (wireless-sensor flows pass a pre-formatted MAC like
+          "E3:45:2C:89:B6:FF"). Fall back to `externalId` (the PheNode
+          flow, where the external_device_id is the closest available
+          identifier). The label adapts so the badge never lies about
+          what it's showing — saying "MAC Address" above an
+          external_device_id was a small but real misrepresentation
+          before this.
 
           Styled as a labeled chip rather than an input — `cursor:
           default` and the `.MuiInputBase` patterns are absent so it
@@ -162,7 +171,7 @@ export default function ConfirmRenameModal({ open, entityNoun, externalId, oldNa
           doesn't define a `--mono` token; monospace is the right
           register for opaque hardware IDs.
         */}
-        {externalId && (
+        {(macAddress || externalId) && (
           <Box sx={{ mb: 2 }}>
             <Typography
               variant="caption"
@@ -176,7 +185,7 @@ export default function ConfirmRenameModal({ open, entityNoun, externalId, oldNa
                 mb: 0.5
               }}
             >
-              MAC Address (read-only)
+              {macAddress ? 'MAC Address (read-only)' : 'Hardware ID (read-only)'}
             </Typography>
             <Box
               sx={{
@@ -189,7 +198,7 @@ export default function ConfirmRenameModal({ open, entityNoun, externalId, oldNa
               }}
             >
               <Typography
-                title={externalId}
+                title={macAddress || externalId}
                 sx={{
                   color: 'var(--blue)',
                   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
@@ -203,7 +212,7 @@ export default function ConfirmRenameModal({ open, entityNoun, externalId, oldNa
                   userSelect: 'all'
                 }}
               >
-                {externalId}
+                {macAddress || externalId}
               </Typography>
             </Box>
           </Box>
@@ -289,7 +298,14 @@ ConfirmRenameModal.propTypes = {
   // Immutable hardware id (external_device_id / externalSensorId). Shown
   // as a read-only badge near the top of the modal so the user can
   // verify they're renaming the right physical unit before committing.
+  // Used as the fallback display when `macAddress` isn't supplied.
   externalId: PropTypes.string,
+  // Pre-formatted MAC address (e.g. "E3:45:2C:89:B6:FF") — when
+  // present, replaces the external-id display in the badge. Wireless-
+  // sensor rename flows pass this through `formatMacAddress` from
+  // utils/transforms/wirelessSensor so the badge surfaces the same
+  // identifier the diagram heading does.
+  macAddress: PropTypes.string,
   oldName: PropTypes.string,
   newName: PropTypes.string,
   onConfirm: PropTypes.func.isRequired,
