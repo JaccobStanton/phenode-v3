@@ -5,6 +5,7 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import Grid from '@mui/material/Grid';
+import Pagination from '@mui/material/Pagination';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import ToggleButton from '@mui/material/ToggleButton';
@@ -290,6 +291,50 @@ function buildMapControlsSx(isNeon) {
 
 const PROXIMITY_RADIUS_MILES = 10;
 const PROXIMITY_RADIUS_METERS = PROXIMITY_RADIUS_MILES * 1609.344;
+
+// Page size for the "Nearby PheNodes" card. When the neighbor list has
+// more than this many entries, a pagination control appears below the
+// grid and the list shows one page at a time. Below the threshold the
+// full list renders without pagination so short lists don't add the
+// extra control chrome unnecessarily.
+const NEARBY_PAGE_SIZE = 27;
+
+// Themed pagination sx — mirror of paginationSx in
+// sections/fleet-overview/FleetOverviewView.jsx so the Nearby card's
+// pager reads as the same control vocabulary the fleet-list tables
+// use. Duplicated rather than imported because the two surfaces don't
+// share a common dependency and the rule set is small enough that
+// extracting it into a shared module would be more friction than the
+// duplication. If a third pager ever lands, hoist into themes/.
+const nearbyPaginationSx = {
+  '& .MuiPaginationItem-root': {
+    color: 'var(--blue)',
+    border: '1px solid var(--reflected-light)',
+    backgroundColor: 'rgba(0, 17, 48, 0.03)',
+    backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))',
+    boxShadow: '0 11px 19px 1px #0000002e',
+    transition: 'color 0.18s ease, border-color 0.18s ease, background-color 0.18s ease',
+    '&:hover': {
+      color: 'var(--green)',
+      borderColor: 'var(--green)',
+      backgroundColor: 'rgba(72, 247, 245, 0.08)'
+    }
+  },
+  '& .MuiPaginationItem-root.Mui-selected': {
+    color: 'var(--green)',
+    borderColor: 'var(--green)',
+    backgroundColor: 'rgba(72, 247, 245, 0.15)',
+    '&:hover': {
+      backgroundColor: 'rgba(72, 247, 245, 0.22)'
+    }
+  },
+  '& .MuiPaginationItem-ellipsis': {
+    color: 'var(--blue)',
+    border: 'none',
+    backgroundColor: 'transparent',
+    boxShadow: 'none'
+  }
+};
 
 // Opacity for pins outside the proximity radius. Low enough that they
 // visually recede behind the in-radius cluster, high enough that they're
@@ -654,6 +699,12 @@ export default function PheNodeFleetMap({ devices, selectedDeviceId, onSelectDev
   // distance so the list rendering can show "0.8 mi" alongside the label.
   // Returns [] when proximity is off, no device is selected, or the
   // selected device has no coordinates.
+  // Pagination state for the "Nearby PheNodes" card. 1-indexed. Reset
+  // to 1 whenever the underlying neighbor list shifts (active device
+  // change, proximity toggle, fleet change), so the user doesn't get
+  // stranded on page 4 of a list that just shrank to one page.
+  const [nearbyCurrentPage, setNearbyCurrentPage] = useState(1);
+
   const nearbyDevices = useMemo(() => {
     if (!proximityEnabled || !activeDevice || !hasValidLocation(activeDevice)) return [];
     return plottable
@@ -665,6 +716,25 @@ export default function PheNodeFleetMap({ devices, selectedDeviceId, onSelectDev
       .filter((entry) => entry.distance <= PROXIMITY_RADIUS_MILES)
       .sort((a, b) => a.distance - b.distance);
   }, [proximityEnabled, activeDevice, plottable]);
+
+  // Pagination derived values. totalPages capped at 1 so the math is
+  // safe even with an empty nearbyDevices array (avoids "Math.ceil(0)
+  // = 0" producing a totalPages of 0, which Pagination doesn't accept).
+  // pagedNearbyDevices is the slice for the current page.
+  const nearbyTotalPages = Math.max(1, Math.ceil(nearbyDevices.length / NEARBY_PAGE_SIZE));
+  const pagedNearbyDevices = useMemo(() => {
+    const start = (nearbyCurrentPage - 1) * NEARBY_PAGE_SIZE;
+    return nearbyDevices.slice(start, start + NEARBY_PAGE_SIZE);
+  }, [nearbyDevices, nearbyCurrentPage]);
+
+  // Reset the page back to 1 whenever the underlying list size shifts.
+  // A user on page 3 who picks a different active device would
+  // otherwise land on an empty page 3 of the new (typically smaller)
+  // neighbor list. Same UX guard FleetOverviewView uses for its own
+  // pagination + search/filter changes.
+  useEffect(() => {
+    setNearbyCurrentPage(1);
+  }, [nearbyDevices.length]);
 
   // Set of ids that should remain at full opacity when proximity is on:
   // the active device itself + everything within radius. Built as a Set
@@ -1649,7 +1719,7 @@ export default function PheNodeFleetMap({ devices, selectedDeviceId, onSelectDev
                   gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' }
                 }}
               >
-                {nearbyDevices.map(({ device, distance }) => (
+                {pagedNearbyDevices.map(({ device, distance }) => (
                   <Box
                     key={device.external_device_id}
                     role="button"
@@ -1710,6 +1780,29 @@ export default function PheNodeFleetMap({ devices, selectedDeviceId, onSelectDev
                   </Box>
                 ))}
               </Box>
+            )}
+
+            {/*
+              Pagination — renders only when the neighbor list is
+              larger than one page (NEARBY_PAGE_SIZE = 27). Below the
+              threshold the full list fits without a pager and the
+              extra control chrome would just be visual noise.
+              Centered below the grid; styling matches the table
+              pagination in FleetOverviewView.
+            */}
+            {nearbyTotalPages > 1 && (
+              <Stack direction="row" sx={{ justifyContent: 'center', pt: 2 }}>
+                <Pagination
+                  count={nearbyTotalPages}
+                  page={nearbyCurrentPage}
+                  onChange={(_, page) => setNearbyCurrentPage(page)}
+                  shape="rounded"
+                  size="medium"
+                  siblingCount={1}
+                  boundaryCount={1}
+                  sx={nearbyPaginationSx}
+                />
+              </Stack>
             )}
           </Box>
         )}
