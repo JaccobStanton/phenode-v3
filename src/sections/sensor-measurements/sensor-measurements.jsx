@@ -377,18 +377,44 @@ export default function SensorMeasurements() {
     return byRecency[0]?.external_device_id ?? null;
   }, [devices]);
 
+  // FROZEN copy of the recency default — captured exactly once on the
+  // first non-null evaluation, then held stable for the rest of the
+  // page visit. Without this, every 60s SWR poll could shift
+  // `activeDeviceId` (and therefore the whole page's selection,
+  // including the map's selected pin and the chart panel's device
+  // data) to whatever device just became most-recently-reporting —
+  // yanking the user's view out from under them mid-look.
+  //
+  // The freeze persists only as long as the component is mounted —
+  // when the user navigates away and back, the component unmounts and
+  // remounts, state resets, and the next visit captures whichever
+  // device is most-recent at that moment. Matches the requested
+  // behavior: "only update to the most-recent when the user leaves
+  // the page."
+  //
+  // URL deep-link (deviceFromUrl) still wins over the frozen default
+  // — the freeze is only the fallback when no URL is present.
+  const [frozenDefaultPhenodeId, setFrozenDefaultPhenodeId] = useState(null);
+  useEffect(() => {
+    if (defaultPhenodeId && !frozenDefaultPhenodeId) {
+      setFrozenDefaultPhenodeId(defaultPhenodeId);
+    }
+  }, [defaultPhenodeId, frozenDefaultPhenodeId]);
+
   // Resolve the active device id, preferring the URL value but falling
-  // back to the recency-default. We tolerate a URL value that no
-  // longer matches any device (e.g. the user deep-linked an external_id
-  // that's since been removed) by treating the unmatched case the same
-  // as "no URL value" and falling through to the default.
+  // back to the FROZEN recency-default (not the live one — see the
+  // frozenDefaultPhenodeId comment above). We tolerate a URL value
+  // that no longer matches any device (e.g. the user deep-linked an
+  // external_id that's since been removed) by treating the unmatched
+  // case the same as "no URL value" and falling through to the
+  // frozen default.
   const activeDeviceId = useMemo(() => {
     if (deviceFromUrl) {
       const exists = devices?.some((d) => d.external_device_id === deviceFromUrl);
       if (exists) return deviceFromUrl;
     }
-    return defaultPhenodeId;
-  }, [deviceFromUrl, devices, defaultPhenodeId]);
+    return frozenDefaultPhenodeId;
+  }, [deviceFromUrl, devices, frozenDefaultPhenodeId]);
 
   // If the URL referenced a device that no longer exists in the fleet,
   // clean the param out of the URL so back/forward + reload don't keep

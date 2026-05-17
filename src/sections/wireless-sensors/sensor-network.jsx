@@ -254,19 +254,47 @@ export default function SensorNetwork() {
     return byRecency[0]?.external_device_id ?? null;
   }, [devices, urlSensorResolution]);
 
+  // FROZEN copy of the recency default — captured once on the first
+  // non-null evaluation, then held stable for the rest of the page
+  // visit. The local `selectedPhenodeId` state is already sticky
+  // (only set when undefined or when the selection vanishes), so SWR
+  // polls don't directly shift the user's selection. But the
+  // "stale selection" recovery branch below was previously falling
+  // back to the LIVE default — meaning if the user's selected PheNode
+  // somehow vanished, the page would jump to whatever happens to be
+  // most-recent right now. The frozen value gives a more predictable
+  // recovery target.
+  //
+  // Resets on component unmount → remount, so a fresh visit picks up
+  // fresh defaults. Matches the requested behavior: "only update to
+  // the most-recent when the user leaves the page."
+  const [frozenDefaultPhenodeId, setFrozenDefaultPhenodeId] = useState(null);
+  useEffect(() => {
+    if (defaultPhenodeId && !frozenDefaultPhenodeId) {
+      setFrozenDefaultPhenodeId(defaultPhenodeId);
+    }
+  }, [defaultPhenodeId, frozenDefaultPhenodeId]);
+
   // Apply the auto-default once on mount, and again if the user's
   // selected PheNode disappears from the fleet (e.g. an SWR
   // revalidation drops it). Same shape as sensor-fleet-overview.
+  // Uses the FROZEN default so the recovery path doesn't snap to a
+  // different "currently most-recent" PheNode after the user has
+  // already been on the page for a while. If the frozen default is
+  // also gone, falls back to the live default as a last resort.
   useEffect(() => {
     if (selectedPhenodeId === undefined) {
-      if (defaultPhenodeId) setSelectedPhenodeId(defaultPhenodeId);
+      if (frozenDefaultPhenodeId) setSelectedPhenodeId(frozenDefaultPhenodeId);
+      else if (defaultPhenodeId) setSelectedPhenodeId(defaultPhenodeId);
       return;
     }
     const stillExists = devices?.some((d) => d.external_device_id === selectedPhenodeId);
-    if (!stillExists && defaultPhenodeId) {
-      setSelectedPhenodeId(defaultPhenodeId);
+    if (!stillExists) {
+      const frozenStillExists = frozenDefaultPhenodeId && devices?.some((d) => d.external_device_id === frozenDefaultPhenodeId);
+      if (frozenStillExists) setSelectedPhenodeId(frozenDefaultPhenodeId);
+      else if (defaultPhenodeId) setSelectedPhenodeId(defaultPhenodeId);
     }
-  }, [defaultPhenodeId, devices, selectedPhenodeId]);
+  }, [frozenDefaultPhenodeId, defaultPhenodeId, devices, selectedPhenodeId]);
 
   // Stale-URL cleanup. If the URL referenced a sensor that is no longer
   // resolvable (sensor was removed, parent PheNode was unassigned,
@@ -344,23 +372,53 @@ export default function SensorNetwork() {
     return byRecency[0]?.externalSensorId ?? null;
   }, [filteredSensors, urlSensorResolution]);
 
+  // FROZEN copy of the cohort's recency default. Differs from the
+  // PheNode freeze in one important way: this one RESETS when the
+  // user manually changes the PheNode (see the resetting useEffect
+  // below) so the new cohort's most-recent sensor gets re-captured.
+  // Without that reset, a PheNode change would leave the frozen
+  // value pinned to the OLD cohort's most-recent sensor — which
+  // doesn't exist in the new cohort and would land the dropdown on
+  // a phantom selection.
+  //
+  // Same lifetime semantics otherwise: held stable across SWR polls,
+  // resets on component unmount → remount.
+  const [frozenDefaultSensorId, setFrozenDefaultSensorId] = useState(null);
+  useEffect(() => {
+    if (defaultSensorId && !frozenDefaultSensorId) {
+      setFrozenDefaultSensorId(defaultSensorId);
+    }
+  }, [defaultSensorId, frozenDefaultSensorId]);
+  // Reset the frozen sensor default whenever the user changes PheNode
+  // so the new cohort's most-recent sensor gets captured fresh by the
+  // freeze useEffect above.
+  useEffect(() => {
+    setFrozenDefaultSensorId(null);
+  }, [selectedPhenodeId]);
+
   // Apply the auto-default to the sensor selection. Two clamp cases:
   //   1. Uninitialized   → pick the cohort's default.
   //   2. Stale selection → user previously picked a sensor that is no
   //      longer in the current cohort (changed PheNodes, or SWR
   //      dropped the sensor from the list). Re-default rather than
   //      stranding the user on a phantom selection.
+  // Uses the FROZEN default with live fallback (same recovery
+  // pattern as the PheNode effect above).
   useEffect(() => {
     if (selectedSensorId === undefined) {
-      if (defaultSensorId) setSelectedSensorId(defaultSensorId);
+      if (frozenDefaultSensorId) setSelectedSensorId(frozenDefaultSensorId);
+      else if (defaultSensorId) setSelectedSensorId(defaultSensorId);
       return;
     }
     if (!filteredSensors) return;
     const stillExists = filteredSensors.some((s) => s.externalSensorId === selectedSensorId);
     if (!stillExists) {
-      setSelectedSensorId(defaultSensorId ?? null);
+      // Recovery path: prefer the frozen default if it's still in the
+      // current cohort, else fall back to whatever's most-recent now.
+      const frozenStillExists = frozenDefaultSensorId && filteredSensors.some((s) => s.externalSensorId === frozenDefaultSensorId);
+      setSelectedSensorId(frozenStillExists ? frozenDefaultSensorId : (defaultSensorId ?? null));
     }
-  }, [defaultSensorId, filteredSensors, selectedSensorId]);
+  }, [frozenDefaultSensorId, defaultSensorId, filteredSensors, selectedSensorId]);
 
   // The active list-item record (matches the dropdown selection).
   // Carries the lastMeasurementAt used by the page header. The detail
