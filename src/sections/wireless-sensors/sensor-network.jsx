@@ -20,7 +20,7 @@ import Typography from '@mui/material/Typography';
 
 import ConfirmRenameModal from 'components/ConfirmRenameModal';
 import MainCard from 'components/MainCard';
-import MapView from 'sections/wireless-sensors/map-view';
+import WirelessSensorFleetMap from 'sections/wireless-sensors/wireless-sensor-fleet-map';
 import MeasurementsChartGrid from 'sections/wireless-sensors/MeasurementsChartGrid';
 import useAuth from 'hooks/useAuth';
 import useInfoCard from 'hooks/useInfoCard';
@@ -364,6 +364,17 @@ export default function SensorNetwork() {
     return filteredSensors.find((s) => s.externalSensorId === selectedSensorId) ?? null;
   }, [filteredSensors, selectedSensorId]);
 
+  // The currently-selected PheNode (DeviceRead) — passed to the map so
+  // its new "PheNode" overlay button can plot the parent device when
+  // toggled on. Resolved here (instead of inside the map) because
+  // we already have the lookup machinery for selectedPhenodeId. Returns
+  // null until devices have loaded or no PheNode is selected; the map
+  // gracefully no-ops the toggle in either case.
+  const activePhenode = useMemo(() => {
+    if (!devices || !selectedPhenodeId) return null;
+    return devices.find((d) => d.external_device_id === selectedPhenodeId) ?? null;
+  }, [devices, selectedPhenodeId]);
+
   // Detail fetch for the selected sensor — populates Sensor Information
   // (altitude, GPS, battery, probes connected) and Soil Data
   // (soilSensors[0/1] readings). Auto-skips when no sensor is selected.
@@ -497,6 +508,20 @@ export default function SensorNetwork() {
   // entered just no-ops; pressing it with valid input opens the
   // confirmation modal. The modal owns its own in-flight state so a
   // double-click on Continue can't fire two PUTs.
+
+  // Map-mode rename callback — passed to WirelessSensorFleetMap so its
+  // internal ConfirmRenameModal can reuse our renameSensor mutation +
+  // sensor-list revalidation. Distinct from handleConfirmRename above
+  // because the map owns its own modal (it's its own self-contained
+  // surface), not the diagram-mode rename draft. Errors propagate so
+  // the map can surface them in its toast and keep the modal open.
+  const handleMapRename = useCallback(
+    async (externalSensorId, newLabel) => {
+      await renameSensor(externalSensorId, newLabel, accessToken);
+      await mutateSensors();
+    },
+    [accessToken, mutateSensors]
+  );
 
   // Clear the `?sensor` URL param. Called by the dropdown change
   // handlers below — once the user picks something different from the
@@ -707,11 +732,35 @@ export default function SensorNetwork() {
         <Grid container spacing={2.5} sx={{ alignItems: 'stretch' }}>
           {isMapView ? (
             <Grid size={{ xs: 12 }}>
-              <MapView
+              <WirelessSensorFleetMap
+                // Full account-wide sensor list — the map plots
+                // ALL sensors, not just the selected PheNode's
+                // cohort, because the geographic relationships the
+                // map exists to surface (Nearby radius especially)
+                // are inherently account-wide concerns.
+                sensors={sensors}
+                selectedSensorId={selectedSensorId}
+                // Pin click + nearby-list click → flip the dropdown
+                // selection. clearSensorUrlParam keeps the URL in
+                // sync with manual moves, mirroring the Autocomplete
+                // change handlers above so behavior is consistent
+                // regardless of where the user clicks.
+                onSelectSensor={(id) => {
+                  setSelectedSensorId(id);
+                  clearSensorUrlParam();
+                }}
+                activeSensor={activeSensor}
+                sensorDetail={sensorDetail}
+                // Parent PheNode for the new "PheNode" overlay toggle
+                // — passed in pre-resolved so the map doesn't have to
+                // know about devices[].wireless_sensors[] lookup.
+                parentDevice={activePhenode}
                 infoCardMode={infoCardMode}
                 setInfoCardMode={setInfoCardMode}
                 selectedSoilProbe={selectedSoilProbe}
                 setSelectedSoilProbe={setSelectedSoilProbe}
+                onRename={handleMapRename}
+                isLoading={sensorsLoading}
               />
             </Grid>
           ) : (

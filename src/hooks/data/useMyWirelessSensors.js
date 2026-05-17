@@ -87,7 +87,28 @@ export default function useMyWirelessSensors() {
   const swrKey = isAuthenticated && accessToken ? [buildUrl(API.wirelessSensors.mySensors), accessToken] : null;
 
   const { data, error, isLoading, mutate } = useSWR(swrKey, fetchAndValidateSensors, {
-    refreshInterval: 60000
+    refreshInterval: 60000,
+    // compare: structural-equality check SWR runs against the existing
+    // cached data on every revalidation. When it returns true, SWR keeps
+    // the existing reference and skips the state update — meaning no
+    // re-render in any consumer of this hook.
+    //
+    // Why this matters: without it, every 60s SWR poll returns a FRESH
+    // array reference (even if the backend data is byte-identical to
+    // what we already have), which cascades through every downstream
+    // useMemo with `[sensors]` deps — the dropdown options, the
+    // filteredSensors cohort, the map's plottable list, the InfoWindow
+    // state — all recompute. The user sees the visible flicker each
+    // minute (Loading… branches, map markers re-rendering, etc.).
+    //
+    // JSON.stringify is the cheapest "good enough" deep compare for the
+    // response sizes we get back (<1ms for a few hundred sensors).
+    // Mirrors the same recipe used in useMyDevices and
+    // useDeviceMeasurements / useWirelessSensorDetail. When the backend
+    // HAS genuinely-new data the strings differ and SWR re-renders
+    // normally — same behavior in the changed case, just no spurious
+    // renders in the no-op case.
+    compare: (a, b) => JSON.stringify(a) === JSON.stringify(b)
     // dedupingInterval / revalidateOnFocus / shouldRetryOnError / onError
     // come from <SWRConfig> in providers/SWRProvider.jsx — no per-hook
     // override needed.
