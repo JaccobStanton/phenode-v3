@@ -211,8 +211,6 @@ export default function Imaging() {
     const start = (page - 1) * rowsPerPage;
     return filteredRows.slice(start, start + rowsPerPage);
   }, [filteredRows, page]);
-  const pageStartIndex = filteredRows.length === 0 ? 0 : (page - 1) * rowsPerPage + 1;
-  const pageEndIndex = Math.min(page * rowsPerPage, filteredRows.length);
   const totalImagesToDownload = selectedRows.length;
   const estimatedDownloadSizeMb = (totalImagesToDownload * 4.2).toFixed(1);
   const downloadProgress = totalImagesToDownload > 0 ? (downloadedCount / totalImagesToDownload) * 100 : 0;
@@ -799,9 +797,7 @@ export default function Imaging() {
                   sx={{ justifyContent: 'space-between', alignItems: 'center' }}
                 >
                   <Typography variant="caption" sx={{ color: 'var(--blue)' }}>
-                    {filteredRows.length === 0
-                      ? 'Showing 0 images'
-                      : `Showing ${pageStartIndex}-${pageEndIndex} of ${filteredRows.length} images`}
+                    {`Showing ${paginatedRows.length} of ${filteredRows.length} images`}
                   </Typography>
                   <Pagination
                     page={page}

@@ -1498,7 +1498,7 @@ export default function FleetOverviewView({
                   whiteSpace: 'nowrap'
                 }}
               >
-                Showing {visibleRows.length.toLocaleString()} of {rows.length.toLocaleString()}
+                Showing {pagedRows.length.toLocaleString()} of {rows.length.toLocaleString()}
               </Typography>
             </Box>
           </Stack>
