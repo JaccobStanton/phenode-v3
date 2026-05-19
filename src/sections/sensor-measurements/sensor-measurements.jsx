@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import Box from '@mui/material/Box';
@@ -24,7 +24,14 @@ import DownloadOutlined from '@ant-design/icons/DownloadOutlined';
 
 import MainCard from 'components/MainCard';
 import PhenodeSelector from 'components/PhenodeSelector';
-import PheNodeFleetMap from 'sections/sensor-measurements/phenode-fleet-map';
+// PheNodeFleetMap is lazy-loaded so the @vis.gl/react-google-maps wrapper
+// (and the Google Maps JS API runtime it pulls in at use-time) only
+// parses for users who actually open the map view. Most users on this
+// page stay in the chart view, so this saves a meaningful chunk of TTI
+// on first paint. The conditional render below is wrapped in Suspense
+// with a small CircularProgress fallback for the brief moment between
+// "user clicked the toggle" and "map chunk has finished parsing."
+const PheNodeFleetMap = lazy(() => import('sections/sensor-measurements/phenode-fleet-map'));
 import useAuth from 'hooks/useAuth';
 import useMyDevices from 'hooks/data/useMyDevices';
 import useDeviceMeasurements from 'hooks/data/useDeviceMeasurements';
@@ -36,6 +43,7 @@ import {
   axisTickNumberFor,
   computeAxisTicks,
   computeChartWindow,
+  findChartTimeRange,
   formatAxisTick,
   formatTooltipDate,
   pickAxisFormatForRange
@@ -75,11 +83,30 @@ const chartSurfaceSx = {
   border: '1px solid #0e346a'
 };
 
-// Search-param name the fleet-overview card click writes to (and that
-// this page reads from). Pulling it to a constant keeps the contract
-// between the two pages discoverable in one place — if we ever rename
-// the param, both sides flip together.
+// Search-param names this page reads from and writes to.
+// Centralizing keeps the URL surface auditable in one place — anything
+// that wants to deep-link into a particular state (fleet-overview card
+// click → ?device=, the Lighthouse audit deep-linking into the map
+// view via ?view=map, or a saved bookmark with both ?device= and
+// ?range= set) flips through these constants instead of hardcoded
+// string literals scattered across the component.
+//
+//   DEVICE_PARAM ─ external_device_id the page is scoped to. Written
+//                  by the fleet-overview cards and the PhenodeSelector
+//                  dropdown.
+//   RANGE_PARAM  ─ time-range label the chart panel is currently
+//                  showing. Written by the time-range Select. Persists
+//                  the user's choice across reloads and survives
+//                  bookmark sharing ("send me a link to the last-year
+//                  view of this device").
+//   VIEW_PARAM   ─ 'map' when the map view is open, omitted otherwise.
+//                  Written by the map toggle button. Lets the audit
+//                  script (and any future automation) navigate
+//                  directly into the map state for Lighthouse capture.
 const DEVICE_PARAM = 'device';
+const RANGE_PARAM = 'range';
+const VIEW_PARAM = 'view';
+const VIEW_PARAM_MAP_VALUE = 'map';
 
 // Sentinel label appended to the time-range dropdown options. When the
 // user picks this entry the toolbar reveals two DateTimePickers and
@@ -526,7 +553,25 @@ const chartSx = {
     strokeWidth: 0.95,
     strokeLinecap: 'round',
     strokeLinejoin: 'round',
-    filter: 'drop-shadow(0 0 8px var(--chart-line-color))'
+    // Reference a STATIC SVG <filter> by id rather than computing
+    // `drop-shadow(...)` per element. Two reasons:
+    //
+    //   1. drop-shadow on every line stroke triggers a separate raster
+    //      pass per element. For a 24-hour range that's ~288 segments
+    //      × 6 charts = ~1,700 filter operations every paint. A static
+    //      <filter> in <defs> is compiled once and reused, which lets
+    //      the browser amortize the cost across all references.
+    //
+    //   2. Each chart's wrapper sets `--chart-glow-filter` based on
+    //      its current point count (full glow ≤500 points; lite glow
+    //      above that — see useLiteGlow in the panel below). The CSS
+    //      variable indirection means the same chartSx rule serves
+    //      both cases without branching on JS.
+    //
+    // The fallback to url(#chart-glow-full) keeps charts rendered
+    // outside the panel (e.g., the enlarged Dialog) on the full-glow
+    // path when no wrapper-level variable is set.
+    filter: 'var(--chart-glow-filter, url(#chart-glow-full))'
   },
   '& .MuiAreaElement-root': {
     fillOpacity: 0.16
@@ -566,6 +611,134 @@ const makeYAxisFormatter = (unit) => (value) => {
   const compact = Math.abs(value) >= 1000 ? `${(value / 1000).toFixed(1)}k` : `${value}`;
   return unit ? `${compact} ${unit}` : compact;
 };
+
+// =============================================================================
+// MeasurementChart — memoized LineChart wrapper.
+// =============================================================================
+//
+// Why this is a separate memo'd component rather than inline JSX in the
+// .map() loop:
+//
+//   The toolbar (selection-loading indicator, hover state, custom date
+//   pickers, download disabled state) re-renders frequently while the
+//   chart data itself is stable. Without React.memo, every toolbar
+//   state change cascades into 6 LineChart re-renders — each of which
+//   does internal layout, re-measures its SVG, and re-applies its sx
+//   tree. MUI x-charts has its own memoization but it can't skip work
+//   if React keeps handing it new prop references on every parent
+//   render.
+//
+//   Extracting the chart into a memo'd component with PRIMITIVE props
+//   (not object literals) means React.memo's default shallowEqual
+//   compare actually catches "nothing changed for this chart" and
+//   short-circuits the whole subtree. The toolbar can fidget all it
+//   wants and the charts don't redraw.
+//
+// All props are designed to be stable across renders unless the data
+// actually changed:
+//
+//   - config: comes from the module-level DEVICE_CHART_CONFIGS array,
+//     same reference every render.
+//   - seriesTimes / seriesData: from useMemo(chartSeriesByField), same
+//     reference until measurementRows changes.
+//   - xAxisMin / xAxisMax: derived from a memoized array's elements,
+//     so Date references are stable too.
+//   - xAxisTicks: useMemo'd.
+//   - axisFormat: memoized.
+//   - primitives are trivially stable.
+//
+// The "No data" empty-state lives at the PARENT level rather than
+// inside this component because the grid version and the enlarged-
+// Dialog version want different "empty" styling (compact flex:1 vs
+// fixed minHeight). Pushing the styling decision back to the caller
+// keeps this component focused on one job: render a chart.
+//
+// `idSuffix` is appended to every LineChart axis/series id so the
+// grid version and the enlarged-Dialog version never collide. MUI
+// x-charts uses ids internally for cross-references between axes
+// and series — two charts with the same id in the same DOM produce
+// subtle render glitches.
+const MeasurementChart = memo(function MeasurementChart({
+  config,
+  seriesTimes,
+  seriesData,
+  xAxisMin,
+  xAxisMax,
+  xAxisTicks,
+  axisFormat,
+  height,
+  yAxisWidth,
+  xAxisFontSize,
+  yAxisFontSize,
+  marginTop,
+  marginRight,
+  marginBottom,
+  marginLeft,
+  idSuffix
+}) {
+  // Y-axis padding — 4% of the range, with a 0.1 floor so a flat
+  // series (every value identical) still renders a visible band
+  // rather than collapsing the line into the axis. Calculation
+  // happens inside the memo so the parent doesn't need to pass min
+  // / max / pad through as separate props.
+  const minVal = Math.min(...seriesData);
+  const maxVal = Math.max(...seriesData);
+  const pad = Math.max(0.1, (maxVal - minVal) * 0.04);
+
+  return (
+    <LineChart
+      xAxis={[
+        {
+          // Time-scale axis — was 'point' (categorical) in the
+          // mock-data version, which meant evenly-spaced ticks
+          // regardless of actual timestamp gaps. 'time' draws ticks
+          // against real wall-clock positions, so a 6h data gap reads
+          // as a 6h gap visually.
+          id: `${config.key}-x${idSuffix}`,
+          scaleType: 'time',
+          data: seriesTimes,
+          tickNumber: axisTickNumberFor(axisFormat),
+          tickInterval: xAxisTicks,
+          min: xAxisMin,
+          max: xAxisMax,
+          domainLimit: 'strict',
+          tickLabelStyle: { fontSize: xAxisFontSize, fill: 'var(--green)' },
+          valueFormatter: (value, context) =>
+            context?.location === 'tooltip' ? formatTooltipDate(value) : formatAxisTick(value, axisFormat)
+        }
+      ]}
+      yAxis={[
+        {
+          id: `${config.key}-y${idSuffix}`,
+          min: minVal - pad,
+          max: maxVal + pad,
+          width: yAxisWidth,
+          tickLabelStyle: { fontSize: yAxisFontSize, fill: 'var(--green)' },
+          valueFormatter: makeYAxisFormatter(config.unit)
+        }
+      ]}
+      series={[
+        {
+          id: `${config.key}-line${idSuffix}`,
+          data: seriesData,
+          color: config.color,
+          area: true,
+          showMark: false,
+          curve: 'linear',
+          valueFormatter: (value) =>
+            value === null || value === undefined
+              ? 'No data'
+              : `${Number(value).toFixed(2)}${config.unit ? ` ${config.unit}` : ''}`
+        }
+      ]}
+      grid={{ horizontal: true, vertical: true }}
+      height={height}
+      margin={{ top: marginTop, right: marginRight, bottom: marginBottom, left: marginLeft }}
+      hideLegend
+      sx={chartSx}
+    />
+  );
+});
 
 // Build the three "current value" circles from a single DeviceRead. The
 // values use the same formatters the fleet-overview cards use, so the
@@ -616,7 +789,49 @@ function buildCircleMetrics(device) {
 }
 
 export default function SensorMeasurements() {
-  const [timeRange, setTimeRange] = useState(DEFAULT_CHART_TIME_RANGE);
+  // URL search params drive the state shape: ?device=, ?range=, ?view=.
+  // Keeping the URL as the single source of truth makes every meaningful
+  // state shareable, refresh-survivable, and (importantly for our
+  // Lighthouse coverage) deep-linkable from the audit script. The
+  // custom-range pickers stay in local state — they're transient
+  // mid-input scratch values, not the kind of thing you'd bookmark.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const deviceFromUrl = searchParams.get(DEVICE_PARAM);
+  const rangeFromUrl = searchParams.get(RANGE_PARAM);
+  const viewFromUrl = searchParams.get(VIEW_PARAM);
+
+  // Resolve `timeRange` from the URL with a defensive fallback:
+  //   - `?range=Last 24 hours` → match against the preset table → use it.
+  //   - `?range=Custom range…` → keep as-is so the pickers render.
+  //   - `?range=<garbage>` or missing → fall back to DEFAULT_CHART_TIME_RANGE.
+  // The fallback path means a hand-typed URL with a stale or typo'd
+  // range value won't break the page; it just opens to the default.
+  const timeRange = useMemo(() => {
+    if (!rangeFromUrl) return DEFAULT_CHART_TIME_RANGE;
+    if (rangeFromUrl === CUSTOM_RANGE_LABEL) return CUSTOM_RANGE_LABEL;
+    if (findChartTimeRange(rangeFromUrl)) return rangeFromUrl;
+    return DEFAULT_CHART_TIME_RANGE;
+  }, [rangeFromUrl]);
+
+  // Helper for writing the range to the URL. Used by the Select's
+  // onChange below. Identical pattern to handlePhenodeChange — we
+  // delete the param when the user picks the default so the URL stays
+  // clean for the most common state.
+  const setTimeRange = useCallback(
+    (nextRange) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        if (nextRange && nextRange !== DEFAULT_CHART_TIME_RANGE) {
+          next.set(RANGE_PARAM, nextRange);
+        } else {
+          next.delete(RANGE_PARAM);
+        }
+        return next;
+      });
+    },
+    [setSearchParams]
+  );
+
   const [chartLayout, setChartLayout] = useState('row');
 
   // Custom-range pickers — only consulted when `timeRange` equals the
@@ -687,7 +902,31 @@ export default function SensorMeasurements() {
   // The hover state is tracked separately so the icon can swap between
   // its active / inactive variants on pointer + focus — matches the
   // hover-swap behavior on the sensor-network map button.
-  const [isMapView, setIsMapView] = useState(false);
+  // Map-view derived from the URL (?view=map). Writing it back through
+  // the same setSearchParams hook the dropdown uses keeps state shape
+  // consistent and lets the audit script (or a shared bookmark) deep-
+  // link directly into the map state without a puppeteer click step.
+  const isMapView = viewFromUrl === VIEW_PARAM_MAP_VALUE;
+  const setIsMapView = useCallback(
+    (nextMapViewValue) => {
+      // Accept the same setter shapes useState does — a boolean OR a
+      // functional updater `(prev) => next` — so the existing onClick
+      // pattern (`setIsMapView((prev) => !prev)`) continues to work
+      // without per-call-site changes.
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        const wasMap = prev.get(VIEW_PARAM) === VIEW_PARAM_MAP_VALUE;
+        const resolved = typeof nextMapViewValue === 'function' ? nextMapViewValue(wasMap) : nextMapViewValue;
+        if (resolved) {
+          next.set(VIEW_PARAM, VIEW_PARAM_MAP_VALUE);
+        } else {
+          next.delete(VIEW_PARAM);
+        }
+        return next;
+      });
+    },
+    [setSearchParams]
+  );
   const [isMapToggleHovered, setIsMapToggleHovered] = useState(false);
 
   // Icon variant for the map toggle button. Four visual states organized
@@ -716,12 +955,11 @@ export default function SensorMeasurements() {
       : mapIconInactive;
   const mapToggleTooltip = isMapView ? 'Sensor Measurements' : 'Map View';
 
-  // URL search params drive which PheNode this page is scoped to. URL
-  // is the source of truth so deep links from the fleet-overview cards
-  // (and bookmarks / shared links) refresh-survive without any local
-  // state shimming.
-  const [searchParams, setSearchParams] = useSearchParams();
-  const deviceFromUrl = searchParams.get(DEVICE_PARAM);
+  // (searchParams + deviceFromUrl + rangeFromUrl + viewFromUrl already
+  // resolved at the top of the component — see the URL-state block.
+  // Keeping them at the top means timeRange/isMapView are derived
+  // before any consumers run, which avoids ordering bugs from a stale
+  // useMemo dep.)
 
   const { devices, isLoading: devicesLoading, mutate: mutateDevices } = useMyDevices();
   const { accessToken } = useAuth();
@@ -952,6 +1190,24 @@ export default function SensorMeasurements() {
     return measurementRows.map((row) => new Date(row.time));
   }, [measurementRows]);
 
+  // Glow intensity selector — picks the chart-stroke filter once at the
+  // panel level since point counts move together (all six charts share
+  // chartTimes by definition). When the user selects a long time range
+  // and the backend's auto-bucketing returns lots of buckets, switch to
+  // the lite glow: the full 8px blur is visually unnecessary at high
+  // line density (the glow on individual segments overlaps with itself)
+  // AND it's a measurable paint-cost win. Threshold of 500 points is
+  // calibrated to the typical break-even where the glow stops adding
+  // perceptible visual richness.
+  //
+  // The variable name `--chart-glow-filter` is what `chartSx` reads via
+  // `filter: var(--chart-glow-filter, url(#chart-glow-full))`. Setting
+  // it on the chart wrapper Box scopes the choice per chart-card —
+  // although in practice all six pick the same value since they share
+  // the data shape.
+  const useLiteGlow = chartTimes.length > 500;
+  const chartGlowFilterVar = useLiteGlow ? 'url(#chart-glow-lite)' : 'url(#chart-glow-full)';
+
   // Per-chart series data. Returns an object keyed by field name with
   // a `{ times, values }` pair PER CHART — each chart has its own
   // X-axis timestamps containing ONLY the rows where that specific
@@ -1002,6 +1258,58 @@ export default function SensorMeasurements() {
 
   return (
     <>
+      {/*
+        Hidden SVG with the chart glow filters.
+
+        Rendered at the page level (not inside each chart's own SVG)
+        because MUI x-charts owns the chart SVG's <defs> and we can't
+        inject our filters there. The browser's SVG filter resolver
+        looks up `url(#id)` across all SVGs in the same document, so
+        a single hidden SVG here serves every chart on the page —
+        including the enlarged dialog chart that mounts later.
+
+        Two filters with progressively softer parameters:
+
+          chart-glow-full ─ stdDeviation 4 (≈ drop-shadow 0 0 8px).
+                            Default for charts with ≤500 data points.
+                            Produces the rich glow the visual spec
+                            calls for at typical point density.
+          chart-glow-lite ─ stdDeviation 1 (≈ drop-shadow 0 0 2px).
+                            Drastically reduced — used when the chart
+                            has >500 points and the high line density
+                            already overlaps individual glows enough
+                            that the heavy blur stops adding richness.
+                            Significant paint-cost reduction.
+
+        Both filters blur the SourceGraphic itself (the line stroke,
+        which already carries its color), then merge the blurred copy
+        as the glow layer underneath the original line. This means
+        the glow inherits the line's stroke color automatically — no
+        per-color filter definitions, no flood-color hardcoding.
+
+        Filter region is 100% larger than the bounding box to keep
+        the soft edges of the blur inside the clip region; otherwise
+        you'd see hard cutoffs at the chart edges where the blur was
+        clipped by the default 10% filter region.
+      */}
+      <svg aria-hidden="true" width="0" height="0" style={{ position: 'absolute', pointerEvents: 'none' }}>
+        <defs>
+          <filter id="chart-glow-full" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="4" />
+            <feMerge>
+              <feMergeNode />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          <filter id="chart-glow-lite" x="-25%" y="-25%" width="150%" height="150%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="1" />
+            <feMerge>
+              <feMergeNode />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+      </svg>
       <MainCard content={false} sx={{ width: '100%', minWidth: 0, overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
         <Box sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 2.5 } }}>
           <Stack
@@ -1125,14 +1433,35 @@ export default function SensorMeasurements() {
       */}
         <Box sx={{ px: { xs: 2, sm: 3 }, pt: 0, pb: { xs: 2, sm: 3 } }}>
           {isMapView ? (
-            <PheNodeFleetMap
-              devices={devices}
-              selectedDeviceId={activeDeviceId}
-              onSelectDevice={handlePhenodeChange}
-              activeDevice={activeDevice}
-              onRename={handleRename}
-              isLoading={devicesLoading}
-            />
+            <Suspense
+              fallback={
+                <Box
+                  sx={{
+                    minHeight: { xs: 320, md: 420 },
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--blue)',
+                    fontSize: '0.9rem',
+                    gap: 1.25
+                  }}
+                  role="status"
+                  aria-live="polite"
+                >
+                  <CircularProgress size={22} sx={{ color: 'var(--green)' }} />
+                  <Box component="span">Loading map…</Box>
+                </Box>
+              }
+            >
+              <PheNodeFleetMap
+                devices={devices}
+                selectedDeviceId={activeDeviceId}
+                onSelectDevice={handlePhenodeChange}
+                activeDevice={activeDevice}
+                onRename={handleRename}
+                isLoading={devicesLoading}
+              />
+            </Suspense>
           ) : (
             <Box
               sx={{
@@ -1527,6 +1856,60 @@ export default function SensorMeasurements() {
               </Stack>
             </LocalizationProvider>
 
+            {/*
+              Panel-level initial-load + error states. Replaces the
+              per-chart "Failed to load chart data" / "Loading chart
+              data…" branches that used to fire six times during the
+              first fetch — six wrapper Boxes + six spinners is wasted
+              work when the user is looking at one consolidated "still
+              waiting on the first response" state.
+
+              Once `measurementRows` has any value (even an empty
+              array), the grid renders normally and each chart's own
+              "No data for this time range" branch handles per-metric
+              gaps. So:
+
+                first fetch in flight (no rows yet)           → panel-level Loading
+                first fetch failed (no rows yet)              → panel-level Error
+                rows exist (even if some are empty per metric) → render grid
+
+              Background polls don't blank the grid — the
+              `!measurementRows` guard ensures we only suppress the
+              grid before the very first response arrives.
+            */}
+            {measurementsError && !measurementRows ? (
+              <Box
+                sx={{
+                  minHeight: { xs: 320, md: 380 },
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--orange)',
+                  fontSize: '0.9rem',
+                  fontStyle: 'italic'
+                }}
+                role="alert"
+              >
+                Failed to load chart data
+              </Box>
+            ) : measurementsLoading && !measurementRows ? (
+              <Stack
+                direction="row"
+                spacing={1.5}
+                sx={{
+                  minHeight: { xs: 320, md: 380 },
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--blue)',
+                  fontSize: '0.9rem'
+                }}
+                role="status"
+                aria-live="polite"
+              >
+                <CircularProgress size={22} sx={{ color: 'var(--green)' }} />
+                <Box component="span">Loading chart data…</Box>
+              </Stack>
+            ) : (
             <Box
               sx={{
                 display: 'grid',
@@ -1549,25 +1932,25 @@ export default function SensorMeasurements() {
                 // anything to render.
                 const hasData = seriesData.length > 0;
 
-                // Y-axis padding — 4% of the range, with a 0.1 floor
-                // so a flat series (every value identical) still
-                // renders a visible band rather than collapsing the
-                // line into the axis. Original mock had the same
-                // recipe; kept here verbatim because the visual is
-                // tuned to it.
-                const minVal = hasData ? Math.min(...seriesData) : 0;
-                const maxVal = hasData ? Math.max(...seriesData) : 1;
-                const pad = Math.max(0.1, (maxVal - minVal) * 0.04);
+                // Y-axis padding is computed INSIDE MeasurementChart
+                // now — see the memoized component at the top of this
+                // file. We only need `hasData` here to gate between
+                // the "No data" branch and the chart render below.
 
                 return (
                   <Box
                     key={config.key}
                     // Per-chart CSS variable for the line/glow color.
-                    // The shared `chartSx` references this var so we
+                    // The shared `chartSx` references both vars so we
                     // don't have to build a different sx object per
                     // chart — keeps `chartSx` a single hoisted
                     // reference instead of N reconstructed objects.
-                    style={{ '--chart-line-color': config.color }}
+                    // `--chart-glow-filter` is computed once at the
+                    // panel level (chartGlowFilterVar) since all six
+                    // charts share the same point-count threshold —
+                    // setting it on the wrapper scopes the lookup
+                    // while keeping the threshold logic in one place.
+                    style={{ '--chart-line-color': config.color, '--chart-glow-filter': chartGlowFilterVar }}
                     sx={{
                       borderRadius: 1,
                       p: { xs: 0.45, sm: 0.65 },
@@ -1619,45 +2002,16 @@ export default function SensorMeasurements() {
 
                     {/*
                       Three render branches: error → loading → empty →
-                      chart. Order matters: an error during a
-                      background refresh shouldn't blank a chart that
-                      previously had data, but the FIRST fetch failing
-                      should surface clearly. We special-case
-                      `!measurementRows` (no data yet) so the loading
-                      and error states only fire before any data has
-                      arrived; once we have rows, we render them even
-                      while a poll is in flight (stale-while-revalidate).
+                      chart. The initial-load / first-error states are
+                      now handled at the PANEL level (see the wrapper
+                      above), so each chart only needs to distinguish
+                      "no data for this metric in this range" from
+                      "we have data — draw it." Background poll errors
+                      don't blank charts that already have rows; this
+                      is the stale-while-revalidate side of the
+                      per-chart treatment.
                     */}
-                    {measurementsError && !measurementRows ? (
-                      <Box
-                        sx={{
-                          flex: 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'var(--orange)',
-                          fontSize: '0.85rem',
-                          fontStyle: 'italic'
-                        }}
-                      >
-                        Failed to load chart data
-                      </Box>
-                    ) : measurementsLoading && !measurementRows ? (
-                      <Stack
-                        direction="row"
-                        spacing={1.5}
-                        sx={{
-                          flex: 1,
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'var(--blue)',
-                          fontSize: '0.85rem'
-                        }}
-                      >
-                        <CircularProgress size={20} sx={{ color: 'var(--green)' }} />
-                        <Box component="span">Loading chart data…</Box>
-                      </Stack>
-                    ) : !hasData ? (
+                    {!hasData ? (
                       <Box
                         sx={{
                           flex: 1,
@@ -1672,125 +2026,37 @@ export default function SensorMeasurements() {
                         No data for this time range
                       </Box>
                     ) : (
-                      <LineChart
-                        xAxis={[
-                          {
-                            // Time-scale axis — was 'point' (categorical)
-                            // in the mock-data version, which meant
-                            // evenly-spaced ticks regardless of actual
-                            // timestamp gaps. 'time' draws ticks against
-                            // real wall-clock positions, so a 6h data
-                            // gap reads as a 6h gap visually.
-                            id: `${config.key}-x`,
-                            scaleType: 'time',
-                            // Per-chart, null-filtered timestamps —
-                            // each chart only plots the positions
-                            // where its field has a reading, so the
-                            // line stays continuous across what
-                            // would otherwise be null-gap breaks.
-                            data: seriesTimes,
-                            // tickNumber caps how many ticks MUI's auto-
-                            // placement will propose. Without it, long
-                            // ranges with low-resolution formats (e.g.
-                            // "Last 6 months" → MMM YY) produce many
-                            // ticks per month that all render to the
-                            // same string ("Mar 26 Mar 26 Apr 26..."),
-                            // creating visible duplicate labels on the
-                            // axis. axisTickNumberFor picks a per-format
-                            // count that keeps each rendered label
-                            // distinct at typical chart widths.
-                            tickNumber: axisTickNumberFor(axisFormat),
-                            // Explicit tick positions when MUI's
-                            // auto-placement would produce duplicate
-                            // labels (MONTH format). undefined for
-                            // every other format → MUI auto-picks.
-                            tickInterval: xAxisTicks,
-                            // Pin the axis range to the actual data
-                            // extent + use strict (not "nice"-rounded)
-                            // bounds. Together these kill the leading
-                            // gap between the Y-axis and where the
-                            // chart line starts: without `min`/`max`
-                            // MUI auto-fits to data but with
-                            // domainLimit "nice" it pads outward to
-                            // the next nice boundary (e.g. data starts
-                            // 14:23 → axis starts 14:00 → small gap).
-                            // chartTimes is sorted ascending by the
-                            // useMemo above, so [0] is earliest and
-                            // [length-1] is latest.
-                            min: chartTimes[0],
-                            max: chartTimes[chartTimes.length - 1],
-                            domainLimit: 'strict',
-                            tickLabelStyle: { fontSize: 11, fill: 'var(--green)' },
-                            // Context-aware formatter: tooltips get
-                            // the full "Mar 15, 2026, 02:23 PM" so
-                            // hovering different points in the same
-                            // month produces distinct strings. Axis
-                            // ticks keep the coarse format chosen for
-                            // the current range (avoiding overlap).
-                            valueFormatter: (value, context) =>
-                              context?.location === 'tooltip' ? formatTooltipDate(value) : formatAxisTick(value, axisFormat)
-                          }
-                        ]}
-                        yAxis={[
-                          {
-                            id: `${config.key}-y`,
-                            min: minVal - pad,
-                            max: maxVal + pad,
-                            // Bumped from 30 → 56px so the tick label has
-                            // room for value + unit suffix together
-                            // (e.g. "23.5 m/s", "1014.2 kPa"). The
-                            // previous 30px width fit only the bare
-                            // number; the unit was getting clipped with
-                            // "..." by the axis-track edge.
-                            width: 56,
-                            tickLabelStyle: { fontSize: 11, fill: 'var(--green)' },
-                            valueFormatter: makeYAxisFormatter(config.unit)
-                          }
-                        ]}
-                        series={[
-                          {
-                            id: `${config.key}-line`,
-                            data: seriesData,
-                            color: config.color,
-                            area: true,
-                            showMark: false,
-                            curve: 'linear',
-                            // Tooltip value formatter — pretty-prints
-                            // the hover value with the chart's unit
-                            // suffix so the user can tell whether they're
-                            // looking at "23.5 m/s" vs "23.5 %".
-                            valueFormatter: (value) =>
-                              value === null || value === undefined
-                                ? 'No data'
-                                : `${Number(value).toFixed(2)}${config.unit ? ` ${config.unit}` : ''}`
-                          }
-                        ]}
-                        grid={{ horizontal: true, vertical: true }}
+                      // Memoized chart — see MeasurementChart at the
+                      // top of this file for the rationale. All props
+                      // are primitives or stable-reference values so
+                      // React.memo's default shallowEqual will skip
+                      // the chart re-render when nothing meaningful
+                      // changed (the toolbar fidgeting elsewhere on
+                      // the page won't propagate down here).
+                      <MeasurementChart
+                        config={config}
+                        seriesTimes={seriesTimes}
+                        seriesData={seriesData}
+                        xAxisMin={chartTimes[0]}
+                        xAxisMax={chartTimes[chartTimes.length - 1]}
+                        xAxisTicks={xAxisTicks}
+                        axisFormat={axisFormat}
                         height={chartLayout === 'row' ? 228 : 258}
-                        // margin.bottom is the gap BELOW the X-axis's
-                        // own labels (the X-axis has an intrinsic
-                        // 25px allocation set by MUI's
-                        // DEFAULT_AXIS_SIZE_HEIGHT where the tick
-                        // labels actually render). The previous 22
-                        // here was being added on top of that, parking
-                        // ~22px of empty space below the "Mar 26"
-                        // labels inside the chart SVG. Setting it to
-                        // 0 — combined with the card's own
-                        // padding-bottom (~5.2px) — makes the space
-                        // below the X-axis label equal the space
-                        // above the chart title at the top of the
-                        // card. Same logic for margin.right: the
-                        // card's own padding-right is the only edge
-                        // padding needed.
-                        margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
-                        hideLegend
-                        sx={chartSx}
+                        yAxisWidth={56}
+                        xAxisFontSize={11}
+                        yAxisFontSize={11}
+                        marginTop={8}
+                        marginRight={8}
+                        marginBottom={0}
+                        marginLeft={0}
+                        idSuffix=""
                       />
                     )}
                   </Box>
                 );
               })}
             </Box>
+            )}
           </Box>
         </Box>
       </MainCard>
@@ -1838,9 +2104,6 @@ export default function SensorMeasurements() {
             // continuous and the tooltip never resolves to "No data".
             const { times: seriesTimes, values: seriesData } = chartSeriesByField[config.key] ?? { times: [], values: [] };
             const hasData = seriesData.length > 0;
-            const minVal = hasData ? Math.min(...seriesData) : 0;
-            const maxVal = hasData ? Math.max(...seriesData) : 1;
-            const pad = Math.max(0.1, (maxVal - minVal) * 0.04);
             return (
               <>
                 <DialogTitle sx={{ pb: 1, pr: 1 }}>
@@ -1862,7 +2125,7 @@ export default function SensorMeasurements() {
                 </DialogTitle>
                 <DialogContent sx={{ pt: 1.5, pb: 2.5 }}>
                   <Box
-                    style={{ '--chart-line-color': config.color }}
+                    style={{ '--chart-line-color': config.color, '--chart-glow-filter': chartGlowFilterVar }}
                     sx={{ ...chartSurfaceSx, border: '1px solid #0e346a', borderRadius: 1, p: { xs: 1, sm: 1.5 } }}
                   >
                     {measurementsError && !measurementRows ? (
@@ -1903,60 +2166,28 @@ export default function SensorMeasurements() {
                         No data for this time range
                       </Box>
                     ) : (
-                      <LineChart
-                        xAxis={[
-                          {
-                            id: `${config.key}-x-enlarged`,
-                            scaleType: 'time',
-                            // Per-chart null-filtered timestamps —
-                            // see the grid chart's same prop above.
-                            data: seriesTimes,
-                            tickNumber: axisTickNumberFor(axisFormat),
-                            tickInterval: xAxisTicks,
-                            min: seriesTimes[0],
-                            max: seriesTimes[seriesTimes.length - 1],
-                            domainLimit: 'strict',
-                            tickLabelStyle: { fontSize: 12, fill: 'var(--green)' },
-                            valueFormatter: (value, context) =>
-                              context?.location === 'tooltip' ? formatTooltipDate(value) : formatAxisTick(value, axisFormat)
-                          }
-                        ]}
-                        yAxis={[
-                          {
-                            id: `${config.key}-y-enlarged`,
-                            min: minVal - pad,
-                            max: maxVal + pad,
-                            width: 64,
-                            tickLabelStyle: { fontSize: 12, fill: 'var(--green)' },
-                            valueFormatter: makeYAxisFormatter(config.unit)
-                          }
-                        ]}
-                        series={[
-                          {
-                            id: `${config.key}-line-enlarged`,
-                            data: seriesData,
-                            color: config.color,
-                            area: true,
-                            showMark: false,
-                            curve: 'linear',
-                            valueFormatter: (value) =>
-                              value === null || value === undefined
-                                ? 'No data'
-                                : `${Number(value).toFixed(2)}${config.unit ? ` ${config.unit}` : ''}`
-                          }
-                        ]}
-                        grid={{ horizontal: true, vertical: true }}
+                      // Same memoized component as the grid version —
+                      // just larger and with a unique idSuffix so the
+                      // two charts' MUI x-charts ids don't collide
+                      // when both are mounted (the grid card stays
+                      // visible underneath the Dialog).
+                      <MeasurementChart
+                        config={config}
+                        seriesTimes={seriesTimes}
+                        seriesData={seriesData}
+                        xAxisMin={seriesTimes[0]}
+                        xAxisMax={seriesTimes[seriesTimes.length - 1]}
+                        xAxisTicks={xAxisTicks}
+                        axisFormat={axisFormat}
                         height={500}
-                        // Same pattern as the grid version: margin.bottom
-                        // is the gap UNDER the X-axis's own labels (the
-                        // X-axis has its own intrinsic 25px allocation
-                        // via DEFAULT_AXIS_SIZE_HEIGHT). A bottom 4 here
-                        // leaves a tiny breathing pad in the roomier
-                        // Dialog so labels don't sit flush against the
-                        // DialogContent's bottom edge.
-                        margin={{ top: 12, right: 12, bottom: 4, left: 4 }}
-                        hideLegend
-                        sx={chartSx}
+                        yAxisWidth={64}
+                        xAxisFontSize={12}
+                        yAxisFontSize={12}
+                        marginTop={12}
+                        marginRight={12}
+                        marginBottom={4}
+                        marginLeft={4}
+                        idSuffix="-enlarged"
                       />
                     )}
                   </Box>
