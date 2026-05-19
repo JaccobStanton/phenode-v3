@@ -89,8 +89,17 @@ const parseErrorDetail = async (response) => {
 };
 
 export const buildUrl = (path) => {
-  const base = getApiBaseUrl();
-  return base ? `${base}${path}` : path;
+  // Fall back to a relative `/api` prefix when VITE_API_URL is unset
+  // (e.g. on a Netlify deploy that relies on a /api/* proxy rule
+  // instead of a baked-in absolute URL). Without this fallback every
+  // call would hit the bare path on the deploy origin, the SPA
+  // catch-all would serve index.html as text/html, and downstream
+  // response.json() would throw a SyntaxError.
+  //
+  // Mirrors the same `|| '/api'` fallback used in AuthLogin.jsx and
+  // AuthRegister.jsx for the OAuth handoff URL.
+  const base = getApiBaseUrl() || '/api';
+  return `${base}${path}`;
 };
 
 /**
