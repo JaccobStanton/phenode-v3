@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
@@ -14,8 +15,12 @@ import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { LineChart } from '@mui/x-charts/LineChart';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 
 import CloseOutlined from '@ant-design/icons/CloseOutlined';
+import DownloadOutlined from '@ant-design/icons/DownloadOutlined';
 
 import MainCard from 'components/MainCard';
 import PhenodeSelector from 'components/PhenodeSelector';
@@ -32,7 +37,8 @@ import {
   computeAxisTicks,
   computeChartWindow,
   formatAxisTick,
-  formatTooltipDate
+  formatTooltipDate,
+  pickAxisFormatForRange
 } from 'utils/chartTimeRanges';
 import rainSensorIcon from 'assets/sensor-measurements/Rain.svg';
 import tempSensorIcon from 'assets/sensor-measurements/Temp.svg';
@@ -44,7 +50,6 @@ import phenodeFleetIconActive from 'assets/drawer-icons/PheNode_Fleet_Active.svg
 
 import AppstoreOutlined from '@ant-design/icons/AppstoreOutlined';
 import ClockCircleOutlined from '@ant-design/icons/ClockCircleOutlined';
-import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
 import ZoomInOutlined from '@ant-design/icons/ZoomInOutlined';
 
 import {
@@ -52,6 +57,7 @@ import {
   orientationButtonSx,
   tooltipSlotProps,
   neonSelectMenuPaperProps,
+  neonControlSx,
   drawerNavButtonSurfaceSx
 } from 'themes/sx-tokens';
 
@@ -74,6 +80,351 @@ const chartSurfaceSx = {
 // between the two pages discoverable in one place — if we ever rename
 // the param, both sides flip together.
 const DEVICE_PARAM = 'device';
+
+// Sentinel label appended to the time-range dropdown options. When the
+// user picks this entry the toolbar reveals two DateTimePickers and
+// the chart `from`/`to` come from those inputs instead of from
+// computeChartWindow. Kept as a module constant so the comparison in
+// the from/to memo + the dropdown menu use the exact same string —
+// no risk of a typo silently breaking the conditional branch.
+const CUSTOM_RANGE_LABEL = 'Custom range…';
+
+// Themed sx for the date-time pickers — duplicated from
+// sections/wireless-sensors/multi-sensor-graph.jsx (which is the only
+// other place these tokens currently live). Two copies of a small
+// styling object is cheaper than extracting an underused shared module
+// at this point; promote to themes/ if a third pickers-using surface
+// lands.
+const dateTimePickerPaperSx = {
+  backgroundColor: 'rgba(0, 20, 61, 0.94)',
+  backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))',
+  border: '1px solid var(--reflected-light)',
+  boxShadow: '0 11px 19px 1px #0000002e',
+  color: 'var(--green)',
+  backdropFilter: 'blur(6px)'
+};
+const dateTimePickerPopperSx = {
+  '& .MuiPaper-root': dateTimePickerPaperSx,
+  '& .MuiPickersLayout-root': { color: 'var(--blue)' },
+  '& .MuiPickersDay-root': {
+    color: 'var(--green)',
+    borderRadius: 1,
+    '&:hover': { backgroundColor: 'rgba(72, 247, 245, 0.12)' }
+  },
+  '& .MuiPickersDay-root.Mui-selected': {
+    backgroundColor: 'rgba(72, 247, 245, 0.2)',
+    color: 'var(--green)'
+  },
+  '& .MuiDayCalendar-weekDayLabel, & .MuiPickersCalendarHeader-label': {
+    color: 'var(--blue)',
+    fontWeight: 600
+  },
+  '& .MuiPickersArrowSwitcher-button, & .MuiPickersCalendarHeader-switchViewButton': {
+    color: 'var(--blue)'
+  },
+  // Action-bar buttons (Cancel / OK) at the bottom of the picker
+  // popper. Default MUI styling renders them as plain primary-color
+  // text buttons that read foreign against the neon-on-navy popper —
+  // restyle to match the project's button vocabulary: blue text +
+  // reflected-light hairline border at rest, green text + green
+  // border + subtle teal-tinted background on hover.
+  // `.MuiPickersLayout-actionBar` is the wrapper MUI x-pickers uses
+  // for the action row; targeting its child buttons keeps the
+  // selector narrow enough that it doesn't accidentally hit the
+  // calendar's day buttons or the arrow-switcher buttons (those have
+  // their own classes handled above).
+  '& .MuiPickersLayout-actionBar': {
+    borderTop: '1px solid var(--reflected-light)',
+    px: 1,
+    py: 0.75,
+    gap: 0.75,
+    '& .MuiButton-root': {
+      color: 'var(--blue)',
+      borderColor: 'var(--reflected-light)',
+      border: '1px solid var(--reflected-light)',
+      borderRadius: 1,
+      textTransform: 'none',
+      fontWeight: 600,
+      px: 1.5,
+      py: 0.35,
+      letterSpacing: '0.02em',
+      backgroundColor: 'rgba(0, 17, 48, 0.5)',
+      transition: 'color 0.18s ease, border-color 0.18s ease, background-color 0.18s ease',
+      '&:hover': {
+        color: 'var(--green)',
+        borderColor: 'var(--green)',
+        backgroundColor: 'rgba(72, 247, 245, 0.08)'
+      }
+    }
+  },
+  // Picker toolbar — the header at the top of the popper that shows
+  // the currently-selected date/time in large type. MUI defaults to
+  // theme-primary text on the surface color; we recolor to the
+  // green-on-blue vocabulary the rest of the popper uses so the
+  // header reads as "selected value" instead of a separate widget.
+  '& .MuiPickersToolbar-root, & .MuiDateTimePickerToolbar-root': {
+    color: 'var(--green)',
+    backgroundColor: 'transparent',
+    borderBottom: '1px solid var(--reflected-light)'
+  },
+  '& .MuiPickersToolbarText-root': {
+    color: 'var(--blue)'
+  },
+  '& .MuiPickersToolbarText-root.Mui-selected': {
+    color: 'var(--green)',
+    textShadow: '0 0 6px rgba(72, 247, 245, 0.45)'
+  },
+  // View tabs (Date / Time switcher rendered by DateTimePicker). MUI
+  // ships them as MUI Tabs which default to primary-color text +
+  // primary-color indicator under the active tab — restyled to blue
+  // at rest, green when active, with a matching green indicator bar.
+  '& .MuiTabs-root': {
+    borderBottom: '1px solid var(--reflected-light)',
+    minHeight: 36,
+    '& .MuiTab-root': {
+      color: 'var(--blue)',
+      textTransform: 'none',
+      fontWeight: 600,
+      letterSpacing: '0.02em',
+      minHeight: 36,
+      '&.Mui-selected': {
+        color: 'var(--green)',
+        textShadow: '0 0 6px rgba(72, 247, 245, 0.45)'
+      }
+    },
+    '& .MuiTabs-indicator': {
+      backgroundColor: 'var(--green)'
+    }
+  },
+  // Time selection — the scrollable hour / minute / AM-PM columns
+  // (MultiSectionDigitalClock, MUI's default for DateTimePicker).
+  // Each column is a vertical list of items; the selected item is
+  // marked with .Mui-selected. Restyled to match the calendar's
+  // day-cell vocabulary so the time view reads as part of the same
+  // popper, not a foreign widget.
+  '& .MuiMultiSectionDigitalClockSection-root': {
+    // Themed scrollbar matches the other scrollable surfaces in the
+    // project (FleetOverviewView's scroll container uses the same
+    // recipe). Without this the scroll thumb defaults to the
+    // browser's chrome which clashes with the dark popper.
+    scrollbarWidth: 'thin',
+    scrollbarColor: 'rgba(0, 68, 143, 0.6) transparent',
+    '&::-webkit-scrollbar': { width: '6px' },
+    '&::-webkit-scrollbar-track': { background: 'transparent' },
+    '&::-webkit-scrollbar-thumb': { backgroundColor: 'rgba(0, 68, 143, 0.6)', borderRadius: '3px' }
+  },
+  '& .MuiMultiSectionDigitalClockSection-item': {
+    color: 'var(--green)',
+    borderRadius: 1,
+    fontWeight: 500,
+    '&:hover': { backgroundColor: 'rgba(72, 247, 245, 0.12)' }
+  },
+  '& .MuiMultiSectionDigitalClockSection-item.Mui-selected': {
+    backgroundColor: 'rgba(72, 247, 245, 0.2)',
+    color: 'var(--green)',
+    textShadow: '0 0 6px rgba(72, 247, 245, 0.45)',
+    '&:hover, &:focus': {
+      backgroundColor: 'rgba(72, 247, 245, 0.28)'
+    }
+  },
+  // Single-column DigitalClock fallback — used when a picker is
+  // configured to show only times in one list. Same color recipe so
+  // either layout looks at-home in the popper.
+  '& .MuiDigitalClock-item': {
+    color: 'var(--green)',
+    '&:hover': { backgroundColor: 'rgba(72, 247, 245, 0.12)' }
+  },
+  '& .MuiDigitalClock-item.Mui-selected': {
+    backgroundColor: 'rgba(72, 247, 245, 0.2)',
+    color: 'var(--green)',
+    textShadow: '0 0 6px rgba(72, 247, 245, 0.45)'
+  },
+  // Year picker view — appears when the user clicks the calendar
+  // header's year/month switcher chevron. MUI X v8 renders a
+  // scrollable grid of year buttons; default styling leaves them in
+  // the theme primary color which reads foreign against the
+  // neon-on-navy popper. Full coverage below: idle, hover, selected,
+  // selected+hover, disabled (out of min/max range), and a themed
+  // thin scrollbar for the grid itself (it scrolls when the year
+  // span is large).
+  //
+  // IMPORTANT: class names are v8-specific. The earlier v6/v7
+  // selectors (`.MuiPickersYear-yearButton`, `.MuiPickersMonth-monthButton`)
+  // don't exist in v8 — verified against
+  // node_modules/@mui/x-date-pickers/YearCalendar/yearCalendarClasses.js
+  // which generates classes under `MuiYearCalendar-*`. The matching
+  // month classes live under `MuiMonthCalendar-*`. State suffixes
+  // are wired both as the local class (`MuiYearCalendar-selected`,
+  // `MuiYearCalendar-disabled`) AND the global `Mui-selected` /
+  // `Mui-disabled` — target both so the rule wins regardless of
+  // which one MUI applies on a given render.
+  '& .MuiYearCalendar-root': {
+    scrollbarWidth: 'thin',
+    scrollbarColor: 'rgba(0, 68, 143, 0.6) transparent',
+    '&::-webkit-scrollbar': { width: '6px' },
+    '&::-webkit-scrollbar-track': { background: 'transparent' },
+    '&::-webkit-scrollbar-thumb': { backgroundColor: 'rgba(0, 68, 143, 0.6)', borderRadius: '3px' }
+  },
+  '& .MuiYearCalendar-button': {
+    color: 'var(--green)',
+    fontWeight: 500,
+    borderRadius: 1,
+    transition: 'color 0.18s ease, background-color 0.18s ease',
+    '&:hover, &:focus': {
+      backgroundColor: 'rgba(72, 247, 245, 0.12)',
+      color: 'var(--green)'
+    }
+  },
+  '& .MuiYearCalendar-button.Mui-selected, & .MuiYearCalendar-button.MuiYearCalendar-selected': {
+    backgroundColor: 'rgba(72, 247, 245, 0.2)',
+    color: 'var(--green)',
+    textShadow: '0 0 6px rgba(72, 247, 245, 0.45)',
+    fontWeight: 700,
+    '&:hover, &:focus': {
+      backgroundColor: 'rgba(72, 247, 245, 0.28)'
+    }
+  },
+  '& .MuiYearCalendar-button.Mui-disabled, & .MuiYearCalendar-button.MuiYearCalendar-disabled': {
+    color: 'var(--blue)',
+    opacity: 0.35
+  },
+  // Month picker view — parallel recipe with v8's MuiMonthCalendar-*
+  // class set.
+  '& .MuiMonthCalendar-button': {
+    color: 'var(--green)',
+    fontWeight: 500,
+    borderRadius: 1,
+    transition: 'color 0.18s ease, background-color 0.18s ease',
+    '&:hover, &:focus': {
+      backgroundColor: 'rgba(72, 247, 245, 0.12)',
+      color: 'var(--green)'
+    }
+  },
+  '& .MuiMonthCalendar-button.Mui-selected, & .MuiMonthCalendar-button.MuiMonthCalendar-selected': {
+    backgroundColor: 'rgba(72, 247, 245, 0.2)',
+    color: 'var(--green)',
+    textShadow: '0 0 6px rgba(72, 247, 245, 0.45)',
+    fontWeight: 700,
+    '&:hover, &:focus': {
+      backgroundColor: 'rgba(72, 247, 245, 0.28)'
+    }
+  },
+  '& .MuiMonthCalendar-button.Mui-disabled, & .MuiMonthCalendar-button.MuiMonthCalendar-disabled': {
+    color: 'var(--blue)',
+    opacity: 0.35
+  }
+};
+const dateTimePickerTextFieldSx = {
+  '& .MuiOutlinedInput-root, & .MuiPickersOutlinedInput-root': {
+    ...neonControlSx,
+    '& .MuiOutlinedInput-notchedOutline, & .MuiPickersOutlinedInput-notchedOutline': { border: 'none' },
+    '&:hover:not(.Mui-disabled)': { borderColor: 'var(--green)' },
+    '&.Mui-focused': { borderColor: 'var(--blue)' }
+  },
+  '& .MuiInputBase-input': {
+    color: 'var(--green) !important',
+    WebkitTextFillColor: 'var(--green) !important',
+    textAlign: 'center',
+    '&::placeholder': { color: 'var(--green)', opacity: 1 }
+  },
+  '& .MuiPickersInputBase-root, & .MuiPickersSectionList-root, & .MuiPickersSectionList-sectionContent, & .MuiPickersSectionList-section': {
+    color: 'var(--green) !important',
+    WebkitTextFillColor: 'var(--green) !important'
+  },
+  '& .MuiPickersSectionList-section.Mui-selected': {
+    color: 'var(--green) !important',
+    backgroundColor: 'rgba(72, 247, 245, 0.2)'
+  },
+  '& [data-placeholder="true"]': { color: 'var(--green) !important', opacity: 1 },
+  '& .MuiSvgIcon-root': { color: 'var(--blue)' }
+};
+
+// =============================================================================
+// CSV download — builds a CSV from the currently-loaded measurement rows
+// and triggers a browser download. One row per timestamp, one column per
+// chart-configured metric (transformed with each metric's display unit
+// so the file matches what the user sees on screen).
+// =============================================================================
+//
+// Why this lives at module scope, not as a hook: the function only reads
+// its arguments, has no React-state dependencies, and is invoked exactly
+// once per user click. A hook would add ceremony without buying anything.
+
+/**
+ * Convert one date to a slug like "2026-03-15" — safe for filenames on
+ * every OS. ISO `toISOString()` produces "2026-03-15T14:23:00.000Z" so
+ * we lift the YYYY-MM-DD prefix.
+ */
+function dateToFilenameSlug(d) {
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return 'unknown';
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Sanitize a device label for use in a filename. Replaces any sequence
+ * of characters that aren't a-z, A-Z, 0-9, dash, or underscore with a
+ * single dash. Falls back to "phenode" when the label is empty.
+ */
+function deviceLabelToFilenameSlug(label) {
+  const trimmed = (label ?? '').trim();
+  if (!trimmed) return 'phenode';
+  return trimmed.replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'phenode';
+}
+
+/**
+ * Build a CSV string from the normalized measurement rows. Columns:
+ * `time`, then one column per DEVICE_CHART_CONFIGS entry. Values pass
+ * through each entry's `transform` (so e.g. temperature exports as °F
+ * to match the on-screen chart), and the header carries the metric's
+ * display unit in parentheses so the file is self-documenting.
+ *
+ * Empty cells for rows where that field has no reading.
+ */
+function buildMeasurementsCsv(rows) {
+  const headerCells = ['time'];
+  for (const config of DEVICE_CHART_CONFIGS) {
+    headerCells.push(config.unit ? `${config.key} (${config.unit})` : config.key);
+  }
+  const lines = [headerCells.join(',')];
+  for (const row of rows) {
+    const cells = [row.time];
+    for (const config of DEVICE_CHART_CONFIGS) {
+      const field = row.fields[config.key];
+      const raw = field?.avg;
+      if (raw === null || raw === undefined) {
+        cells.push('');
+      } else {
+        const value = config.transform ? config.transform(raw) : raw;
+        // Round to 4 decimals to keep file size sane; raw numbers can
+        // be 15+ significant digits (JS doubles) which is more
+        // precision than a sensor actually delivers.
+        cells.push(Number.isFinite(value) ? value.toFixed(4).replace(/\.?0+$/, '') : '');
+      }
+    }
+    lines.push(cells.join(','));
+  }
+  return lines.join('\n');
+}
+
+/**
+ * Trigger a CSV download in the browser. Builds an anchor element with
+ * an object URL, clicks it, then revokes the URL. The anchor is
+ * appended to + removed from the DOM so Firefox honors the click
+ * (Firefox is stricter about detached anchors than Chrome/Safari).
+ */
+function downloadMeasurementsCsv({ rows, deviceLabel, from, to }) {
+  if (!rows?.length) return;
+  const csv = buildMeasurementsCsv(rows);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${deviceLabelToFilenameSlug(deviceLabel)}_${dateToFilenameSlug(from)}_${dateToFilenameSlug(to)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 // Conversion ratio for °C → °F. Local consts (not magic numbers in the
 // transform) make the intent obvious at the call site.
@@ -268,6 +619,14 @@ export default function SensorMeasurements() {
   const [timeRange, setTimeRange] = useState(DEFAULT_CHART_TIME_RANGE);
   const [chartLayout, setChartLayout] = useState('row');
 
+  // Custom-range pickers — only consulted when `timeRange` equals the
+  // CUSTOM_RANGE_LABEL sentinel. dayjs values (or null) because that's
+  // what MUI's DateTimePicker emits via its onChange. The from/to memo
+  // below converts them to Date instances for the SWR hook.
+  const [customFromTime, setCustomFromTime] = useState(null);
+  const [customToTime, setCustomToTime] = useState(null);
+  const isCustomRange = timeRange === CUSTOM_RANGE_LABEL;
+
   // Compute [from, to] for the chart hook. Why useMemo with `timeRange`
   // as the only dep:
   //
@@ -281,7 +640,31 @@ export default function SensorMeasurements() {
   //
   //   `axisFormat` rides along in the same memo because it's a
   //   property of the same range selection — fewer hooks, simpler.
-  const { from, to, axisFormat } = useMemo(() => computeChartWindow(timeRange), [timeRange]);
+  // Resolve the active [from, to] window. Three branches:
+  //
+  //   1. Custom range mode WITH both pickers filled and ordered → use
+  //      the picker values verbatim. axisFormat derived from the span
+  //      so the X-axis ticks pick the right granularity.
+  //   2. Custom range mode WITHOUT a valid pair (one empty, or to
+  //      before from) → fall back to the DEFAULT preset's window so
+  //      the chart still has data to show while the user is mid-
+  //      input. Avoids a "blank chart while typing" experience.
+  //   3. Preset range → original computeChartWindow path.
+  //
+  // The from/to are Date instances regardless of branch so the SWR
+  // hook (which floors them to the nearest minute for its URL key)
+  // doesn't have to know which mode produced them.
+  const { from, to, axisFormat } = useMemo(() => {
+    if (isCustomRange && customFromTime && customToTime) {
+      const fromDate = customFromTime.toDate();
+      const toDate = customToTime.toDate();
+      if (fromDate < toDate) {
+        return { from: fromDate, to: toDate, axisFormat: pickAxisFormatForRange(fromDate, toDate) };
+      }
+    }
+    const label = isCustomRange ? DEFAULT_CHART_TIME_RANGE : timeRange;
+    return computeChartWindow(label);
+  }, [isCustomRange, timeRange, customFromTime, customToTime]);
 
   // Explicit X-axis tick positions for ranges that need them — currently
   // MONTH only (Last 6 months / 1 year / 2 years / 5 years), where MUI's
@@ -496,22 +879,61 @@ export default function SensorMeasurements() {
   // `measurementRows` is undefined while the first fetch is in flight;
   // the chart map() below short-circuits to an empty-state per chart
   // in that case rather than rendering a flat axis.
+  //
+  // We previously dropped `mutate` (the manual refresh handler) when
+  // the refresh button was pulled from the toolbar. `isValidating`
+  // is back because we need it to drive the selection-change
+  // loading indicator (see the isFetchingSelection state below).
   const {
     rows: measurementRows,
     isLoading: measurementsLoading,
-    // isValidating drives the visual "refresh in progress" cues on the
-    // toolbar (spinning Reload icon + small "Refreshing…" badge). True
-    // for ANY fetch — first load, 60s background poll, manual mutate().
-    // isLoading is the strict "no cached data yet" subset.
     isValidating: measurementsValidating,
-    error: measurementsError,
-    mutate: refetchMeasurements
+    error: measurementsError
   } = useDeviceMeasurements(activeDeviceId, {
     from,
     to,
     fields: DEVICE_CHART_FIELDS,
     bucket: 'auto'
   });
+
+  // "User just changed the selection" tracker — feeds the toolbar
+  // loading indicator without flickering on the 60s SWR background
+  // poll.
+  //
+  // The composite key below captures everything that changes the
+  // SWR query: the selected PheNode plus the active from/to window.
+  // When the key changes (dropdown pick, time-range change, custom
+  // date update), we flip isFetchingSelection on; when the resulting
+  // fetch settles (isValidating false), we flip it off. Background
+  // polls don't change the key, so the flag never flips and the
+  // indicator stays quiet — even though `isValidating` itself
+  // toggles every minute.
+  //
+  // ISO strings via .getTime() so the dep only changes when the
+  // floored minute changes, matching what useDeviceMeasurements
+  // does internally for its SWR key.
+  const selectionKey = useMemo(() => `${activeDeviceId ?? ''}|${from?.getTime() ?? ''}|${to?.getTime() ?? ''}`, [activeDeviceId, from, to]);
+  const previousSelectionKeyRef = useRef(selectionKey);
+  const [isFetchingSelection, setIsFetchingSelection] = useState(false);
+  useEffect(() => {
+    if (previousSelectionKeyRef.current !== selectionKey) {
+      setIsFetchingSelection(true);
+      previousSelectionKeyRef.current = selectionKey;
+    }
+  }, [selectionKey]);
+  useEffect(() => {
+    if (isFetchingSelection && !measurementsValidating) {
+      setIsFetchingSelection(false);
+    }
+  }, [isFetchingSelection, measurementsValidating]);
+
+  // The unified indicator flag. True when:
+  //   - First fetch in flight for a key with no cached data
+  //     (measurementsLoading), OR
+  //   - User just changed selection and the resulting fetch is
+  //     still in flight (isFetchingSelection)
+  // False during background polls on a stable selection.
+  const showSelectionLoading = measurementsLoading || isFetchingSelection;
 
   // Chart-key of the chart currently displayed in the "Enlarge" Dialog,
   // or null when no enlarged view is open. Single piece of state instead
@@ -834,121 +1256,266 @@ export default function SensorMeasurements() {
               </Tooltip>
             </Stack>
 
-            <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', mb: 2 }}>
-              <FormControl
-                size="small"
-                sx={{ minWidth: { xs: 0, sm: 220 }, width: { xs: '100%', sm: 220 }, flex: { xs: 1, sm: '0 0 auto' } }}
+            {/*
+              Toolbar wrapped in LocalizationProvider so the
+              DateTimePicker children get the AdapterDayjs date adapter
+              they need. The provider mounts unconditionally even when
+              the pickers aren't visible (custom range mode off) —
+              having it always in scope keeps the conditional render
+              cheap and avoids any "first-toggle initialization"
+              flicker.
+            */}
+            <LocalizationProvider dateAdapter={AdapterDayjs}>
+              {/*
+                Outer Stack uses space-between so the left-group
+                (dropdown + optional pickers) anchors to the left edge
+                and the Download button anchors to the right edge of
+                the toolbar regardless of how much space the left
+                group consumes. This way the Download button sits
+                flush right whether the custom pickers are visible or
+                not, instead of sliding against the dropdown.
+              */}
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={1.25}
+                sx={{
+                  alignItems: { xs: 'stretch', sm: 'center' },
+                  justifyContent: 'space-between',
+                  mb: 2,
+                  flexWrap: 'wrap',
+                  rowGap: 1
+                }}
               >
-                <Select
-                  value={timeRange}
-                  onChange={(event) => setTimeRange(event.target.value)}
-                  displayEmpty
-                  sx={{
-                    color: 'var(--green)',
-                    border: '1px solid var(--reflected-light)',
-                    borderRadius: 1,
-                    backgroundColor: 'var(--drf)',
-                    boxShadow: '0 11px 19px 1px #0000002e',
-                    '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                    '& .MuiSelect-select': { color: 'var(--green)' },
-                    '& .MuiSelect-icon': { color: 'var(--blue)' }
-                  }}
-                  MenuProps={{
-                    PaperProps: neonSelectMenuPaperProps
-                  }}
-                  renderValue={(selected) => (
-                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                      <ClockCircleOutlined style={{ color: 'var(--blue)' }} />
-                      <Box component="span" sx={{ color: 'var(--green)' }}>
-                        {selected || 'Select Time Range...'}
-                      </Box>
-                    </Stack>
-                  )}
+                {/*
+                  Left-group wrapper — dropdown + optional pickers
+                  share this Stack so the parent's space-between has
+                  exactly two children (left group + Download), and
+                  the pickers stay grouped next to the dropdown rather
+                  than competing for the right edge with Download.
+                */}
+                <Stack
+                  direction={{ xs: 'column', sm: 'row' }}
+                  spacing={1.25}
+                  sx={{ alignItems: { xs: 'stretch', sm: 'center' }, flexWrap: 'wrap', rowGap: 1, minWidth: 0 }}
                 >
-                  {CHART_TIME_RANGE_LABELS.map((option) => (
-                    <MenuItem
-                      key={option}
-                      value={option}
+                  <FormControl
+                    size="small"
+                    sx={{ minWidth: { xs: 0, sm: 220 }, width: { xs: '100%', sm: 220 }, flex: { xs: 1, sm: '0 0 auto' } }}
+                  >
+                    <Select
+                      value={timeRange}
+                      onChange={(event) => setTimeRange(event.target.value)}
+                      displayEmpty
                       sx={{
                         color: 'var(--green)',
-                        '&:hover': { backgroundColor: 'rgba(72, 247, 245, 0.12)' },
-                        '&.Mui-selected': { backgroundColor: 'rgba(72, 247, 245, 0.18)' }
+                        border: '1px solid var(--reflected-light)',
+                        borderRadius: 1,
+                        backgroundColor: 'var(--drf)',
+                        boxShadow: '0 11px 19px 1px #0000002e',
+                        '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                        '& .MuiSelect-select': { color: 'var(--green)' },
+                        '& .MuiSelect-icon': { color: 'var(--blue)' }
+                      }}
+                      MenuProps={{ PaperProps: neonSelectMenuPaperProps }}
+                      renderValue={(selected) => (
+                        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                          <ClockCircleOutlined style={{ color: 'var(--blue)' }} />
+                          <Box component="span" sx={{ color: 'var(--green)' }}>
+                            {selected || 'Select Time Range...'}
+                          </Box>
+                        </Stack>
+                      )}
+                    >
+                      {CHART_TIME_RANGE_LABELS.map((option) => (
+                        <MenuItem
+                          key={option}
+                          value={option}
+                          sx={{
+                            color: 'var(--green)',
+                            '&:hover': { backgroundColor: 'rgba(72, 247, 245, 0.12)' },
+                            '&.Mui-selected': { backgroundColor: 'rgba(72, 247, 245, 0.18)' }
+                          }}
+                        >
+                          {option}
+                        </MenuItem>
+                      ))}
+                      {/*
+                      "Custom range…" — sentinel option at the bottom
+                      of the dropdown. Selecting it reveals the two
+                      DateTimePickers below; picking any other preset
+                      hides them again. Single source of truth via
+                      `timeRange === CUSTOM_RANGE_LABEL` (the
+                      `isCustomRange` derived flag).
+                    */}
+                      <MenuItem
+                        key={CUSTOM_RANGE_LABEL}
+                        value={CUSTOM_RANGE_LABEL}
+                        sx={{
+                          color: 'var(--green)',
+                          borderTop: '1px solid var(--reflected-light)',
+                          '&:hover': { backgroundColor: 'rgba(72, 247, 245, 0.12)' },
+                          '&.Mui-selected': { backgroundColor: 'rgba(72, 247, 245, 0.18)' }
+                        }}
+                      >
+                        {CUSTOM_RANGE_LABEL}
+                      </MenuItem>
+                    </Select>
+                  </FormControl>
+
+                  {/*
+                  Custom range DateTimePickers — only rendered when the
+                  dropdown is on the custom sentinel. Two side-by-side
+                  inputs, auto-applied (no explicit "Apply" button) —
+                  the chart re-fetches as soon as BOTH have valid
+                  values and from < to, per the from/to memo's branch
+                  resolution above. Until both are entered, the chart
+                  falls back to the DEFAULT preset so the user doesn't
+                  see a blank chart while typing.
+                */}
+                  {isCustomRange && (
+                    <Stack
+                      direction={{ xs: 'column', sm: 'row' }}
+                      spacing={1}
+                      sx={{ alignItems: { xs: 'stretch', sm: 'center' }, flex: { sm: 1 } }}
+                    >
+                      <DateTimePicker
+                        value={customFromTime}
+                        onChange={(value) => setCustomFromTime(value)}
+                        ampm
+                        slotProps={{
+                          textField: {
+                            size: 'small',
+                            placeholder: 'From',
+                            sx: { minWidth: { sm: 180 }, flex: 1, ...dateTimePickerTextFieldSx }
+                          },
+                          popper: { sx: dateTimePickerPopperSx },
+                          desktopPaper: { sx: dateTimePickerPaperSx },
+                          mobilePaper: { sx: dateTimePickerPaperSx }
+                        }}
+                      />
+                      <DateTimePicker
+                        value={customToTime}
+                        onChange={(value) => setCustomToTime(value)}
+                        ampm
+                        slotProps={{
+                          textField: {
+                            size: 'small',
+                            placeholder: 'To',
+                            sx: { minWidth: { sm: 180 }, flex: 1, ...dateTimePickerTextFieldSx }
+                          },
+                          popper: { sx: dateTimePickerPopperSx },
+                          desktopPaper: { sx: dateTimePickerPaperSx },
+                          mobilePaper: { sx: dateTimePickerPaperSx }
+                        }}
+                      />
+                    </Stack>
+                  )}
+
+                  {/*
+                    Selection-change loading indicator. Lives inside
+                    the LEFT group (next to the dropdown / pickers)
+                    so the badge sits adjacent to the controls the
+                    user just changed, making the visual association
+                    obvious. Only fires when the user's selection
+                    actually triggered a fetch (see the
+                    `showSelectionLoading` derivation above) — the
+                    60s background SWR poll won't flash it.
+                  */}
+                  {showSelectionLoading && (
+                    <Stack
+                      direction="row"
+                      spacing={0.75}
+                      sx={{
+                        alignItems: 'center',
+                        color: 'var(--green)',
+                        // Subtle fade-in so a quick fetch doesn't
+                        // produce a hard pop. CSS-only — no React
+                        // state involved.
+                        '@keyframes phenode-loading-fade-in': {
+                          from: { opacity: 0 },
+                          to: { opacity: 1 }
+                        },
+                        animation: 'phenode-loading-fade-in 200ms ease-out'
+                      }}
+                      role="status"
+                      aria-live="polite"
+                    >
+                      <CircularProgress size={14} sx={{ color: 'var(--green)' }} />
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: 'var(--green)',
+                          textShadow: '0 0 6px rgba(72, 247, 245, 0.35)',
+                          fontWeight: 600
+                        }}
+                      >
+                        Loading…
+                      </Typography>
+                    </Stack>
+                  )}
+                </Stack>
+
+                {/*
+                  Download CSV — exports the currently-loaded
+                  measurement rows for whichever range is active
+                  (preset OR custom). Disabled when there's no data
+                  to export (loading window, empty range, or error
+                  before first response). Filename embeds the device
+                  label slug + ISO from/to dates so multiple
+                  downloads from the same session don't overwrite
+                  each other in the user's Downloads folder.
+
+                  Sits as the second (right-most) child of the outer
+                  space-between Stack, so it anchors to the right edge
+                  of the toolbar regardless of how wide the left group
+                  is — see the outer Stack's justifyContent comment
+                  above.
+                */}
+                <Tooltip
+                  title={measurementRows?.length ? 'Download CSV for this range' : 'No data to download'}
+                  arrow={false}
+                  slotProps={tooltipSlotProps}
+                >
+                  <Box component="span" sx={{ display: 'inline-flex', flexShrink: 0 }}>
+                    <Button
+                      variant="outlined"
+                      startIcon={<DownloadOutlined />}
+                      disabled={!measurementRows?.length}
+                      onClick={() =>
+                        downloadMeasurementsCsv({
+                          rows: measurementRows,
+                          deviceLabel: activeDevice?.label || activeDevice?.external_device_id,
+                          from,
+                          to
+                        })
+                      }
+                      sx={{
+                        textTransform: 'none',
+                        borderColor: 'var(--orange)',
+                        color: 'var(--green)',
+                        backgroundColor: 'rgba(0, 20, 61, 0.72)',
+                        boxShadow: '0 11px 19px 1px #0000002e',
+                        transition: 'none',
+                        '&:hover': {
+                          borderColor: 'var(--green)',
+                          boxShadow: '0 0 7px -5px var(--green)',
+                          color: 'var(--green)',
+                          textShadow: '0 1px 5px #007bff',
+                          backgroundColor: 'rgba(72, 247, 245, 0.08)'
+                        },
+                        '&.Mui-disabled': {
+                          color: 'var(--green)',
+                          borderColor: 'var(--orange)',
+                          opacity: 0.5
+                        }
                       }}
                     >
-                      {option}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <Tooltip title={measurementsValidating ? 'Refreshing charts…' : 'Refresh charts'} arrow={false} slotProps={tooltipSlotProps}>
-                <Box component="span" sx={{ display: 'inline-flex' }}>
-                  <IconButton
-                    aria-label="refresh sensor charts"
-                    // Manual revalidation — bypasses the SWR cache for
-                    // the current key, refetches, and surfaces fresh
-                    // rows. Useful when the user knows new data is
-                    // available out-of-band (e.g., they just triggered
-                    // a device reading) and doesn't want to wait for
-                    // the 60s poll cycle. Only refetches CHART data —
-                    // useDeviceMeasurements is the chart-only hook,
-                    // useMyDevices (the fleet list) is untouched.
-                    onClick={() => refetchMeasurements()}
-                    disabled={measurementsValidating}
-                    sx={{
-                      border: '1px solid var(--reflected-light)',
-                      color: 'var(--purple)',
-                      backgroundColor: 'rgba(0, 20, 61, 0.72)',
-                      boxShadow: '0 11px 19px 1px #0000002e',
-                      '&:hover': {
-                        borderColor: 'var(--green)',
-                        boxShadow: '0 0 7px -5px var(--green)',
-                        color: 'var(--green)',
-                        textShadow: '0 1px 5px #007bff',
-                        backgroundColor: 'rgba(72, 247, 245, 0.08)'
-                      },
-                      // Disabled-while-validating still visually communicates
-                      // "in flight" — keep the same color so the button
-                      // doesn't grey out, and let the spinning child icon
-                      // carry the loading affordance instead.
-                      '&.Mui-disabled': {
-                        color: 'var(--green)',
-                        borderColor: 'var(--reflected-light)'
-                      },
-                      // Spin keyframes for the Reload icon while a fetch
-                      // is in flight. CSS animation rather than a state-
-                      // driven loop because CSS is GPU-accelerated and
-                      // doesn't pile up React renders.
-                      '& .reload-icon': {
-                        transition: 'transform 0.2s ease',
-                        animation: measurementsValidating ? 'phenode-reload-spin 1s linear infinite' : 'none'
-                      },
-                      '@keyframes phenode-reload-spin': {
-                        from: { transform: 'rotate(0deg)' },
-                        to: { transform: 'rotate(360deg)' }
-                      }
-                    }}
-                  >
-                    <ReloadOutlined className="reload-icon" />
-                  </IconButton>
-                </Box>
-              </Tooltip>
-              {/*
-                Toolbar-level loading hint — visible whenever a chart
-                fetch is in flight, including the first load AND any
-                background poll or manual refresh. Sits to the right of
-                the refresh button as a compact "in-progress" cue, so
-                the user sees feedback even when stale-while-revalidate
-                keeps the existing data on screen.
-              */}
-              {measurementsValidating && (
-                <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', color: 'var(--green)' }}>
-                  <CircularProgress size={14} sx={{ color: 'var(--green)' }} />
-                  <Typography variant="caption" sx={{ color: 'var(--green)', textShadow: '0 0 6px rgba(72, 247, 245, 0.35)' }}>
-                    {measurementRows ? 'Refreshing…' : 'Loading…'}
-                  </Typography>
-                </Stack>
-              )}
-            </Stack>
+                      Download CSV
+                    </Button>
+                  </Box>
+                </Tooltip>
+              </Stack>
+            </LocalizationProvider>
 
             <Box
               sx={{

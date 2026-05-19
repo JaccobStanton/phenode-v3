@@ -124,6 +124,37 @@ export function computeChartWindow(label) {
 }
 
 /**
+ * Pick the appropriate AXIS_FORMATS bucket for an arbitrary from/to
+ * span. Used by the chart panel when the user supplies a custom date
+ * range via the DateTimePickers — the preset ranges have their
+ * axisFormat baked into the CHART_TIME_RANGES table, but custom
+ * ranges need the same TIME / DATETIME / DATE / MONTH bucketing
+ * applied dynamically.
+ *
+ * Thresholds mirror the implicit bucketing in CHART_TIME_RANGES so
+ * the visual format is consistent whether the user picked a preset
+ * or rolled their own:
+ *   < 1 day        → TIME      (HH:mm)
+ *   1-7 days       → DATETIME  (date + clock)
+ *   7-90 days      → DATE      (M/D)
+ *   90+ days       → MONTH     (MMM YY)
+ *
+ * Returns the default DEFAULT_CHART_TIME_RANGE's axisFormat for
+ * invalid (negative / zero) spans so callers never get an undefined.
+ */
+export function pickAxisFormatForRange(from, to) {
+  const fromMs = from instanceof Date ? from.getTime() : new Date(from).getTime();
+  const toMs = to instanceof Date ? to.getTime() : new Date(to).getTime();
+  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs)) return AXIS_FORMATS.TIME;
+  const span = toMs - fromMs;
+  if (span <= 0) return AXIS_FORMATS.TIME;
+  if (span < 1 * DAY) return AXIS_FORMATS.TIME;
+  if (span < 7 * DAY) return AXIS_FORMATS.DATETIME;
+  if (span < 90 * DAY) return AXIS_FORMATS.DATE;
+  return AXIS_FORMATS.MONTH;
+}
+
+/**
  * Format an axis tick. The X-axis on each chart passes its date values
  * through this function via MUI x-charts' `valueFormatter`. The
  * format choice is driven by `axisFormat` (from `computeChartWindow`)
