@@ -1503,10 +1503,20 @@ export default function SensorMeasurements() {
                           textShadow: '0 1px 5px #007bff',
                           backgroundColor: 'rgba(72, 247, 245, 0.08)'
                         },
+                        // Disabled state matches the Download button in
+                        // the Data Downloads page (sections/data-download/
+                        // data-downloads.jsx:586-593) so the "no data
+                        // available" affordance is consistent across the
+                        // app's download surfaces — grey text + grey
+                        // border on a flat dark-navy fill, no hover
+                        // brightening.
                         '&.Mui-disabled': {
-                          color: 'var(--green)',
-                          borderColor: 'var(--orange)',
-                          opacity: 0.5
+                          color: 'var(--med-grey)',
+                          borderColor: 'var(--med-grey)',
+                          backgroundColor: '#01113d'
+                        },
+                        '&.Mui-disabled:hover': {
+                          backgroundColor: '#01113d'
                         }
                       }}
                     >
