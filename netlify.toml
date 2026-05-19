@@ -1,0 +1,43 @@
+# =============================================================================
+# Netlify build + routing config for the PheNodeV3 frontend.
+# =============================================================================
+#
+# Two things this file is responsible for:
+#
+# 1. Proxying /api/* to the FastAPI backend on phenode.cloud.
+#    The frontend code (see AuthLogin.jsx:213 and services/fetcher.js)
+#    falls back to a relative `/api` base when VITE_API_URL is unset.
+#    With this proxy in place, the browser sees same-origin requests
+#    and Netlify forwards them server-side — so we don't need to add
+#    the Netlify origin to the backend's CORS allowlist, and no
+#    preflight is issued.
+#
+#    `force = true` is required: without it, Netlify would only fall
+#    through to this rule if no matching static asset existed, and a
+#    cached/stale build artifact at /api/... could shadow the proxy.
+#
+# 2. SPA fallback. React Router owns the URL space; any direct hit on
+#    a deep route (e.g. /dashboard/fleet-overview) must serve
+#    index.html so the client-side router can take over. Without this,
+#    page refreshes on any non-root route return 404.
+#
+# Order matters: the /api/* rule must come before the SPA catch-all,
+# otherwise /* would swallow /api/* and proxy nothing.
+
+[build]
+  base    = "phenodeV3"
+  command = "npm run build"
+  publish = "dist"
+
+# --- API proxy --------------------------------------------------------------
+[[redirects]]
+  from   = "/api/*"
+  to     = "https://phenode.cloud/api/:splat"
+  status = 200
+  force  = true
+
+# --- SPA fallback -----------------------------------------------------------
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
