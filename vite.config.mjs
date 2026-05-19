@@ -20,7 +20,6 @@ import path from 'path';
  * loading for HMR responsiveness.
  */
 function inlineEntryCss() {
-  let cssLinkPaths = [];
   return {
     name: 'phenode-inline-entry-css',
     apply: 'build',
@@ -30,14 +29,12 @@ function inlineEntryCss() {
       // the index.html link points at.
       order: 'post',
       handler(html, ctx) {
-        cssLinkPaths = [];
         return html.replace(
           /<link rel="stylesheet"[^>]*href="([^"]+\.css)"[^>]*>/g,
           (match, href) => {
             const cssRel = href.replace(/^\//, '');
             const bundleEntry = ctx.bundle && ctx.bundle[cssRel];
             if (bundleEntry && bundleEntry.source) {
-              cssLinkPaths.push(cssRel);
               return `<style>${bundleEntry.source}</style>`;
             }
             // Couldn't find the CSS in the bundle — leave the link tag
@@ -46,14 +43,16 @@ function inlineEntryCss() {
           }
         );
       }
-    },
-    // Delete the inlined CSS files from the bundle so dist/ doesn't ship
-    // duplicate (now-unreferenced) files.
-    generateBundle(_options, bundle) {
-      for (const cssPath of cssLinkPaths) {
-        if (bundle[cssPath]) delete bundle[cssPath];
-      }
     }
+    // Why we *don't* also delete the now-orphan CSS files from the
+    // bundle: that requires the `generateBundle` hook to see the same
+    // list `transformIndexHtml` builds. Vite/Rollup don't guarantee the
+    // ordering of those two hooks across Node versions — on Netlify's
+    // build environment the deletion ran *before* the HTML rewrite, so
+    // the file was gone but the <link> tag was still pointing at it,
+    // and the SPA fallback served index.html as text/html. Leaving
+    // the original .css in dist/ is harmless: the inlined <style>
+    // block is what the page uses; the file just sits there unread.
   };
 }
 

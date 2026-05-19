@@ -28,6 +28,15 @@
   command = "npm run build"
   publish = "dist"
 
+# Pin the Node version Netlify uses so the build matches our local
+# Node 22 environment. Without this, Netlify falls back to its own
+# default (currently Node 20 / formerly 18) — Vite 7's plugin hook
+# ordering differs across Node versions, which caused the
+# inlineEntryCss plugin (vite.config.mjs:22) to leave the deployed
+# index.html referencing a /css/*.css file it had also deleted.
+[build.environment]
+  NODE_VERSION = "22"
+
 # --- API proxy --------------------------------------------------------------
 [[redirects]]
   from   = "/api/*"
@@ -36,6 +45,11 @@
   force  = true
 
 # --- SPA fallback -----------------------------------------------------------
+# Netlify only applies a status=200 rewrite when no static file exists
+# at the requested path — so this catch-all is safe for assets *that
+# were actually published*. If you see a .css or .js URL coming back as
+# text/html, it means the file is missing from dist/, not that this
+# rule is over-matching.
 [[redirects]]
   from   = "/*"
   to     = "/index.html"
