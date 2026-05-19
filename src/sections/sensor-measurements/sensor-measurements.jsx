@@ -23,6 +23,7 @@ import AntIcon from 'components/AntIcon';
 import CloseOutlined from '@ant-design/icons-svg/lib/asn/CloseOutlined';
 import DownloadOutlined from '@ant-design/icons-svg/lib/asn/DownloadOutlined';
 
+import ChartGlowDefs from 'components/ChartGlowDefs';
 import MainCard from 'components/MainCard';
 import PhenodeSelector from 'components/PhenodeSelector';
 // PheNodeFleetMap is lazy-loaded so the @vis.gl/react-google-maps wrapper
@@ -555,23 +556,23 @@ const chartSx = {
     strokeLinecap: 'round',
     strokeLinejoin: 'round',
     // Reference a STATIC SVG <filter> by id rather than computing
-    // `drop-shadow(...)` per element. Two reasons:
+    // `drop-shadow(...)` per element. The filter defs live in
+    // <ChartGlowDefs/>, mounted once at the top of this page's
+    // tree. Two reasons for this approach:
     //
-    //   1. drop-shadow on every line stroke triggers a separate raster
-    //      pass per element. For a 24-hour range that's ~288 segments
-    //      × 6 charts = ~1,700 filter operations every paint. A static
-    //      <filter> in <defs> is compiled once and reused, which lets
-    //      the browser amortize the cost across all references.
+    //   1. drop-shadow on every line stroke triggers a separate
+    //      raster pass per element. A static <filter> in <defs> is
+    //      compiled once and reused, which lets the browser
+    //      amortize the cost across every reference.
+    //   2. The wrapper Box sets `--chart-glow-filter` based on the
+    //      current point count (full glow ≤500 points; lite glow
+    //      above that — see useLiteGlow in the panel below). The
+    //      CSS variable indirection means the same chartSx rule
+    //      serves both cases without JS branching.
     //
-    //   2. Each chart's wrapper sets `--chart-glow-filter` based on
-    //      its current point count (full glow ≤500 points; lite glow
-    //      above that — see useLiteGlow in the panel below). The CSS
-    //      variable indirection means the same chartSx rule serves
-    //      both cases without branching on JS.
-    //
-    // The fallback to url(#chart-glow-full) keeps charts rendered
-    // outside the panel (e.g., the enlarged Dialog) on the full-glow
-    // path when no wrapper-level variable is set.
+    // Both this surface AND the wireless-sensor chart surfaces
+    // (sensor-network, MeasurementsChartGrid) use the same filter
+    // ids — the two pages render visually identical glow.
     filter: 'var(--chart-glow-filter, url(#chart-glow-full))'
   },
   '& .MuiAreaElement-root': {
@@ -1191,21 +1192,22 @@ export default function SensorMeasurements() {
     return measurementRows.map((row) => new Date(row.time));
   }, [measurementRows]);
 
-  // Glow intensity selector — picks the chart-stroke filter once at the
-  // panel level since point counts move together (all six charts share
-  // chartTimes by definition). When the user selects a long time range
-  // and the backend's auto-bucketing returns lots of buckets, switch to
-  // the lite glow: the full 8px blur is visually unnecessary at high
-  // line density (the glow on individual segments overlaps with itself)
-  // AND it's a measurable paint-cost win. Threshold of 500 points is
-  // calibrated to the typical break-even where the glow stops adding
-  // perceptible visual richness.
+  // Glow intensity selector — picks the chart-stroke filter once at
+  // the panel level since point counts move together (all six charts
+  // share chartTimes by definition). When the user selects a long
+  // time range and the backend's auto-bucketing returns lots of
+  // buckets, switch to the lite glow: the full 8px-equivalent blur
+  // is visually unnecessary at high line density (the glow on
+  // individual segments overlaps with itself) AND it's a measurable
+  // paint-cost win. Threshold of 500 points is calibrated to the
+  // typical break-even where the glow stops adding perceptible
+  // visual richness.
   //
-  // The variable name `--chart-glow-filter` is what `chartSx` reads via
-  // `filter: var(--chart-glow-filter, url(#chart-glow-full))`. Setting
-  // it on the chart wrapper Box scopes the choice per chart-card —
-  // although in practice all six pick the same value since they share
-  // the data shape.
+  // The variable name `--chart-glow-filter` is what `chartSx` reads
+  // via `filter: var(--chart-glow-filter, url(#chart-glow-full))`.
+  // Setting it on the chart wrapper Box scopes the choice per
+  // chart-card — although in practice all six pick the same value
+  // since they share the data shape.
   const useLiteGlow = chartTimes.length > 500;
   const chartGlowFilterVar = useLiteGlow ? 'url(#chart-glow-lite)' : 'url(#chart-glow-full)';
 
@@ -1260,57 +1262,12 @@ export default function SensorMeasurements() {
   return (
     <>
       {/*
-        Hidden SVG with the chart glow filters.
-
-        Rendered at the page level (not inside each chart's own SVG)
-        because MUI x-charts owns the chart SVG's <defs> and we can't
-        inject our filters there. The browser's SVG filter resolver
-        looks up `url(#id)` across all SVGs in the same document, so
-        a single hidden SVG here serves every chart on the page —
-        including the enlarged dialog chart that mounts later.
-
-        Two filters with progressively softer parameters:
-
-          chart-glow-full ─ stdDeviation 4 (≈ drop-shadow 0 0 8px).
-                            Default for charts with ≤500 data points.
-                            Produces the rich glow the visual spec
-                            calls for at typical point density.
-          chart-glow-lite ─ stdDeviation 1 (≈ drop-shadow 0 0 2px).
-                            Drastically reduced — used when the chart
-                            has >500 points and the high line density
-                            already overlaps individual glows enough
-                            that the heavy blur stops adding richness.
-                            Significant paint-cost reduction.
-
-        Both filters blur the SourceGraphic itself (the line stroke,
-        which already carries its color), then merge the blurred copy
-        as the glow layer underneath the original line. This means
-        the glow inherits the line's stroke color automatically — no
-        per-color filter definitions, no flood-color hardcoding.
-
-        Filter region is 100% larger than the bounding box to keep
-        the soft edges of the blur inside the clip region; otherwise
-        you'd see hard cutoffs at the chart edges where the blur was
-        clipped by the default 10% filter region.
+        Mount the shared SVG <filter> defs once at the top of the
+        tree. Provides the chart-glow-full / chart-glow-lite ids that
+        chartSx references via `filter: url(#chart-glow-full)`. See
+        components/ChartGlowDefs.jsx for filter mechanics.
       */}
-      <svg aria-hidden="true" width="0" height="0" style={{ position: 'absolute', pointerEvents: 'none' }}>
-        <defs>
-          <filter id="chart-glow-full" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="4" />
-            <feMerge>
-              <feMergeNode />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-          <filter id="chart-glow-lite" x="-25%" y="-25%" width="150%" height="150%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="1" />
-            <feMerge>
-              <feMergeNode />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-      </svg>
+      <ChartGlowDefs />
       <MainCard content={false} sx={{ width: '100%', minWidth: 0, overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
         <Box sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 2.5 } }}>
           <Stack
@@ -2021,7 +1978,7 @@ export default function SensorMeasurements() {
                     }}
                   >
                     <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 0.25 }}>
-                      <Typography variant="subtitle1" component="p" sx={{ color: 'var(--blue)', ml: 1.25, m: 0 }}>
+                      <Typography variant="subtitle1" component="p" sx={{ color: 'var(--blue)', ml: 1.25, mt: 0, mb: 0, mr: 0 }}>
                         {config.title}
                         {config.unit ? (
                           <Box component="span" sx={{ color: 'var(--green)', ml: 0.75, fontSize: '0.85em' }}>

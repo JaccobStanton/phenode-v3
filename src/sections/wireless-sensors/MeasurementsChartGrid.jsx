@@ -104,7 +104,15 @@ export default function MeasurementsChartGrid({ charts, timeLabels, layout = 'ro
                   strokeWidth: 0.95,
                   strokeLinecap: 'round',
                   strokeLinejoin: 'round',
-                  filter: `drop-shadow(0 0 8px ${chart.lineColor})`
+                  // Static SVG <filter> reference — matches the
+                  // sensor-measurements page so both surfaces' chart
+                  // glows render pixel-identically. The filter defs
+                  // live in <ChartGlowDefs/>, which the parent
+                  // sensor-network page mounts once at the top of
+                  // its tree. The browser compiles the filter once
+                  // and reuses it across every line stroke instead
+                  // of recompiling per element on every paint.
+                  filter: 'var(--chart-glow-filter, url(#chart-glow-full))'
                 },
                 '& .MuiAreaElement-root': {
                   fillOpacity: 0.16

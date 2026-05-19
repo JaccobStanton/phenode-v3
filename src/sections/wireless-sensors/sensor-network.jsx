@@ -26,6 +26,7 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 
+import ChartGlowDefs from 'components/ChartGlowDefs';
 import ConfirmRenameModal from 'components/ConfirmRenameModal';
 import MainCard from 'components/MainCard';
 import WirelessSensorFleetMap from 'sections/wireless-sensors/wireless-sensor-fleet-map';
@@ -226,7 +227,21 @@ const chartSx = {
     strokeWidth: 0.95,
     strokeLinecap: 'round',
     strokeLinejoin: 'round',
-    filter: 'drop-shadow(0 0 8px var(--chart-line-color))'
+    // Static SVG <filter> reference rather than CSS drop-shadow. The
+    // filter defs live in <ChartGlowDefs/>, mounted once at the top
+    // of this page's tree. Visually identical to the previous
+    // drop-shadow at 8px radius, but the browser compiles the
+    // filter once and reuses it across every line stroke rather
+    // than recompiling per-element on every paint. Match the
+    // sensor-measurements page so both surfaces' chart glows render
+    // pixel-identically.
+    //
+    // The fallback to url(#chart-glow-full) covers chart subtrees
+    // that don't set the wrapper-level `--chart-glow-filter`
+    // variable. Multi-series charts on this page don't currently
+    // need the lite variant, but the same plumbing is available if
+    // a future chart wants it.
+    filter: 'var(--chart-glow-filter, url(#chart-glow-full))'
   },
   '& .MuiAreaElement-root': { fillOpacity: 0.16 },
   '& .MuiChartsAxis-line, & .MuiChartsAxis-tick': { stroke: 'rgba(232, 232, 232, 0.45)' },
@@ -1202,7 +1217,17 @@ export default function SensorNetwork() {
   }, [sensorFromUrl, setSearchParams]);
 
   return (
-    <MainCard content={false} sx={{ overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
+    <>
+      {/*
+        Mount the shared SVG <filter> defs once at the top of the
+        tree. Provides the chart-glow-full / chart-glow-lite ids that
+        the chartSx + MeasurementsChartGrid filter rules reference
+        via `filter: url(#chart-glow-full)`. The same component
+        renders on sensor-measurements so both pages' chart glows
+        are pixel-identical. See components/ChartGlowDefs.jsx.
+      */}
+      <ChartGlowDefs />
+      <MainCard content={false} sx={{ overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
       <Box sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 2.5 } }}>
         <Stack
           direction={{ xs: 'column', md: 'row' }}
@@ -2398,5 +2423,6 @@ export default function SensorNetwork() {
           })()}
       </Dialog>
     </MainCard>
+    </>
   );
 }
