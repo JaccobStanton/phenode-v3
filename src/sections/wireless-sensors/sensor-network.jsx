@@ -1,10 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import Alert from '@mui/material/Alert';
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import CircularProgress from '@mui/material/CircularProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import FormControl from '@mui/material/FormControl';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
@@ -17,16 +21,20 @@ import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import { LineChart } from '@mui/x-charts/LineChart';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 
 import ConfirmRenameModal from 'components/ConfirmRenameModal';
 import MainCard from 'components/MainCard';
 import WirelessSensorFleetMap from 'sections/wireless-sensors/wireless-sensor-fleet-map';
-import MeasurementsChartGrid from 'sections/wireless-sensors/MeasurementsChartGrid';
 import useAuth from 'hooks/useAuth';
 import useInfoCard from 'hooks/useInfoCard';
 import useMyDevices from 'hooks/data/useMyDevices';
 import useMyWirelessSensors from 'hooks/data/useMyWirelessSensors';
 import useWirelessSensorDetail from 'hooks/data/useWirelessSensorDetail';
+import useWirelessSensorMeasurements from 'hooks/data/useWirelessSensorMeasurements';
 import { renameSensor } from 'services/mutations';
 import {
   formatBatteryPercent,
@@ -35,6 +43,16 @@ import {
   formatSoilMoisture,
   formatSoilTemperature
 } from 'utils/transforms/wirelessSensor';
+import {
+  CHART_TIME_RANGE_LABELS,
+  DEFAULT_CHART_TIME_RANGE,
+  axisTickNumberFor,
+  computeAxisTicks,
+  computeChartWindow,
+  formatAxisTick,
+  formatTooltipDate,
+  pickAxisFormatForRange
+} from 'utils/chartTimeRanges';
 import wirelessSensorsDiagram from 'assets/diagrams/Wireless-Sensors-v4.svg';
 import wsFleetIcon from 'assets/drawer-icons/WS_Fleet.svg';
 import wsFleetIconActive from 'assets/drawer-icons/WS_Fleet_Active.svg';
@@ -45,7 +63,9 @@ import soilProbeIconInactive from 'assets/toggle_buttons/Soil_Probe_Icon_Inactiv
 
 import AppstoreOutlined from '@ant-design/icons/AppstoreOutlined';
 import ClockCircleOutlined from '@ant-design/icons/ClockCircleOutlined';
-import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
+import CloseOutlined from '@ant-design/icons/CloseOutlined';
+import DownloadOutlined from '@ant-design/icons/DownloadOutlined';
+import ZoomInOutlined from '@ant-design/icons/ZoomInOutlined';
 
 import {
   glassSurfaceSx,
@@ -60,11 +80,423 @@ import {
   neonSelectMenuPaperProps
 } from 'themes/sx-tokens';
 
-import { timeRangeOptions, chartTimeLabels } from 'data/mocks/time-ranges';
-import { sensorMeasurementCharts } from 'data/mocks/sensor-measurements';
-
 // Hoisted to module scope so this object literal isn't recreated every render.
 const diagramWidthSx = { xs: '92%', sm: '88%', md: '90%', lg: '92%' };
+
+// =============================================================================
+// Chart panel — module-scope constants
+// =============================================================================
+//
+// Parallel to the device chart panel in sensor-measurements.jsx but
+// with a wireless-sensor field vocabulary. Single source of truth for
+// the chart configs the panel renders, the field list the SWR hook
+// requests, the time-range sentinel for the Custom-range dropdown
+// option, the date-picker sx tokens (copied from
+// sensor-measurements.jsx — small enough that duplication is cheaper
+// than extracting), and the CSV download helpers.
+
+// Sentinel option in the time-range dropdown that reveals the custom
+// DateTimePickers. Same string everywhere so the comparison in the
+// from/to memo + the dropdown menu can't drift.
+const CUSTOM_RANGE_LABEL = 'Custom range…';
+
+// Conversion ratios for the chart transforms below.
+const FAHRENHEIT_RATIO = 9 / 5;
+const cToF = (celsius) => celsius * FAHRENHEIT_RATIO + 32;
+const mvToV = (mv) => mv / 1000;
+// Backend `electricalConductivity_N` ships raw values; the detail
+// endpoint normalizes via `_normalize_conductivity` (`/1000 if > 10`)
+// because some firmwares emit µS/m while others emit dS/m directly.
+// Apply the same normalization here so chart units stay consistent
+// with the diagram-mode soil-data card.
+const normalizeEc = (raw) => (raw > 10 ? raw / 1000 : raw);
+
+// 6-chart config for the wireless-sensor measurement panel. Three
+// dual-probe soil charts (Soil Temp / Moisture / Conductivity) +
+// three single-line system charts (Battery / Lux / RSSI). Each
+// chart's `series` entries describe one rendered line:
+//
+//   id        — stable id for MUI x-charts and the series-targeted
+//               sx selectors below
+//   fieldKey  — the backend field name (matches KNOWN_WIRELESS_SENSOR_FIELDS
+//               in useWirelessSensorMeasurements)
+//   label     — legend / tooltip display name
+//   color     — line + area-fill color (also used as the CSS variable
+//               for the per-chart glow effect)
+//   probe     — 1 or 2 for per-probe series; omitted for single-line
+//               charts. Drives the probe-highlight toggle's opacity
+//               dimming.
+//   transform — optional value transform (units conversion).
+//
+// Color palette: probe 1 uses the primary teal (#48f7f5) the rest of
+// the dashboard uses for "current value" emphasis; probe 2 uses the
+// purple accent (#c96cfc) — chosen for high luminance contrast at
+// the chart's typical small size and for matching the project's
+// existing accent vocabulary.
+const WIRELESS_SENSOR_CHART_CONFIGS = [
+  {
+    key: 'soil_temperature',
+    title: 'Soil Temperature',
+    unit: '°F',
+    series: [
+      { id: 'p1', fieldKey: 'temperatureTeros12_1', label: 'Probe 1', color: '#48f7f5', probe: 1, transform: cToF },
+      { id: 'p2', fieldKey: 'temperatureTeros12_2', label: 'Probe 2', color: '#c96cfc', probe: 2, transform: cToF }
+    ]
+  },
+  {
+    key: 'soil_moisture',
+    title: 'Soil Moisture',
+    unit: '%',
+    series: [
+      { id: 'p1', fieldKey: 'vwcPercent_1', label: 'Probe 1', color: '#48f7f5', probe: 1 },
+      { id: 'p2', fieldKey: 'vwcPercent_2', label: 'Probe 2', color: '#c96cfc', probe: 2 }
+    ]
+  },
+  {
+    key: 'conductivity',
+    title: 'Conductivity',
+    unit: 'dS/m',
+    series: [
+      { id: 'p1', fieldKey: 'electricalConductivity_1', label: 'Probe 1', color: '#48f7f5', probe: 1, transform: normalizeEc },
+      { id: 'p2', fieldKey: 'electricalConductivity_2', label: 'Probe 2', color: '#c96cfc', probe: 2, transform: normalizeEc }
+    ]
+  },
+  {
+    key: 'battery_voltage',
+    title: 'Battery Voltage',
+    unit: 'V',
+    series: [{ id: 'battery', fieldKey: 'mVbat', label: 'Battery', color: '#8539e0', transform: mvToV }]
+  },
+  {
+    key: 'lux',
+    title: 'Lux',
+    unit: 'lx',
+    series: [{ id: 'lux', fieldKey: 'lux', label: 'Lux', color: '#f4d04b' }]
+  },
+  {
+    key: 'rssi',
+    title: 'RSSI',
+    unit: 'dBm',
+    series: [{ id: 'rssi', fieldKey: 'rssi', label: 'RSSI', color: '#f47568' }]
+  }
+];
+
+// Backend `fields` projection — sent to the hook so the payload only
+// carries the columns the panel actually renders. Derived from the
+// chart configs so adding a chart automatically adds its fields.
+const WIRELESS_SENSOR_CHART_FIELDS = Array.from(new Set(WIRELESS_SENSOR_CHART_CONFIGS.flatMap((c) => c.series.map((s) => s.fieldKey))));
+
+// Probe-highlight toggle values. 'all' = both probes equal weight;
+// 1 / 2 = highlight that probe (the other dims to PROBE_DIM_OPACITY).
+const PROBE_DIM_OPACITY = 0.22;
+
+// Convert a hex color to an rgba string with the given alpha. Used to
+// dim the non-highlighted probe's line color in multi-series charts.
+const dimHexColor = (hex, alpha) => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return hex;
+  const v = parseInt(m[1], 16);
+  return `rgba(${(v >> 16) & 0xff}, ${(v >> 8) & 0xff}, ${v & 0xff}, ${alpha})`;
+};
+
+// Chart panel surface — same gradient + border that sensor-measurements
+// uses for its chart panel. Slightly distinct from drfSurfaceSx so the
+// chart area visually reads as "data canvas" inside the larger card.
+const chartSurfaceSx = {
+  backgroundColor: '#07143f',
+  backgroundImage: 'linear-gradient(180deg, #06102a 0%, #07143f 100%)',
+  border: '1px solid #0e346a'
+};
+
+// Shared chart sx — single hoisted reference shared across all charts.
+// Same recipe sensor-measurements.jsx uses, just here for self-
+// containment. The line color is interpolated per-chart via a CSS
+// variable set on the wrapper Box, so this object stays chart-agnostic.
+const chartSx = {
+  width: '100%',
+  overflow: 'visible',
+  '& .MuiChartsSurface-root': { overflow: 'visible' },
+  '& .MuiChartsGrid-line': {
+    stroke: 'var(--blue)',
+    strokeOpacity: 0.38,
+    strokeWidth: 0.65
+  },
+  '& .MuiLineElement-root': {
+    strokeWidth: 0.95,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    filter: 'drop-shadow(0 0 8px var(--chart-line-color))'
+  },
+  '& .MuiAreaElement-root': { fillOpacity: 0.16 },
+  '& .MuiChartsAxis-line, & .MuiChartsAxis-tick': { stroke: 'rgba(232, 232, 232, 0.45)' },
+  '& .MuiChartsAxis-tickLabel': { fill: 'var(--green)', fontWeight: 600 },
+  '& .MuiChartsAxis-left .MuiChartsAxis-line, & .MuiChartsAxis-bottom .MuiChartsAxis-line': {
+    stroke: 'rgba(232, 232, 232, 0.55)'
+  },
+  '& .MuiChartsAxisHighlight-root': {
+    stroke: 'var(--chart-line-color) !important',
+    strokeOpacity: 0.75,
+    strokeWidth: 1.25
+  },
+  background: 'transparent',
+  borderRadius: 1
+};
+
+// Y-axis tick label formatter — compacts large values (12000 → "12.0k")
+// and appends the chart's unit suffix. Curried because MUI x-charts'
+// valueFormatter takes a single-arg callback.
+const makeYAxisFormatter = (unit) => (value) => {
+  if (value === null || value === undefined) return '';
+  const compact = Math.abs(value) >= 1000 ? `${(value / 1000).toFixed(1)}k` : `${value}`;
+  return unit ? `${compact} ${unit}` : compact;
+};
+
+// =============================================================================
+// Date-time picker sx — duplicated from sensor-measurements.jsx so both
+// pages share the same date/time picker visual vocabulary. Promote to
+// themes/ if a third surface ever lands.
+// =============================================================================
+
+const dateTimePickerPaperSx = {
+  backgroundColor: 'rgba(0, 20, 61, 0.94)',
+  backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))',
+  border: '1px solid var(--reflected-light)',
+  boxShadow: '0 11px 19px 1px #0000002e',
+  color: 'var(--green)',
+  backdropFilter: 'blur(6px)'
+};
+const dateTimePickerPopperSx = {
+  '& .MuiPaper-root': dateTimePickerPaperSx,
+  '& .MuiPickersLayout-root': { color: 'var(--blue)' },
+  '& .MuiPickersDay-root': {
+    color: 'var(--green)',
+    borderRadius: 1,
+    '&:hover': { backgroundColor: 'rgba(72, 247, 245, 0.12)' }
+  },
+  '& .MuiPickersDay-root.Mui-selected': {
+    backgroundColor: 'rgba(72, 247, 245, 0.2)',
+    color: 'var(--green)'
+  },
+  '& .MuiDayCalendar-weekDayLabel, & .MuiPickersCalendarHeader-label': {
+    color: 'var(--blue)',
+    fontWeight: 600
+  },
+  '& .MuiPickersArrowSwitcher-button, & .MuiPickersCalendarHeader-switchViewButton': {
+    color: 'var(--blue)'
+  },
+  '& .MuiPickersLayout-actionBar': {
+    borderTop: '1px solid var(--reflected-light)',
+    px: 1,
+    py: 0.75,
+    gap: 0.75,
+    '& .MuiButton-root': {
+      color: 'var(--blue)',
+      border: '1px solid var(--reflected-light)',
+      borderRadius: 1,
+      textTransform: 'none',
+      fontWeight: 600,
+      px: 1.5,
+      py: 0.35,
+      letterSpacing: '0.02em',
+      backgroundColor: 'rgba(0, 17, 48, 0.5)',
+      transition: 'color 0.18s ease, border-color 0.18s ease, background-color 0.18s ease',
+      '&:hover': {
+        color: 'var(--green)',
+        borderColor: 'var(--green)',
+        backgroundColor: 'rgba(72, 247, 245, 0.08)'
+      }
+    }
+  },
+  '& .MuiPickersToolbar-root, & .MuiDateTimePickerToolbar-root': {
+    color: 'var(--green)',
+    backgroundColor: 'transparent',
+    borderBottom: '1px solid var(--reflected-light)'
+  },
+  '& .MuiPickersToolbarText-root': { color: 'var(--blue)' },
+  '& .MuiPickersToolbarText-root.Mui-selected': {
+    color: 'var(--green)',
+    textShadow: '0 0 6px rgba(72, 247, 245, 0.45)'
+  },
+  '& .MuiTabs-root': {
+    borderBottom: '1px solid var(--reflected-light)',
+    minHeight: 36,
+    '& .MuiTab-root': {
+      color: 'var(--blue)',
+      textTransform: 'none',
+      fontWeight: 600,
+      letterSpacing: '0.02em',
+      minHeight: 36,
+      '&.Mui-selected': {
+        color: 'var(--green)',
+        textShadow: '0 0 6px rgba(72, 247, 245, 0.45)'
+      }
+    },
+    '& .MuiTabs-indicator': { backgroundColor: 'var(--green)' }
+  },
+  '& .MuiMultiSectionDigitalClockSection-root': {
+    scrollbarWidth: 'thin',
+    scrollbarColor: 'rgba(0, 68, 143, 0.6) transparent',
+    '&::-webkit-scrollbar': { width: '6px' },
+    '&::-webkit-scrollbar-track': { background: 'transparent' },
+    '&::-webkit-scrollbar-thumb': { backgroundColor: 'rgba(0, 68, 143, 0.6)', borderRadius: '3px' }
+  },
+  '& .MuiMultiSectionDigitalClockSection-item': {
+    color: 'var(--green)',
+    borderRadius: 1,
+    fontWeight: 500,
+    '&:hover': { backgroundColor: 'rgba(72, 247, 245, 0.12)' }
+  },
+  '& .MuiMultiSectionDigitalClockSection-item.Mui-selected': {
+    backgroundColor: 'rgba(72, 247, 245, 0.2)',
+    color: 'var(--green)',
+    textShadow: '0 0 6px rgba(72, 247, 245, 0.45)',
+    '&:hover, &:focus': { backgroundColor: 'rgba(72, 247, 245, 0.28)' }
+  },
+  '& .MuiDigitalClock-item': {
+    color: 'var(--green)',
+    '&:hover': { backgroundColor: 'rgba(72, 247, 245, 0.12)' }
+  },
+  '& .MuiDigitalClock-item.Mui-selected': {
+    backgroundColor: 'rgba(72, 247, 245, 0.2)',
+    color: 'var(--green)',
+    textShadow: '0 0 6px rgba(72, 247, 245, 0.45)'
+  },
+  '& .MuiYearCalendar-root': {
+    scrollbarWidth: 'thin',
+    scrollbarColor: 'rgba(0, 68, 143, 0.6) transparent',
+    '&::-webkit-scrollbar': { width: '6px' },
+    '&::-webkit-scrollbar-track': { background: 'transparent' },
+    '&::-webkit-scrollbar-thumb': { backgroundColor: 'rgba(0, 68, 143, 0.6)', borderRadius: '3px' }
+  },
+  '& .MuiYearCalendar-button': {
+    color: 'var(--green)',
+    fontWeight: 500,
+    borderRadius: 1,
+    transition: 'color 0.18s ease, background-color 0.18s ease',
+    '&:hover, &:focus': { backgroundColor: 'rgba(72, 247, 245, 0.12)', color: 'var(--green)' }
+  },
+  '& .MuiYearCalendar-button.Mui-selected, & .MuiYearCalendar-button.MuiYearCalendar-selected': {
+    backgroundColor: 'rgba(72, 247, 245, 0.2)',
+    color: 'var(--green)',
+    textShadow: '0 0 6px rgba(72, 247, 245, 0.45)',
+    fontWeight: 700,
+    '&:hover, &:focus': { backgroundColor: 'rgba(72, 247, 245, 0.28)' }
+  },
+  '& .MuiYearCalendar-button.Mui-disabled, & .MuiYearCalendar-button.MuiYearCalendar-disabled': {
+    color: 'var(--blue)',
+    opacity: 0.35
+  },
+  '& .MuiMonthCalendar-button': {
+    color: 'var(--green)',
+    fontWeight: 500,
+    borderRadius: 1,
+    transition: 'color 0.18s ease, background-color 0.18s ease',
+    '&:hover, &:focus': { backgroundColor: 'rgba(72, 247, 245, 0.12)', color: 'var(--green)' }
+  },
+  '& .MuiMonthCalendar-button.Mui-selected, & .MuiMonthCalendar-button.MuiMonthCalendar-selected': {
+    backgroundColor: 'rgba(72, 247, 245, 0.2)',
+    color: 'var(--green)',
+    textShadow: '0 0 6px rgba(72, 247, 245, 0.45)',
+    fontWeight: 700,
+    '&:hover, &:focus': { backgroundColor: 'rgba(72, 247, 245, 0.28)' }
+  },
+  '& .MuiMonthCalendar-button.Mui-disabled, & .MuiMonthCalendar-button.MuiMonthCalendar-disabled': {
+    color: 'var(--blue)',
+    opacity: 0.35
+  }
+};
+const dateTimePickerTextFieldSx = {
+  '& .MuiOutlinedInput-root, & .MuiPickersOutlinedInput-root': {
+    ...neonControlSx,
+    '& .MuiOutlinedInput-notchedOutline, & .MuiPickersOutlinedInput-notchedOutline': { border: 'none' },
+    '&:hover:not(.Mui-disabled)': { borderColor: 'var(--green)' },
+    '&.Mui-focused': { borderColor: 'var(--blue)' }
+  },
+  '& .MuiInputBase-input': {
+    color: 'var(--green) !important',
+    WebkitTextFillColor: 'var(--green) !important',
+    textAlign: 'center',
+    '&::placeholder': { color: 'var(--green)', opacity: 1 }
+  },
+  '& .MuiPickersInputBase-root, & .MuiPickersSectionList-root, & .MuiPickersSectionList-sectionContent, & .MuiPickersSectionList-section': {
+    color: 'var(--green) !important',
+    WebkitTextFillColor: 'var(--green) !important'
+  },
+  '& .MuiPickersSectionList-section.Mui-selected': {
+    color: 'var(--green) !important',
+    backgroundColor: 'rgba(72, 247, 245, 0.2)'
+  },
+  '& [data-placeholder="true"]': { color: 'var(--green) !important', opacity: 1 },
+  '& .MuiSvgIcon-root': { color: 'var(--blue)' }
+};
+
+// =============================================================================
+// CSV download helpers — same shape as the helpers in sensor-measurements.jsx
+// but adapted for the wireless-sensor field set and multi-series chart
+// configs.
+// =============================================================================
+
+const dateToFilenameSlug = (d) => {
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return 'unknown';
+  return d.toISOString().slice(0, 10);
+};
+
+const sensorLabelToFilenameSlug = (label) => {
+  const trimmed = (label ?? '').trim();
+  if (!trimmed) return 'sensor';
+  return trimmed.replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'sensor';
+};
+
+/**
+ * Build a CSV string from the normalized measurement rows. Columns:
+ * `time`, then one column per chart config's series (so dual-probe
+ * charts produce two columns — e.g., `soil_temperature_p1 (°F)` and
+ * `soil_temperature_p2 (°F)`). Values pass through each series'
+ * transform so the exported numbers match what's on screen.
+ */
+function buildSensorMeasurementsCsv(rows) {
+  const headerCells = ['time'];
+  for (const chart of WIRELESS_SENSOR_CHART_CONFIGS) {
+    for (const series of chart.series) {
+      const isMultiProbe = chart.series.length > 1;
+      const suffix = isMultiProbe ? `_${series.id}` : '';
+      const label = `${chart.key}${suffix}`;
+      headerCells.push(chart.unit ? `${label} (${chart.unit})` : label);
+    }
+  }
+  const lines = [headerCells.join(',')];
+  for (const row of rows) {
+    const cells = [row.time];
+    for (const chart of WIRELESS_SENSOR_CHART_CONFIGS) {
+      for (const series of chart.series) {
+        const field = row.fields[series.fieldKey];
+        const raw = field?.avg;
+        if (raw === null || raw === undefined) {
+          cells.push('');
+        } else {
+          const value = series.transform ? series.transform(raw) : raw;
+          cells.push(Number.isFinite(value) ? value.toFixed(4).replace(/\.?0+$/, '') : '');
+        }
+      }
+    }
+    lines.push(cells.join(','));
+  }
+  return lines.join('\n');
+}
+
+function downloadSensorMeasurementsCsv({ rows, sensorLabel, from, to }) {
+  if (!rows?.length) return;
+  const csv = buildSensorMeasurementsCsv(rows);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${sensorLabelToFilenameSlug(sensorLabel)}_${dateToFilenameSlug(from)}_${dateToFilenameSlug(to)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 // Search-param name for deep-linking from the wireless-sensor fleet
 // overview. The fleet card click writes
@@ -151,8 +583,27 @@ const buildSoilReadings = (sensorDetail, selectedSoilProbe) => {
 };
 
 export default function SensorNetwork() {
-  const [timeRange, setTimeRange] = useState('Last 24 hours');
+  const [timeRange, setTimeRange] = useState(DEFAULT_CHART_TIME_RANGE);
   const [chartLayout, setChartLayout] = useState('row');
+
+  // Chart panel state — mirrors sensor-measurements.jsx so the
+  // wireless-sensor chart panel behaves identically to the device
+  // chart panel (custom range pickers, loading indicator, enlarge
+  // dialog, etc.).
+  const [customFromTime, setCustomFromTime] = useState(null);
+  const [customToTime, setCustomToTime] = useState(null);
+  const isCustomRange = timeRange === CUSTOM_RANGE_LABEL;
+
+  // Probe-highlight toggle for the dual-probe soil charts. 'all' =
+  // both lines at full color; 1 / 2 = highlight that probe (the
+  // other dims via dimHexColor). Single-line charts (battery / lux /
+  // RSSI) ignore this state.
+  const [probeHighlight, setProbeHighlight] = useState('all');
+
+  // Currently-enlarged chart key. null = closed; otherwise the
+  // config.key of the chart being displayed in the Dialog.
+  const [enlargedChartKey, setEnlargedChartKey] = useState(null);
+  const enlargedChartConfig = enlargedChartKey ? (WIRELESS_SENSOR_CHART_CONFIGS.find((c) => c.key === enlargedChartKey) ?? null) : null;
   const [isMapView, setIsMapView] = useState(false);
 
   // PheNode + sensor selection. Both start as `undefined` (the
@@ -213,7 +664,102 @@ export default function SensorNetwork() {
     return { sensorId: sensorFromUrl, phenodeId: parentDevice.external_device_id };
   }, [sensorFromUrl, sensors, devices]);
 
-  const chartCards = useMemo(() => sensorMeasurementCharts, []);
+  // Chart panel time window. Three branches: custom range with both
+  // pickers filled and ordered, custom range mid-input (falls back
+  // to DEFAULT preset to avoid blank chart), or preset. Same shape
+  // as sensor-measurements.jsx — see that file's matching memo for
+  // the full rationale.
+  const { from, to, axisFormat } = useMemo(() => {
+    if (isCustomRange && customFromTime && customToTime) {
+      const fromDate = customFromTime.toDate();
+      const toDate = customToTime.toDate();
+      if (fromDate < toDate) {
+        return { from: fromDate, to: toDate, axisFormat: pickAxisFormatForRange(fromDate, toDate) };
+      }
+    }
+    const label = isCustomRange ? DEFAULT_CHART_TIME_RANGE : timeRange;
+    return computeChartWindow(label);
+  }, [isCustomRange, timeRange, customFromTime, customToTime]);
+
+  const xAxisTicks = useMemo(() => computeAxisTicks(from, to, axisFormat), [from, to, axisFormat]);
+
+  // Wireless-sensor measurement time series for the active sensor.
+  // bucket: 'auto' lets the backend pick aggregation by time range
+  // (raw for short, bucketed for long). Field projection trims the
+  // payload to what the 6 charts actually render.
+  const {
+    rows: measurementRows,
+    isLoading: measurementsLoading,
+    isValidating: measurementsValidating,
+    error: measurementsError
+  } = useWirelessSensorMeasurements(selectedSensorId, {
+    from,
+    to,
+    fields: WIRELESS_SENSOR_CHART_FIELDS,
+    bucket: 'auto'
+  });
+
+  // Selection-change loading indicator — fires for any
+  // user-initiated SWR-key change but stays quiet on the 60s
+  // background poll. See sensor-measurements.jsx for the full
+  // pattern; identical logic.
+  const selectionKey = useMemo(
+    () => `${selectedSensorId ?? ''}|${from?.getTime() ?? ''}|${to?.getTime() ?? ''}`,
+    [selectedSensorId, from, to]
+  );
+  const previousSelectionKeyRef = useRef(selectionKey);
+  const [isFetchingSelection, setIsFetchingSelection] = useState(false);
+  useEffect(() => {
+    if (previousSelectionKeyRef.current !== selectionKey) {
+      setIsFetchingSelection(true);
+      previousSelectionKeyRef.current = selectionKey;
+    }
+  }, [selectionKey]);
+  useEffect(() => {
+    if (isFetchingSelection && !measurementsValidating) {
+      setIsFetchingSelection(false);
+    }
+  }, [isFetchingSelection, measurementsValidating]);
+  const showSelectionLoading = measurementsLoading || isFetchingSelection;
+
+  // Shared time array — used as the X-axis data for every chart so
+  // all six render on the same horizontal scale.
+  const chartTimes = useMemo(() => {
+    if (!measurementRows) return [];
+    return measurementRows.map((row) => new Date(row.time));
+  }, [measurementRows]);
+
+  // Per-chart, per-series values aligned to chartTimes. Nulls
+  // preserved (with connectNulls: true on the series so the line
+  // stays continuous over gaps). Multi-series charts (Soil Temp /
+  // Moisture / Conductivity) return one entry per probe; single-line
+  // charts (Battery / Lux / RSSI) return one entry total.
+  //
+  // We keep nulls here (instead of the per-chart filter pattern used
+  // in sensor-measurements.jsx) because the multi-series case would
+  // require independent per-series X axes to truly drop them — a
+  // bigger refactor than buying back the few "No data" tooltips that
+  // appear at rare missing readings. Both probes typically report
+  // together, so these gaps are uncommon in practice.
+  const chartSeriesByField = useMemo(() => {
+    if (!measurementRows) return {};
+    const result = {};
+    for (const chartConfig of WIRELESS_SENSOR_CHART_CONFIGS) {
+      result[chartConfig.key] = chartConfig.series.map((seriesConfig) => {
+        const transform = seriesConfig.transform;
+        const values = measurementRows.map((row) => {
+          const field = row.fields[seriesConfig.fieldKey];
+          if (!field) return null;
+          const raw = field.avg;
+          if (raw === null || raw === undefined) return null;
+          return transform ? transform(raw) : raw;
+        });
+        return { ...seriesConfig, values };
+      });
+    }
+    return result;
+  }, [measurementRows]);
+
   const infoCardTitle = isSoilDataMode ? 'Soil Data' : 'Sensor Information';
   const infoCardTooltipTitle = isSoilDataMode ? 'Sensor Info.' : 'Soil Data';
   const infoCardToggleIcon = isSoilDataMode
@@ -1152,71 +1698,441 @@ export default function SensorNetwork() {
                 </Tooltip>
               </Stack>
 
-              <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', mb: 2 }}>
-                <FormControl
-                  size="small"
-                  sx={{ minWidth: { xs: 0, sm: 220 }, width: { xs: '100%', sm: 220 }, flex: { xs: 1, sm: '0 0 auto' } }}
+              <LocalizationProvider dateAdapter={AdapterDayjs}>
+                <Stack
+                  direction={{ xs: 'column', sm: 'row' }}
+                  spacing={1.25}
+                  sx={{
+                    alignItems: { xs: 'stretch', sm: 'center' },
+                    justifyContent: 'space-between',
+                    mb: 2,
+                    flexWrap: 'wrap',
+                    rowGap: 1
+                  }}
                 >
-                  <Select
-                    value={timeRange}
-                    onChange={(event) => setTimeRange(event.target.value)}
-                    sx={{
-                      color: 'var(--green)',
-                      border: '1px solid var(--reflected-light)',
-                      borderRadius: 1,
-                      backgroundColor: 'rgba(0, 20, 61, 0.72)',
-                      boxShadow: '0 11px 19px 1px #0000002e',
-                      '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                      '& .MuiSelect-icon': { color: 'var(--blue)' }
-                    }}
-                    MenuProps={{ PaperProps: neonSelectMenuPaperProps }}
-                    renderValue={(selected) => (
-                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                        <ClockCircleOutlined style={{ color: 'var(--blue)' }} />
-                        <Box component="span" sx={{ color: 'var(--green)' }}>
-                          {selected}
-                        </Box>
-                      </Stack>
-                    )}
+                  <Stack
+                    direction={{ xs: 'column', sm: 'row' }}
+                    spacing={1.25}
+                    sx={{ alignItems: { xs: 'stretch', sm: 'center' }, flexWrap: 'wrap', rowGap: 1, minWidth: 0 }}
                   >
-                    {timeRangeOptions.map((option) => (
-                      <MenuItem
-                        key={option}
-                        value={option}
+                    <FormControl
+                      size="small"
+                      sx={{ minWidth: { xs: 0, sm: 220 }, width: { xs: '100%', sm: 220 }, flex: { xs: 1, sm: '0 0 auto' } }}
+                    >
+                      <Select
+                        value={timeRange}
+                        onChange={(event) => setTimeRange(event.target.value)}
                         sx={{
                           color: 'var(--green)',
-                          '&:hover': { backgroundColor: 'rgba(72, 247, 245, 0.12)' },
-                          '&.Mui-selected': { backgroundColor: 'rgba(72, 247, 245, 0.18)' }
+                          border: '1px solid var(--reflected-light)',
+                          borderRadius: 1,
+                          backgroundColor: 'rgba(0, 20, 61, 0.72)',
+                          boxShadow: '0 11px 19px 1px #0000002e',
+                          '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                          '& .MuiSelect-icon': { color: 'var(--blue)' }
+                        }}
+                        MenuProps={{ PaperProps: neonSelectMenuPaperProps }}
+                        renderValue={(selected) => (
+                          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                            <ClockCircleOutlined style={{ color: 'var(--blue)' }} />
+                            <Box component="span" sx={{ color: 'var(--green)' }}>
+                              {selected}
+                            </Box>
+                          </Stack>
+                        )}
+                      >
+                        {CHART_TIME_RANGE_LABELS.map((option) => (
+                          <MenuItem
+                            key={option}
+                            value={option}
+                            sx={{
+                              color: 'var(--green)',
+                              '&:hover': { backgroundColor: 'rgba(72, 247, 245, 0.12)' },
+                              '&.Mui-selected': { backgroundColor: 'rgba(72, 247, 245, 0.18)' }
+                            }}
+                          >
+                            {option}
+                          </MenuItem>
+                        ))}
+                        <MenuItem
+                          key={CUSTOM_RANGE_LABEL}
+                          value={CUSTOM_RANGE_LABEL}
+                          sx={{
+                            color: 'var(--green)',
+                            borderTop: '1px solid var(--reflected-light)',
+                            '&:hover': { backgroundColor: 'rgba(72, 247, 245, 0.12)' },
+                            '&.Mui-selected': { backgroundColor: 'rgba(72, 247, 245, 0.18)' }
+                          }}
+                        >
+                          {CUSTOM_RANGE_LABEL}
+                        </MenuItem>
+                      </Select>
+                    </FormControl>
+
+                    {isCustomRange && (
+                      <Stack
+                        direction={{ xs: 'column', sm: 'row' }}
+                        spacing={1}
+                        sx={{ alignItems: { xs: 'stretch', sm: 'center' }, flex: { sm: 1 } }}
+                      >
+                        <DateTimePicker
+                          value={customFromTime}
+                          onChange={(value) => setCustomFromTime(value)}
+                          ampm
+                          slotProps={{
+                            textField: {
+                              size: 'small',
+                              placeholder: 'From',
+                              sx: { minWidth: { sm: 180 }, flex: 1, ...dateTimePickerTextFieldSx }
+                            },
+                            popper: { sx: dateTimePickerPopperSx },
+                            desktopPaper: { sx: dateTimePickerPaperSx },
+                            mobilePaper: { sx: dateTimePickerPaperSx }
+                          }}
+                        />
+                        <DateTimePicker
+                          value={customToTime}
+                          onChange={(value) => setCustomToTime(value)}
+                          ampm
+                          slotProps={{
+                            textField: {
+                              size: 'small',
+                              placeholder: 'To',
+                              sx: { minWidth: { sm: 180 }, flex: 1, ...dateTimePickerTextFieldSx }
+                            },
+                            popper: { sx: dateTimePickerPopperSx },
+                            desktopPaper: { sx: dateTimePickerPaperSx },
+                            mobilePaper: { sx: dateTimePickerPaperSx }
+                          }}
+                        />
+                      </Stack>
+                    )}
+
+                    {/*
+                      Probe-highlight ToggleButtonGroup — affects the
+                      three dual-probe charts (Soil Temp / Moisture /
+                      Conductivity). 'all' renders both probes at
+                      equal weight; 1 / 2 dims the OTHER probe via
+                      dimHexColor. Single-line charts (Battery / Lux /
+                      RSSI) ignore this setting.
+                    */}
+                    <ToggleButtonGroup
+                      exclusive
+                      value={probeHighlight}
+                      onChange={(_, next) => {
+                        if (next) setProbeHighlight(next);
+                      }}
+                      size="small"
+                      sx={{
+                        '& .MuiToggleButton-root': {
+                          border: '1px solid var(--reflected-light) !important',
+                          color: 'var(--blue)',
+                          backgroundColor: 'rgba(0, 20, 61, 0.72)',
+                          textTransform: 'none',
+                          fontWeight: 600,
+                          fontSize: '0.72rem',
+                          // Tuned to match the time-range dropdown's
+                          // visible box size by eye — slightly
+                          // tighter than MUI's canonical
+                          // size="small" OutlinedInput inset
+                          // (8.5px / 14px) because the toggle
+                          // buttons' inner text ("Probe 1" /
+                          // "Probe 2") visually inflates the box
+                          // versus the dropdown's icon + single
+                          // label.
+                          px: '13px',
+                          py: '8px'
+                        },
+                        '& .MuiToggleButton-root:hover': {
+                          backgroundColor: 'rgba(0, 20, 61, 0.72) !important',
+                          backgroundImage: 'linear-gradient(rgba(72, 247, 245, 0.08), rgba(72, 247, 245, 0.08)) !important'
+                        },
+                        '& .Mui-selected': {
+                          color: 'var(--green) !important',
+                          backgroundImage: 'linear-gradient(rgba(72, 247, 245, 0.2), rgba(72, 247, 245, 0.2)) !important',
+                          textShadow: '0 0 6px rgba(72, 247, 245, 0.45)'
+                        }
+                      }}
+                    >
+                      <ToggleButton value="all">Both</ToggleButton>
+                      <ToggleButton value={1}>Probe 1</ToggleButton>
+                      <ToggleButton value={2}>Probe 2</ToggleButton>
+                    </ToggleButtonGroup>
+
+                    {showSelectionLoading && (
+                      <Stack
+                        direction="row"
+                        spacing={0.75}
+                        sx={{
+                          alignItems: 'center',
+                          color: 'var(--green)',
+                          '@keyframes phenode-sn-loading-fade-in': {
+                            from: { opacity: 0 },
+                            to: { opacity: 1 }
+                          },
+                          animation: 'phenode-sn-loading-fade-in 200ms ease-out'
+                        }}
+                        role="status"
+                        aria-live="polite"
+                      >
+                        <CircularProgress size={14} sx={{ color: 'var(--green)' }} />
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: 'var(--green)',
+                            textShadow: '0 0 6px rgba(72, 247, 245, 0.35)',
+                            fontWeight: 600
+                          }}
+                        >
+                          Loading…
+                        </Typography>
+                      </Stack>
+                    )}
+                  </Stack>
+
+                  <Tooltip
+                    title={measurementRows?.length ? 'Download CSV for this range' : 'No data to download'}
+                    arrow={false}
+                    slotProps={tooltipSlotProps}
+                  >
+                    <Box component="span" sx={{ display: 'inline-flex', flexShrink: 0 }}>
+                      <Button
+                        variant="outlined"
+                        startIcon={<DownloadOutlined />}
+                        disabled={!measurementRows?.length}
+                        onClick={() =>
+                          downloadSensorMeasurementsCsv({
+                            rows: measurementRows,
+                            sensorLabel: activeSensor?.label || activeSensor?.externalSensorId,
+                            from,
+                            to
+                          })
+                        }
+                        sx={{
+                          textTransform: 'none',
+                          borderColor: 'var(--orange)',
+                          color: 'var(--green)',
+                          backgroundColor: 'rgba(0, 20, 61, 0.72)',
+                          boxShadow: '0 11px 19px 1px #0000002e',
+                          transition: 'none',
+                          '&:hover': {
+                            borderColor: 'var(--green)',
+                            boxShadow: '0 0 7px -5px var(--green)',
+                            color: 'var(--green)',
+                            textShadow: '0 1px 5px #007bff',
+                            backgroundColor: 'rgba(72, 247, 245, 0.08)'
+                          },
+                          // Disabled state matches the Download button
+                          // in the Data Downloads page (sections/
+                          // data-download/data-downloads.jsx:586-593)
+                          // so the "no data available" affordance is
+                          // consistent across the app's download
+                          // surfaces — grey text + grey border on a
+                          // flat dark-navy fill, no hover brightening.
+                          '&.Mui-disabled': {
+                            color: 'var(--med-grey)',
+                            borderColor: 'var(--med-grey)',
+                            backgroundColor: '#01113d'
+                          },
+                          '&.Mui-disabled:hover': {
+                            backgroundColor: '#01113d'
+                          }
                         }}
                       >
-                        {option}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                <Tooltip title="Refresh" arrow={false} slotProps={tooltipSlotProps}>
-                  <IconButton
-                    aria-label="refresh sensor charts"
-                    sx={{
-                      border: '1px solid var(--reflected-light)',
-                      color: 'var(--purple)',
-                      backgroundColor: 'rgba(0, 20, 61, 0.72)',
-                      boxShadow: '0 11px 19px 1px #0000002e',
-                      '&:hover': {
-                        borderColor: 'var(--green)',
-                        boxShadow: '0 0 7px -5px var(--green)',
-                        color: 'var(--green)',
-                        textShadow: '0 1px 5px #007bff',
-                        backgroundColor: 'rgba(72, 247, 245, 0.08)'
-                      }
-                    }}
-                  >
-                    <ReloadOutlined />
-                  </IconButton>
-                </Tooltip>
-              </Stack>
+                        Download CSV
+                      </Button>
+                    </Box>
+                  </Tooltip>
+                </Stack>
+              </LocalizationProvider>
 
-              <MeasurementsChartGrid charts={chartCards} timeLabels={chartTimeLabels} layout={chartLayout} />
+              {/*
+                Chart grid. Six charts in a 1-/2-/3-column responsive
+                grid (row layout) or single column (column layout).
+                Each chart renders an MUI LineChart with one or two
+                series, error / loading / empty branches, and a
+                per-chart enlarge button. Mirrors the rendering
+                pattern in sensor-measurements.jsx — only the series
+                build (multi-line + probe dimming) differs.
+              */}
+              <Box
+                sx={{
+                  display: 'grid',
+                  gap: 1.5,
+                  gridTemplateColumns:
+                    chartLayout === 'row' ? { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' } : '1fr'
+                }}
+              >
+                {WIRELESS_SENSOR_CHART_CONFIGS.map((config) => {
+                  const seriesList = chartSeriesByField[config.key] ?? [];
+                  // Aggregate non-null values across all series in the
+                  // chart so the Y-axis padding scales correctly even
+                  // when one probe ranges differently from the other.
+                  const numericValues = seriesList.flatMap((s) =>
+                    s.values.filter((v) => v !== null && v !== undefined && !Number.isNaN(v))
+                  );
+                  const hasData = chartTimes.length > 0 && numericValues.length > 0;
+                  const minVal = hasData ? Math.min(...numericValues) : 0;
+                  const maxVal = hasData ? Math.max(...numericValues) : 1;
+                  const pad = Math.max(0.1, (maxVal - minVal) * 0.04);
+
+                  // Use the first series' color as the chart's "glow"
+                  // CSS variable so the hover-line + drop-shadow stay
+                  // consistent within a chart (multi-series charts
+                  // pick probe 1's teal; single-series use their own).
+                  const glowColor = seriesList[0]?.color ?? '#48f7f5';
+
+                  return (
+                    <Box
+                      key={config.key}
+                      style={{ '--chart-line-color': glowColor }}
+                      sx={{
+                        borderRadius: 1,
+                        p: { xs: 0.45, sm: 0.65 },
+                        minHeight: { xs: 265, sm: 268 },
+                        display: 'flex',
+                        flexDirection: 'column',
+                        ...reflectedCardChromeSx,
+                        ...chartSurfaceSx,
+                        border: '1px solid #0e346a'
+                      }}
+                    >
+                      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 0.25 }}>
+                        <Typography variant="subtitle1" sx={{ color: 'var(--blue)', ml: 1.25 }}>
+                          {config.title}
+                          {config.unit ? (
+                            <Box component="span" sx={{ color: 'var(--green)', ml: 0.75, fontSize: '0.85em' }}>
+                              ({config.unit})
+                            </Box>
+                          ) : null}
+                        </Typography>
+                        <Tooltip title="Enlarge" arrow={false} slotProps={tooltipSlotProps}>
+                          <IconButton
+                            aria-label={`enlarge ${config.title} chart`}
+                            size="small"
+                            onClick={() => setEnlargedChartKey(config.key)}
+                            sx={{ color: 'var(--blue)', '&:hover': { color: 'var(--green)' } }}
+                          >
+                            <ZoomInOutlined />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+
+                      {measurementsError && !measurementRows ? (
+                        <Box
+                          sx={{
+                            flex: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--orange)',
+                            fontSize: '0.85rem',
+                            fontStyle: 'italic'
+                          }}
+                        >
+                          Failed to load chart data
+                        </Box>
+                      ) : measurementsLoading && !measurementRows ? (
+                        <Stack
+                          direction="row"
+                          spacing={1.5}
+                          sx={{
+                            flex: 1,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--blue)',
+                            fontSize: '0.85rem'
+                          }}
+                        >
+                          <CircularProgress size={20} sx={{ color: 'var(--green)' }} />
+                          <Box component="span">Loading chart data…</Box>
+                        </Stack>
+                      ) : !hasData ? (
+                        <Box
+                          sx={{
+                            flex: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--blue)',
+                            fontSize: '0.85rem',
+                            fontStyle: 'italic'
+                          }}
+                        >
+                          No data for this time range
+                        </Box>
+                      ) : (
+                        <LineChart
+                          xAxis={[
+                            {
+                              id: `${config.key}-x`,
+                              scaleType: 'time',
+                              data: chartTimes,
+                              tickNumber: axisTickNumberFor(axisFormat),
+                              tickInterval: xAxisTicks,
+                              min: chartTimes[0],
+                              max: chartTimes[chartTimes.length - 1],
+                              domainLimit: 'strict',
+                              tickLabelStyle: { fontSize: 11, fill: 'var(--green)' },
+                              valueFormatter: (value, context) =>
+                                context?.location === 'tooltip' ? formatTooltipDate(value) : formatAxisTick(value, axisFormat)
+                            }
+                          ]}
+                          yAxis={[
+                            {
+                              id: `${config.key}-y`,
+                              min: minVal - pad,
+                              max: maxVal + pad,
+                              width: 56,
+                              tickLabelStyle: { fontSize: 11, fill: 'var(--green)' },
+                              valueFormatter: makeYAxisFormatter(config.unit)
+                            }
+                          ]}
+                          series={seriesList.map((s) => {
+                            // Apply probe-highlight dimming. If a
+                            // probe is selected and this series is
+                            // for the OTHER probe, render with a
+                            // translucent color so it visually
+                            // recedes. Single-line series (no
+                            // `probe` field) are unaffected.
+                            const isDimmed = probeHighlight !== 'all' && s.probe != null && s.probe !== probeHighlight;
+                            const seriesColor = isDimmed ? dimHexColor(s.color, PROBE_DIM_OPACITY) : s.color;
+                            return {
+                              id: `${config.key}-${s.id}`,
+                              label: s.label,
+                              data: s.values,
+                              color: seriesColor,
+                              area: seriesList.length === 1,
+                              showMark: false,
+                              curve: 'linear',
+                              connectNulls: true,
+                              valueFormatter: (value) =>
+                                value === null || value === undefined
+                                  ? null
+                                  : `${Number(value).toFixed(2)}${config.unit ? ` ${config.unit}` : ''}`
+                            };
+                          })}
+                          grid={{ horizontal: true, vertical: true }}
+                          height={chartLayout === 'row' ? 228 : 258}
+                          margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+                          hideLegend={seriesList.length === 1}
+                          slotProps={{
+                            legend: {
+                              direction: 'horizontal',
+                              position: { vertical: 'top', horizontal: 'middle' },
+                              sx: {
+                                '& .MuiChartsLegend-mark': { rx: 2, ry: 2 },
+                                '& .MuiChartsLegend-label': { fill: 'var(--green)', fontSize: 11 }
+                              }
+                            }
+                          }}
+                          sx={chartSx}
+                        />
+                      )}
+                    </Box>
+                  );
+                })}
+              </Box>
             </Box>
           </Grid>
         </Grid>
@@ -1261,6 +2177,176 @@ export default function SensorNetwork() {
         onConfirm={handleConfirmRename}
         onCancel={() => setRenameDraft(null)}
       />
+
+      {/*
+        Enlarge Dialog — renders the user-selected chart at full
+        Dialog width. Mirrors the sensor-measurements panel's enlarge
+        affordance so both charts surfaces feel like one product.
+        Data flows from the same useWirelessSensorMeasurements hook,
+        so a fetch that updates the grid also updates this dialog.
+      */}
+      <Dialog
+        open={Boolean(enlargedChartConfig)}
+        onClose={() => setEnlargedChartKey(null)}
+        maxWidth="lg"
+        fullWidth
+        slotProps={{
+          paper: {
+            sx: {
+              backgroundColor: 'rgba(0, 20, 61, 0.96)',
+              backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))',
+              border: '1px solid var(--reflected-light)',
+              boxShadow: '0 11px 19px 1px #0000002e',
+              borderRadius: 1
+            }
+          },
+          backdrop: {
+            sx: {
+              backgroundColor: 'rgba(0, 0, 0, 0.45)',
+              backdropFilter: 'blur(6px)'
+            }
+          }
+        }}
+      >
+        {enlargedChartConfig &&
+          (() => {
+            const config = enlargedChartConfig;
+            const seriesList = chartSeriesByField[config.key] ?? [];
+            const numericValues = seriesList.flatMap((s) => s.values.filter((v) => v !== null && v !== undefined && !Number.isNaN(v)));
+            const hasData = chartTimes.length > 0 && numericValues.length > 0;
+            const minVal = hasData ? Math.min(...numericValues) : 0;
+            const maxVal = hasData ? Math.max(...numericValues) : 1;
+            const pad = Math.max(0.1, (maxVal - minVal) * 0.04);
+            const glowColor = seriesList[0]?.color ?? '#48f7f5';
+            return (
+              <>
+                <DialogTitle sx={{ pb: 1, pr: 1 }}>
+                  <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+                    <Typography variant="h5" sx={{ color: 'var(--blue)' }}>
+                      {config.title}
+                      {config.unit ? (
+                        <Box component="span" sx={{ color: 'var(--green)', ml: 1, fontSize: '0.85em' }}>
+                          ({config.unit})
+                        </Box>
+                      ) : null}
+                    </Typography>
+                    <Tooltip title="Close" arrow={false} slotProps={tooltipSlotProps}>
+                      <IconButton aria-label="close enlarged chart" onClick={() => setEnlargedChartKey(null)} sx={{ color: 'var(--blue)' }}>
+                        <CloseOutlined />
+                      </IconButton>
+                    </Tooltip>
+                  </Stack>
+                </DialogTitle>
+                <DialogContent sx={{ pt: 1.5, pb: 2.5 }}>
+                  <Box
+                    style={{ '--chart-line-color': glowColor }}
+                    sx={{ ...chartSurfaceSx, border: '1px solid #0e346a', borderRadius: 1, p: { xs: 1, sm: 1.5 } }}
+                  >
+                    {measurementsError && !measurementRows ? (
+                      <Box
+                        sx={{
+                          minHeight: 380,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--orange)',
+                          fontSize: '0.85rem',
+                          fontStyle: 'italic'
+                        }}
+                      >
+                        Failed to load chart data
+                      </Box>
+                    ) : measurementsLoading && !measurementRows ? (
+                      <Stack
+                        direction="row"
+                        spacing={1.5}
+                        sx={{ minHeight: 380, alignItems: 'center', justifyContent: 'center', color: 'var(--blue)', fontSize: '0.85rem' }}
+                      >
+                        <CircularProgress size={22} sx={{ color: 'var(--green)' }} />
+                        <Box component="span">Loading chart data…</Box>
+                      </Stack>
+                    ) : !hasData ? (
+                      <Box
+                        sx={{
+                          minHeight: 380,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--blue)',
+                          fontSize: '0.85rem',
+                          fontStyle: 'italic'
+                        }}
+                      >
+                        No data for this time range
+                      </Box>
+                    ) : (
+                      <LineChart
+                        xAxis={[
+                          {
+                            id: `${config.key}-x-enlarged`,
+                            scaleType: 'time',
+                            data: chartTimes,
+                            tickNumber: axisTickNumberFor(axisFormat),
+                            tickInterval: xAxisTicks,
+                            min: chartTimes[0],
+                            max: chartTimes[chartTimes.length - 1],
+                            domainLimit: 'strict',
+                            tickLabelStyle: { fontSize: 12, fill: 'var(--green)' },
+                            valueFormatter: (value, context) =>
+                              context?.location === 'tooltip' ? formatTooltipDate(value) : formatAxisTick(value, axisFormat)
+                          }
+                        ]}
+                        yAxis={[
+                          {
+                            id: `${config.key}-y-enlarged`,
+                            min: minVal - pad,
+                            max: maxVal + pad,
+                            width: 64,
+                            tickLabelStyle: { fontSize: 12, fill: 'var(--green)' },
+                            valueFormatter: makeYAxisFormatter(config.unit)
+                          }
+                        ]}
+                        series={seriesList.map((s) => {
+                          const isDimmed = probeHighlight !== 'all' && s.probe != null && s.probe !== probeHighlight;
+                          const seriesColor = isDimmed ? dimHexColor(s.color, PROBE_DIM_OPACITY) : s.color;
+                          return {
+                            id: `${config.key}-${s.id}-enlarged`,
+                            label: s.label,
+                            data: s.values,
+                            color: seriesColor,
+                            area: seriesList.length === 1,
+                            showMark: false,
+                            curve: 'linear',
+                            connectNulls: true,
+                            valueFormatter: (value) =>
+                              value === null || value === undefined
+                                ? null
+                                : `${Number(value).toFixed(2)}${config.unit ? ` ${config.unit}` : ''}`
+                          };
+                        })}
+                        grid={{ horizontal: true, vertical: true }}
+                        height={500}
+                        margin={{ top: 12, right: 12, bottom: 4, left: 4 }}
+                        hideLegend={seriesList.length === 1}
+                        slotProps={{
+                          legend: {
+                            direction: 'horizontal',
+                            position: { vertical: 'top', horizontal: 'middle' },
+                            sx: {
+                              '& .MuiChartsLegend-mark': { rx: 2, ry: 2 },
+                              '& .MuiChartsLegend-label': { fill: 'var(--green)', fontSize: 12 }
+                            }
+                          }
+                        }}
+                        sx={chartSx}
+                      />
+                    )}
+                  </Box>
+                </DialogContent>
+              </>
+            );
+          })()}
+      </Dialog>
     </MainCard>
   );
 }
