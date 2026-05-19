@@ -25,7 +25,6 @@
 # otherwise /* would swallow /api/* and proxy nothing.
 
 [build]
-  base    = "phenodeV3"
   command = "npm run build"
   publish = "dist"
 
