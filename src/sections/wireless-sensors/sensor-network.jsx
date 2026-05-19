@@ -61,11 +61,12 @@ import mapIconInactive from 'assets/toggle_buttons/Map_Icon_Inactive.svg';
 import soilProbeIconActive from 'assets/toggle_buttons/Soil_Probe_Icon_Active.svg';
 import soilProbeIconInactive from 'assets/toggle_buttons/Soil_Probe_Icon_Inactive.svg';
 
-import AppstoreOutlined from '@ant-design/icons/AppstoreOutlined';
-import ClockCircleOutlined from '@ant-design/icons/ClockCircleOutlined';
-import CloseOutlined from '@ant-design/icons/CloseOutlined';
-import DownloadOutlined from '@ant-design/icons/DownloadOutlined';
-import ZoomInOutlined from '@ant-design/icons/ZoomInOutlined';
+import AntIcon from 'components/AntIcon';
+import AppstoreOutlined from '@ant-design/icons-svg/lib/asn/AppstoreOutlined';
+import ClockCircleOutlined from '@ant-design/icons-svg/lib/asn/ClockCircleOutlined';
+import CloseOutlined from '@ant-design/icons-svg/lib/asn/CloseOutlined';
+import DownloadOutlined from '@ant-design/icons-svg/lib/asn/DownloadOutlined';
+import ZoomInOutlined from '@ant-design/icons-svg/lib/asn/ZoomInOutlined';
 
 import {
   glassSurfaceSx,
@@ -1716,7 +1717,7 @@ export default function SensorNetwork() {
                     onClick={() => setChartLayout((prev) => (prev === 'column' ? 'row' : 'column'))}
                     sx={orientationButtonSx}
                   >
-                    <AppstoreOutlined />
+                    <AntIcon icon={AppstoreOutlined} />
                   </IconButton>
                 </Tooltip>
               </Stack>
@@ -1757,7 +1758,7 @@ export default function SensorNetwork() {
                         MenuProps={{ PaperProps: neonSelectMenuPaperProps }}
                         renderValue={(selected) => (
                           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                            <ClockCircleOutlined style={{ color: 'var(--blue)' }} />
+                            <AntIcon icon={ClockCircleOutlined} style={{ color: 'var(--blue)' }} />
                             <Box component="span" sx={{ color: 'var(--green)' }}>
                               {selected}
                             </Box>
@@ -1921,7 +1922,7 @@ export default function SensorNetwork() {
                     <Box component="span" sx={{ display: 'inline-flex', flexShrink: 0 }}>
                       <Button
                         variant="outlined"
-                        startIcon={<DownloadOutlined />}
+                        startIcon={<AntIcon icon={DownloadOutlined} />}
                         disabled={!measurementRows?.length}
                         onClick={() =>
                           downloadSensorMeasurementsCsv({
@@ -2036,7 +2037,7 @@ export default function SensorNetwork() {
                             onClick={() => setEnlargedChartKey(config.key)}
                             sx={{ color: 'var(--blue)', '&:hover': { color: 'var(--green)' } }}
                           >
-                            <ZoomInOutlined />
+                            <AntIcon icon={ZoomInOutlined} />
                           </IconButton>
                         </Tooltip>
                       </Stack>
@@ -2275,7 +2276,7 @@ export default function SensorNetwork() {
                     </Typography>
                     <Tooltip title="Close" arrow={false} slotProps={tooltipSlotProps}>
                       <IconButton aria-label="close enlarged chart" onClick={() => setEnlargedChartKey(null)} sx={{ color: 'var(--blue)' }}>
-                        <CloseOutlined />
+                        <AntIcon icon={CloseOutlined} />
                       </IconButton>
                     </Tooltip>
                   </Stack>

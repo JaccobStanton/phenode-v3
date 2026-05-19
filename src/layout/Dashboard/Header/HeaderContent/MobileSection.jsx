@@ -12,7 +12,8 @@ import IconButton from 'components/@extended/IconButton';
 import Transitions from 'components/@extended/Transitions';
 
 // assets
-import MoreOutlined from '@ant-design/icons/MoreOutlined';
+import AntIcon from 'components/AntIcon';
+import MoreOutlined from '@ant-design/icons-svg/lib/asn/MoreOutlined';
 
 const SHELL_SURFACE_GRADIENT = 'radial-gradient(circle at 50% 15%, #00438f, #00102f)';
 
@@ -68,7 +69,7 @@ export default function MobileSection() {
           color="secondary"
           variant="light"
         >
-          <MoreOutlined />
+          <AntIcon icon={MoreOutlined} />
         </IconButton>
       </Box>
       <Popper

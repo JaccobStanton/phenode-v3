@@ -31,10 +31,11 @@ import mockImage4 from 'assets/mock-images/D3_1F_20_E1_49_B7-1771270350213.jpg';
 import mockImage5 from 'assets/mock-images/D3_1F_20_E1_49_B7-1772221035999.jpg';
 import mockImage6 from 'assets/mock-images/D3_1F_20_E1_49_B7-1772989423177.jpg';
 
-import DownloadOutlined from '@ant-design/icons/DownloadOutlined';
-import InfoCircleOutlined from '@ant-design/icons/InfoCircleOutlined';
-import LeftOutlined from '@ant-design/icons/LeftOutlined';
-import RightOutlined from '@ant-design/icons/RightOutlined';
+import AntIcon from 'components/AntIcon';
+import DownloadOutlined from '@ant-design/icons-svg/lib/asn/DownloadOutlined';
+import InfoCircleOutlined from '@ant-design/icons-svg/lib/asn/InfoCircleOutlined';
+import LeftOutlined from '@ant-design/icons-svg/lib/asn/LeftOutlined';
+import RightOutlined from '@ant-design/icons-svg/lib/asn/RightOutlined';
 
 import { glassSurfaceSx, reflectedCardChromeSx, neonControlSx, tooltipSlotProps } from 'themes/sx-tokens';
 
@@ -330,7 +331,7 @@ export default function Imaging() {
                   }
                 }}
               >
-                <LeftOutlined />
+                <AntIcon icon={LeftOutlined} />
               </IconButton>
 
               <IconButton
@@ -351,7 +352,7 @@ export default function Imaging() {
                   }
                 }}
               >
-                <RightOutlined />
+                <AntIcon icon={RightOutlined} />
               </IconButton>
 
               <Box
@@ -514,7 +515,7 @@ export default function Imaging() {
                 <Box sx={{ pt: 2, display: 'flex', justifyContent: 'flex-end' }}>
                   <Button
                     variant="outlined"
-                    startIcon={<DownloadOutlined />}
+                    startIcon={<AntIcon icon={DownloadOutlined} />}
                     onClick={handleDownload}
                     disabled={isDownloading || totalImagesToDownload === 0}
                     sx={{
@@ -595,7 +596,7 @@ export default function Imaging() {
                         cursor: 'help'
                       }}
                     >
-                      <InfoCircleOutlined />
+                      <AntIcon icon={InfoCircleOutlined} />
                     </Box>
                   </Tooltip>
                 </Stack>

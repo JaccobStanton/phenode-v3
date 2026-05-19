@@ -74,9 +74,46 @@ const PREVIEW_URL = 'http://localhost:4173';
 
 // Routes to audit. Each entry produces one report file:
 //   Lighthouse_Reports/lighthouse-<name>.json
+//
+// Notes on sensor-measurements:
+//   - The page accepts a `?device=` query param but falls back to the
+//     most-recently-reporting device when omitted, so no auth-time
+//     scaffolding is needed to give the page a real device to render.
+//   - The page also reads `?view=map` and `?range=<label>` from the URL,
+//     which is what the map-view + long-range audit routes below rely
+//     on. URL-driven state is cleaner than driving a puppeteer click
+//     here: the audit captures exactly the user-visible URL, and the
+//     same URL is shareable / bookmarkable for real users.
+//
+// Three sensor-measurements audits to catch different performance
+// profiles:
+//
+//   1. sensor-measurements           — Default state. Chart panel with
+//                                      "Last 24 hours" of raw data
+//                                      (~288 rows × 6 charts). The most
+//                                      common user-visible state.
+//   2. sensor-measurements-map       — Map view open. Captures the
+//                                      Google Maps initial-load cost
+//                                      and pin-rendering scaling with
+//                                      fleet size. Different bottleneck
+//                                      profile than the chart panel.
+//   3. sensor-measurements-long-range — Chart panel with "Last 5 years"
+//                                       (bucketed 1d → ~1,825 rows ×
+//                                       6 charts). Stresses the
+//                                       longest-range SVG paint path.
+//                                       Watching this number tells us
+//                                       whether the lite-glow + memo
+//                                       optimizations are still pulling
+//                                       their weight as data grows.
+//
+// `range` value is URL-encoded by the audit's `encodeURIComponent` call
+// in auditRoute — the space in "Last 5 years" becomes %20 automatically.
 const ROUTES = [
   { path: '/dashboard/fleet-overview', name: 'fleet-overview' },
-  { path: '/dashboard/sensor-fleet-overview', name: 'sensor-fleet-overview' }
+  { path: '/dashboard/sensor-fleet-overview', name: 'sensor-fleet-overview' },
+  { path: '/dashboard/sensor-measurements', name: 'sensor-measurements' },
+  { path: '/dashboard/sensor-measurements?view=map', name: 'sensor-measurements-map' },
+  { path: '/dashboard/sensor-measurements?range=Last%205%20years', name: 'sensor-measurements-long-range' }
 ];
 
 // localStorage keys the V3 frontend uses for the JWT pair. Mirror of

@@ -12,7 +12,8 @@ import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
 
-import AimOutlined from '@ant-design/icons/AimOutlined';
+import AntIcon from 'components/AntIcon';
+import AimOutlined from '@ant-design/icons-svg/lib/asn/AimOutlined';
 
 import ConfirmRenameModal from 'components/ConfirmRenameModal';
 import { useToast } from 'providers/ToastProvider';
@@ -1435,7 +1436,7 @@ export default function PheNodeFleetMap({ devices, selectedDeviceId, onSelectDev
                 aria-label={proximityEnabled ? 'Hide nearby PheNodes' : 'Show nearby PheNodes'}
                 sx={proximityButtonSx}
               >
-                <AimOutlined style={{ fontSize: 13 }} />
+                <AntIcon icon={AimOutlined} style={{ fontSize: 13 }} />
                 <Box component="span">Nearby</Box>
               </ToggleButton>
 

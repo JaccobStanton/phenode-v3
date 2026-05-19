@@ -4,7 +4,8 @@ import dayjs from 'dayjs';
 // pulling the @ant-design/icons barrel module, which can drag
 // extra icon code into the chunk when tree-shaking can't fully
 // eliminate the barrel's re-export side-effects.
-import DownloadOutlined from '@ant-design/icons/DownloadOutlined';
+import AntIcon from 'components/AntIcon';
+import DownloadOutlined from '@ant-design/icons-svg/lib/asn/DownloadOutlined';
 import { Link } from 'react-router-dom';
 
 import Autocomplete from '@mui/material/Autocomplete';
@@ -576,7 +577,7 @@ export default function DataDownloads() {
                   <Button
                     variant="outlined"
                     disabled={!canDownload}
-                    startIcon={<DownloadOutlined />}
+                    startIcon={<AntIcon icon={DownloadOutlined} />}
                     sx={{
                       borderColor: 'var(--blue)',
                       color: 'var(--green)',

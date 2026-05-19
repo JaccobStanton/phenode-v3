@@ -20,9 +20,10 @@ import { buildUrl, fetcher } from 'services/fetcher';
 import { tooltipSlotProps } from 'themes/sx-tokens';
 
 // assets
-import EyeOutlined from '@ant-design/icons/EyeOutlined';
-import EyeInvisibleOutlined from '@ant-design/icons/EyeInvisibleOutlined';
-import CloseOutlined from '@ant-design/icons/CloseOutlined';
+import AntIcon from 'components/AntIcon';
+import EyeOutlined from '@ant-design/icons-svg/lib/asn/EyeOutlined';
+import EyeInvisibleOutlined from '@ant-design/icons-svg/lib/asn/EyeInvisibleOutlined';
+import CloseOutlined from '@ant-design/icons-svg/lib/asn/CloseOutlined';
 
 // ============================|| AUTH - LOGIN ||============================ //
 //
@@ -348,7 +349,7 @@ export default function AuthLogin() {
                     size="small"
                     sx={inputAdornmentIconSx}
                   >
-                    <CloseOutlined />
+                    <AntIcon icon={CloseOutlined} />
                   </IconButton>
                 </InputAdornment>
               ) : null
@@ -375,7 +376,7 @@ export default function AuthLogin() {
                   size="small"
                   sx={inputAdornmentIconSx}
                 >
-                  {showPassword ? <EyeOutlined /> : <EyeInvisibleOutlined />}
+                  {showPassword ? <AntIcon icon={EyeOutlined} /> : <AntIcon icon={EyeInvisibleOutlined} />}
                 </IconButton>
               </InputAdornment>
             }

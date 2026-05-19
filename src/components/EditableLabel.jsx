@@ -43,7 +43,8 @@ import { useEffect, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import OutlinedInput from '@mui/material/OutlinedInput';
 import Typography from '@mui/material/Typography';
-import EditOutlined from '@ant-design/icons/EditOutlined';
+import AntIcon from 'components/AntIcon';
+import EditOutlined from '@ant-design/icons-svg/lib/asn/EditOutlined';
 
 const TRUNCATE_LINE_SX = {
   whiteSpace: 'nowrap',
@@ -282,7 +283,7 @@ export default function EditableLabel({
         {value}
       </Typography>
       {!locked && (
-        <EditOutlined
+        <AntIcon icon={EditOutlined}
           aria-hidden="true"
           className="editable-label-pencil"
           style={{ fontSize: 14, flexShrink: 0 }}

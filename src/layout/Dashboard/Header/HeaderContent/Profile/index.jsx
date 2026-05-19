@@ -24,9 +24,10 @@ import useAuth from 'hooks/useAuth';
 import { formatRoleLabel } from 'utils/auth';
 
 // assets
-import LogoutOutlined from '@ant-design/icons/LogoutOutlined';
-import SettingOutlined from '@ant-design/icons/SettingOutlined';
-import UserOutlined from '@ant-design/icons/UserOutlined';
+import AntIcon from 'components/AntIcon';
+import LogoutOutlined from '@ant-design/icons-svg/lib/asn/LogoutOutlined';
+import SettingOutlined from '@ant-design/icons-svg/lib/asn/SettingOutlined';
+import UserOutlined from '@ant-design/icons-svg/lib/asn/UserOutlined';
 import avatar1 from 'assets/images/users/marble_icon.svg';
 
 const projectTooltipSlotProps = {
@@ -293,7 +294,7 @@ export default function Profile() {
                           aria-label="Log out"
                           sx={{ flexShrink: 0, ...logoutIconButtonSx }}
                         >
-                          <LogoutOutlined />
+                          <AntIcon icon={LogoutOutlined} />
                         </IconButton>
                       </Tooltip>
                     </Stack>
@@ -319,7 +320,7 @@ export default function Profile() {
                             marginBottom: 0
                           }
                         }}
-                        icon={<UserOutlined />}
+                        icon={<AntIcon icon={UserOutlined} />}
                         label="Profile"
                         {...a11yProps(0)}
                       />
@@ -335,7 +336,7 @@ export default function Profile() {
                             marginBottom: 0
                           }
                         }}
-                        icon={<SettingOutlined />}
+                        icon={<AntIcon icon={SettingOutlined} />}
                         label="Setting"
                         {...a11yProps(1)}
                       />

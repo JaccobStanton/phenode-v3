@@ -4,7 +4,8 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { LineChart } from '@mui/x-charts/LineChart';
 
-import ZoomInOutlined from '@ant-design/icons/ZoomInOutlined';
+import AntIcon from 'components/AntIcon';
+import ZoomInOutlined from '@ant-design/icons-svg/lib/asn/ZoomInOutlined';
 
 import { reflectedCardChromeSx, chartSurfaceSx } from 'themes/sx-tokens';
 
@@ -50,7 +51,7 @@ export default function MeasurementsChartGrid({ charts, timeLabels, layout = 'ro
                 {chart.title}
               </Typography>
               <IconButton aria-label={`zoom ${chart.title}`} size="small" sx={{ color: 'var(--blue)' }}>
-                <ZoomInOutlined />
+                <AntIcon icon={ZoomInOutlined} />
               </IconButton>
             </Stack>
 

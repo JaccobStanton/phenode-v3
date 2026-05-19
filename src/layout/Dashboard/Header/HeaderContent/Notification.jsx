@@ -22,11 +22,12 @@ import IconButton from 'components/@extended/IconButton';
 import Transitions from 'components/@extended/Transitions';
 
 // assets
-import BellOutlined from '@ant-design/icons/BellOutlined';
-import CheckCircleOutlined from '@ant-design/icons/CheckCircleOutlined';
-import GiftOutlined from '@ant-design/icons/GiftOutlined';
-import MessageOutlined from '@ant-design/icons/MessageOutlined';
-import SettingOutlined from '@ant-design/icons/SettingOutlined';
+import AntIcon from 'components/AntIcon';
+import BellOutlined from '@ant-design/icons-svg/lib/asn/BellOutlined';
+import CheckCircleOutlined from '@ant-design/icons-svg/lib/asn/CheckCircleOutlined';
+import GiftOutlined from '@ant-design/icons-svg/lib/asn/GiftOutlined';
+import MessageOutlined from '@ant-design/icons-svg/lib/asn/MessageOutlined';
+import SettingOutlined from '@ant-design/icons-svg/lib/asn/SettingOutlined';
 
 // sx styles
 const avatarSX = {
@@ -80,7 +81,7 @@ export default function Notification() {
         onClick={handleToggle}
       >
         <Badge badgeContent={read} color="primary">
-          <BellOutlined />
+          <AntIcon icon={BellOutlined} />
         </Badge>
       </IconButton>
       <Popper
@@ -106,7 +107,7 @@ export default function Notification() {
                       {read > 0 && (
                         <Tooltip title="Mark as all read">
                           <IconButton color="success" size="small" onClick={() => setRead(0)}>
-                            <CheckCircleOutlined style={{ fontSize: '1.15rem' }} />
+                            <AntIcon icon={CheckCircleOutlined} style={{ fontSize: '1.15rem' }} />
                           </IconButton>
                         </Tooltip>
                       )}
@@ -138,7 +139,7 @@ export default function Notification() {
                     >
                       <ListItemAvatar>
                         <Avatar sx={{ color: 'success.main', bgcolor: 'success.lighter' }}>
-                          <GiftOutlined />
+                          <AntIcon icon={GiftOutlined} />
                         </Avatar>
                       </ListItemAvatar>
                       <ListItemText
@@ -165,7 +166,7 @@ export default function Notification() {
                     >
                       <ListItemAvatar>
                         <Avatar sx={{ color: 'primary.main', bgcolor: 'primary.lighter' }}>
-                          <MessageOutlined />
+                          <AntIcon icon={MessageOutlined} />
                         </Avatar>
                       </ListItemAvatar>
                       <ListItemText
@@ -192,7 +193,7 @@ export default function Notification() {
                     >
                       <ListItemAvatar>
                         <Avatar sx={{ color: 'error.main', bgcolor: 'error.lighter' }}>
-                          <SettingOutlined />
+                          <AntIcon icon={SettingOutlined} />
                         </Avatar>
                       </ListItemAvatar>
                       <ListItemText

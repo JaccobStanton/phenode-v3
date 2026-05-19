@@ -22,9 +22,10 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import MainCard from 'components/MainCard';
 import SearchableMultiSelect from 'components/inputs/SearchableMultiSelect';
 
-import ClockCircleOutlined from '@ant-design/icons/ClockCircleOutlined';
-import DownloadOutlined from '@ant-design/icons/DownloadOutlined';
-import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
+import AntIcon from 'components/AntIcon';
+import ClockCircleOutlined from '@ant-design/icons-svg/lib/asn/ClockCircleOutlined';
+import DownloadOutlined from '@ant-design/icons-svg/lib/asn/DownloadOutlined';
+import ReloadOutlined from '@ant-design/icons-svg/lib/asn/ReloadOutlined';
 
 import { glassSurfaceSx, reflectedCardChromeSx, neonControlSx, neonMenuPaperSx, tooltipSlotProps } from 'themes/sx-tokens';
 import { timeRangeOptions, chartTimeLabels as sharedChartTimeLabels } from 'data/mocks/time-ranges';
@@ -426,7 +427,7 @@ export default function MultiSensorGraph() {
                     sx={themedSelectSx}
                     renderValue={(selected) => (
                       <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                        <ClockCircleOutlined style={{ color: 'var(--blue)' }} />
+                        <AntIcon icon={ClockCircleOutlined} style={{ color: 'var(--blue)' }} />
                         <Box component="span">{selected}</Box>
                       </Stack>
                     )}
@@ -454,7 +455,7 @@ export default function MultiSensorGraph() {
                       boxShadow: '0 11px 19px 1px #0000002e'
                     }}
                   >
-                    <ReloadOutlined />
+                    <AntIcon icon={ReloadOutlined} />
                   </IconButton>
                 </Tooltip>
               </Stack>
@@ -538,7 +539,7 @@ export default function MultiSensorGraph() {
 
               <Button
                 variant="outlined"
-                startIcon={<DownloadOutlined />}
+                startIcon={<AntIcon icon={DownloadOutlined} />}
                 sx={{
                   borderColor: 'rgba(37, 192, 233, 0.45)',
                   color: 'var(--green)',

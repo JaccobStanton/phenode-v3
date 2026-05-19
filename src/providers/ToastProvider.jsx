@@ -32,7 +32,8 @@ import { createContext, useCallback, useContext, useMemo, useState } from 'react
 import IconButton from '@mui/material/IconButton';
 import Snackbar from '@mui/material/Snackbar';
 import Typography from '@mui/material/Typography';
-import CloseOutlined from '@ant-design/icons/CloseOutlined';
+import AntIcon from 'components/AntIcon';
+import CloseOutlined from '@ant-design/icons-svg/lib/asn/CloseOutlined';
 
 const ToastContext = createContext(null);
 
@@ -131,7 +132,7 @@ export default function ToastProvider({ children }) {
               }
             }}
           >
-            <CloseOutlined style={{ fontSize: 14 }} />
+            <AntIcon icon={CloseOutlined} style={{ fontSize: 14 }} />
           </IconButton>
         }
       />

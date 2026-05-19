@@ -14,9 +14,10 @@ import MainCard from 'components/MainCard';
 import navigation from 'menu-items';
 
 // assets
-import ApartmentOutlined from '@ant-design/icons/ApartmentOutlined';
-import HomeOutlined from '@ant-design/icons/HomeOutlined';
-import HomeFilled from '@ant-design/icons/HomeFilled';
+import AntIcon from 'components/AntIcon';
+import ApartmentOutlined from '@ant-design/icons-svg/lib/asn/ApartmentOutlined';
+import HomeOutlined from '@ant-design/icons-svg/lib/asn/HomeOutlined';
+import HomeFilled from '@ant-design/icons-svg/lib/asn/HomeFilled';
 
 export default function Breadcrumbs({
   card = false,
@@ -134,8 +135,8 @@ export default function Breadcrumbs({
             <Grid>
               <MuiBreadcrumbs aria-label="breadcrumb" maxItems={maxItems || 8} separator={separatorIcon}>
                 <Typography component={Link} to="/" color="text.secondary" variant="h6" sx={{ textDecoration: 'none' }}>
-                  {icons && <HomeOutlined style={iconSX} />}
-                  {icon && !icons && <HomeFilled style={{ ...iconSX, marginRight: 0 }} />}
+                  {icons && <AntIcon icon={HomeOutlined} style={iconSX} />}
+                  {icon && !icons && <AntIcon icon={HomeFilled} style={{ ...iconSX, marginRight: 0 }} />}
                   {(!icon || icons) && 'Home'}
                 </Typography>
                 {mainContent}
@@ -168,8 +169,8 @@ export default function Breadcrumbs({
     let tempContent = (
       <MuiBreadcrumbs aria-label="breadcrumb" maxItems={maxItems || 8} separator={separatorIcon}>
         <Typography component={Link} to="/" color="text.secondary" variant="h6" sx={{ textDecoration: 'none' }}>
-          {icons && <HomeOutlined style={iconSX} />}
-          {icon && !icons && <HomeFilled style={{ ...iconSX, marginRight: 0 }} />}
+          {icons && <AntIcon icon={HomeOutlined} style={iconSX} />}
+          {icon && !icons && <AntIcon icon={HomeFilled} style={{ ...iconSX, marginRight: 0 }} />}
           {(!icon || icons) && 'Home'}
         </Typography>
         {mainContent}

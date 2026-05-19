@@ -28,6 +28,24 @@
     <link rel="dns-prefetch" href="//fonts.googleapis.com" />
     <link rel="dns-prefetch" href="//fonts.gstatic.com" />
 
+    <!--
+      Google Maps connection-warming. The map view on /dashboard/sensor-
+      measurements is gated behind a toolbar toggle, so the @vis.gl/
+      react-google-maps wrapper (and the maps.googleapis.com JS API +
+      maps.gstatic.com tile CDN it pulls in) only load when the user
+      clicks. Pre-warming the DNS + TLS handshake here means the
+      browser already has a ready connection by the time the lazy map
+      chunk fires its first request — shaves ~0.5-1s off the map's
+      LCP, which was 7.3s at audit time (verified in
+      Lighthouse_Reports/lighthouse-sensor-measurements-map.json).
+      Costs essentially nothing on visits that never open the map:
+      preconnect spends a TCP handshake per origin, no payload bytes.
+    -->
+    <link rel="preconnect" href="https://maps.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://maps.gstatic.com" crossorigin />
+    <link rel="dns-prefetch" href="//maps.googleapis.com" />
+    <link rel="dns-prefetch" href="//maps.gstatic.com" />
+
     <!-- ResizeObserver polyfill, conditionally loaded for legacy Safari/iPad
          (pre-13.1, pre-2020). Modern browsers skip the request entirely,
          which removes the ~800ms render-blocking penalty. -->

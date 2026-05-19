@@ -5,10 +5,11 @@ import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 
 // assets
-import LockOutlined from '@ant-design/icons/LockOutlined';
-import QuestionCircleOutlined from '@ant-design/icons/QuestionCircleOutlined';
-import UserOutlined from '@ant-design/icons/UserOutlined';
-import UnorderedListOutlined from '@ant-design/icons/UnorderedListOutlined';
+import AntIcon from 'components/AntIcon';
+import LockOutlined from '@ant-design/icons-svg/lib/asn/LockOutlined';
+import QuestionCircleOutlined from '@ant-design/icons-svg/lib/asn/QuestionCircleOutlined';
+import UserOutlined from '@ant-design/icons-svg/lib/asn/UserOutlined';
+import UnorderedListOutlined from '@ant-design/icons-svg/lib/asn/UnorderedListOutlined';
 
 // ==============================|| HEADER PROFILE - SETTING TAB ||============================== //
 //
@@ -47,25 +48,25 @@ export default function SettingTab() {
     <List component="nav" sx={{ p: 0.75 }}>
       <ListItemButton sx={themedListItemSx}>
         <ListItemIcon>
-          <QuestionCircleOutlined />
+          <AntIcon icon={QuestionCircleOutlined} />
         </ListItemIcon>
         <ListItemText primary="Support" />
       </ListItemButton>
       <ListItemButton sx={themedListItemSx}>
         <ListItemIcon>
-          <UserOutlined />
+          <AntIcon icon={UserOutlined} />
         </ListItemIcon>
         <ListItemText primary="Account Settings" />
       </ListItemButton>
       <ListItemButton sx={themedListItemSx}>
         <ListItemIcon>
-          <LockOutlined />
+          <AntIcon icon={LockOutlined} />
         </ListItemIcon>
         <ListItemText primary="Privacy Center" />
       </ListItemButton>
       <ListItemButton sx={themedListItemSx}>
         <ListItemIcon>
-          <UnorderedListOutlined />
+          <AntIcon icon={UnorderedListOutlined} />
         </ListItemIcon>
         <ListItemText primary="History" />
       </ListItemButton>

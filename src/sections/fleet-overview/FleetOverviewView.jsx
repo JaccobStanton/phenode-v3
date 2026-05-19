@@ -12,10 +12,11 @@ import ToggleButton from '@mui/material/ToggleButton';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 
-import CheckCircleOutlined from '@ant-design/icons/CheckCircleOutlined';
-import IdcardOutlined from '@ant-design/icons/IdcardOutlined';
-import SearchOutlined from '@ant-design/icons/SearchOutlined';
-import SortAscendingOutlined from '@ant-design/icons/SortAscendingOutlined';
+import AntIcon from 'components/AntIcon';
+import CheckCircleOutlined from '@ant-design/icons-svg/lib/asn/CheckCircleOutlined';
+import IdcardOutlined from '@ant-design/icons-svg/lib/asn/IdcardOutlined';
+import SearchOutlined from '@ant-design/icons-svg/lib/asn/SearchOutlined';
+import SortAscendingOutlined from '@ant-design/icons-svg/lib/asn/SortAscendingOutlined';
 
 import ConfirmRenameModal from 'components/ConfirmRenameModal';
 import EditableLabel from 'components/EditableLabel';
@@ -784,7 +785,7 @@ export default function FleetOverviewView({
                     })
                   }}
                 >
-                  <SearchOutlined />
+                  <AntIcon icon={SearchOutlined} />
                 </IconButton>
               </Tooltip>
 
@@ -808,7 +809,7 @@ export default function FleetOverviewView({
                   inputProps={{ 'aria-label': 'Search fleet table' }}
                   startAdornment={
                     <InputAdornment position="start">
-                      <SearchOutlined style={{ color: 'var(--blue)' }} />
+                      <AntIcon icon={SearchOutlined} style={{ color: 'var(--blue)' }} />
                     </InputAdornment>
                   }
                   sx={{
@@ -913,7 +914,7 @@ export default function FleetOverviewView({
                   aria-label="sort fleet alphabetically"
                   sx={sortToggleSx}
                 >
-                  <SortAscendingOutlined />
+                  <AntIcon icon={SortAscendingOutlined} />
                   <Typography variant="caption" sx={{ display: { xs: 'none', md: 'inline' }, color: 'inherit' }}>
                     A-Z
                   </Typography>
@@ -961,7 +962,7 @@ export default function FleetOverviewView({
                   the a11y tree means visible text resolves to plain
                   "Status" again — which matches.
                 */}
-                  <CheckCircleOutlined aria-hidden="true" />
+                  <AntIcon icon={CheckCircleOutlined} aria-hidden="true" />
                   <Typography variant="caption" sx={{ color: 'inherit' }}>
                     {STATUS_LABELS[statusFilter]}
                   </Typography>
@@ -1002,7 +1003,7 @@ export default function FleetOverviewView({
                   }
                   sx={sortToggleSx}
                 >
-                  <IdcardOutlined />
+                  <AntIcon icon={IdcardOutlined} />
                   <Typography variant="caption" sx={{ display: { xs: 'none', md: 'inline' }, color: 'inherit' }}>
                     MAC
                   </Typography>

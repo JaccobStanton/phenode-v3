@@ -19,8 +19,9 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 
-import CloseOutlined from '@ant-design/icons/CloseOutlined';
-import DownloadOutlined from '@ant-design/icons/DownloadOutlined';
+import AntIcon from 'components/AntIcon';
+import CloseOutlined from '@ant-design/icons-svg/lib/asn/CloseOutlined';
+import DownloadOutlined from '@ant-design/icons-svg/lib/asn/DownloadOutlined';
 
 import MainCard from 'components/MainCard';
 import PhenodeSelector from 'components/PhenodeSelector';
@@ -56,9 +57,9 @@ import mapIconInactive from 'assets/toggle_buttons/Map_Icon_Inactive.svg';
 import phenodeFleetIcon from 'assets/drawer-icons/PheNode_Fleet.svg';
 import phenodeFleetIconActive from 'assets/drawer-icons/PheNode_Fleet_Active.svg';
 
-import AppstoreOutlined from '@ant-design/icons/AppstoreOutlined';
-import ClockCircleOutlined from '@ant-design/icons/ClockCircleOutlined';
-import ZoomInOutlined from '@ant-design/icons/ZoomInOutlined';
+import AppstoreOutlined from '@ant-design/icons-svg/lib/asn/AppstoreOutlined';
+import ClockCircleOutlined from '@ant-design/icons-svg/lib/asn/ClockCircleOutlined';
+import ZoomInOutlined from '@ant-design/icons-svg/lib/asn/ZoomInOutlined';
 
 import {
   reflectedCardChromeSx,
@@ -1329,6 +1330,14 @@ export default function SensorMeasurements() {
             </Typography>
             <Typography
               variant="subtitle1"
+              // Render as a paragraph, not as the default <h6> MUI
+              // attaches to `subtitle1`. This is a status line label,
+              // not a section heading — and a page-level h4 ("Sensor
+              // Measurements") sits right above it, so an <h6> in this
+              // position would cause Lighthouse's heading-order audit
+              // to fail (h4 → h6 skips h5). Verified in
+              // Lighthouse_Reports/lighthouse-sensor-measurements.json.
+              component="p"
               sx={{
                 textAlign: { xs: 'left', md: 'right' },
                 width: { xs: '100%', md: 'auto' },
@@ -1520,24 +1529,50 @@ export default function SensorMeasurements() {
                       )}
                       <Typography
                         variant="h1"
+                        // Keep `variant="h1"` for the large-display
+                        // typography but render as a <p> so the page
+                        // doesn't end up with three <h1> elements (one
+                        // per circle). The biggest reading per circle
+                        // is a visual emphasis, not a top-level
+                        // document landmark, and the dashboard layout
+                        // already sets the real page <h1>.
+                        component="p"
                         sx={{
                           color: 'var(--green)',
                           lineHeight: 1,
                           fontWeight: 300,
                           fontSize: { xs: '3.2rem', sm: '3.4rem', md: '3.7rem' },
-                          textShadow: '0 1px 9px #1a75e0c9'
+                          textShadow: '0 1px 9px #1a75e0c9',
+                          // Remove default <p> margin so the visual
+                          // spacing stays exactly as it did before.
+                          m: 0
                         }}
                       >
                         {metric.value}
                       </Typography>
                       <Typography
                         variant="subtitle1"
-                        sx={{ color: 'var(--blue)', textAlign: 'center', fontSize: { xs: '1rem', sm: '1.05rem' } }}
+                        // Render as <p> so this caption isn't a
+                        // sub-heading. Without this, the subtitle1
+                        // variant defaults to <h6> and breaks the
+                        // page's heading order (the panel-level
+                        // <h4> "Sensor Measurements" would jump
+                        // straight to <h6> here).
+                        component="p"
+                        sx={{ color: 'var(--blue)', textAlign: 'center', fontSize: { xs: '1rem', sm: '1.05rem' }, m: 0 }}
                       >
                         {metric.label}
                       </Typography>
                       {metric.gustLabel && metric.gustValue && (
-                        <Typography variant="subtitle2" sx={{ textAlign: 'center', color: 'var(--blue)' }}>
+                        <Typography
+                          variant="subtitle2"
+                          // Same reasoning as the subtitle1 above —
+                          // render as <p>, not <h6>. The gust/humidity
+                          // line is a sub-label of the metric value,
+                          // not a section heading.
+                          component="p"
+                          sx={{ textAlign: 'center', color: 'var(--blue)', m: 0 }}
+                        >
                           <Box component="span">{metric.gustLabel}</Box>
                           <Box component="span" sx={{ color: 'var(--green)', ml: 0.75 }}>
                             {metric.gustValue}
@@ -1580,7 +1615,7 @@ export default function SensorMeasurements() {
                   onClick={() => setChartLayout((prev) => (prev === 'column' ? 'row' : 'column'))}
                   sx={orientationButtonSx}
                 >
-                  <AppstoreOutlined />
+                  <AntIcon icon={AppstoreOutlined} />
                 </IconButton>
               </Tooltip>
             </Stack>
@@ -1634,6 +1669,17 @@ export default function SensorMeasurements() {
                     <Select
                       value={timeRange}
                       onChange={(event) => setTimeRange(event.target.value)}
+                      // Accessible name for the dropdown. Without this,
+                      // screen readers announce it as just "combobox"
+                      // and Lighthouse's `aria-input-field-name`
+                      // audit fails (verified in
+                      // Lighthouse_Reports/lighthouse-sensor-
+                      // measurements.json). Short label on purpose:
+                      // the renderValue prop already shows the
+                      // current selection, so the aria-label only
+                      // needs to identify the control's purpose, not
+                      // restate the value.
+                      inputProps={{ 'aria-label': 'Chart time range' }}
                       displayEmpty
                       sx={{
                         color: 'var(--green)',
@@ -1648,7 +1694,7 @@ export default function SensorMeasurements() {
                       MenuProps={{ PaperProps: neonSelectMenuPaperProps }}
                       renderValue={(selected) => (
                         <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                          <ClockCircleOutlined style={{ color: 'var(--blue)' }} />
+                          <AntIcon icon={ClockCircleOutlined} style={{ color: 'var(--blue)' }} />
                           <Box component="span" sx={{ color: 'var(--green)' }}>
                             {selected || 'Select Time Range...'}
                           </Box>
@@ -1808,7 +1854,7 @@ export default function SensorMeasurements() {
                   <Box component="span" sx={{ display: 'inline-flex', flexShrink: 0 }}>
                     <Button
                       variant="outlined"
-                      startIcon={<DownloadOutlined />}
+                      startIcon={<AntIcon icon={DownloadOutlined} />}
                       disabled={!measurementRows?.length}
                       onClick={() =>
                         downloadMeasurementsCsv({
@@ -1975,7 +2021,7 @@ export default function SensorMeasurements() {
                     }}
                   >
                     <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 0.25 }}>
-                      <Typography variant="subtitle1" sx={{ color: 'var(--blue)', ml: 1.25 }}>
+                      <Typography variant="subtitle1" component="p" sx={{ color: 'var(--blue)', ml: 1.25, m: 0 }}>
                         {config.title}
                         {config.unit ? (
                           <Box component="span" sx={{ color: 'var(--green)', ml: 0.75, fontSize: '0.85em' }}>
@@ -1995,7 +2041,7 @@ export default function SensorMeasurements() {
                           onClick={() => setEnlargedChartKey(config.key)}
                           sx={{ color: 'var(--blue)', '&:hover': { color: 'var(--green)' } }}
                         >
-                          <ZoomInOutlined />
+                          <AntIcon icon={ZoomInOutlined} />
                         </IconButton>
                       </Tooltip>
                     </Stack>
@@ -2118,7 +2164,7 @@ export default function SensorMeasurements() {
                     </Typography>
                     <Tooltip title="Close" arrow={false} slotProps={tooltipSlotProps}>
                       <IconButton aria-label="close enlarged chart" onClick={() => setEnlargedChartKey(null)} sx={{ color: 'var(--blue)' }}>
-                        <CloseOutlined />
+                        <AntIcon icon={CloseOutlined} />
                       </IconButton>
                     </Tooltip>
                   </Stack>

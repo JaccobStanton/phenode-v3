@@ -17,10 +17,11 @@ import MainCard from 'components/MainCard';
 import phenodeDiagram from 'assets/diagrams/Phenode-Diagram.svg';
 import wirelessSensorsDiagram from 'assets/diagrams/Wireless-Sensors.svg';
 
-import ClockCircleOutlined from '@ant-design/icons/ClockCircleOutlined';
-import AppstoreOutlined from '@ant-design/icons/AppstoreOutlined';
-import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
-import ZoomInOutlined from '@ant-design/icons/ZoomInOutlined';
+import AntIcon from 'components/AntIcon';
+import ClockCircleOutlined from '@ant-design/icons-svg/lib/asn/ClockCircleOutlined';
+import AppstoreOutlined from '@ant-design/icons-svg/lib/asn/AppstoreOutlined';
+import ReloadOutlined from '@ant-design/icons-svg/lib/asn/ReloadOutlined';
+import ZoomInOutlined from '@ant-design/icons-svg/lib/asn/ZoomInOutlined';
 
 import {
   glassSurfaceSx,
@@ -482,7 +483,7 @@ export default function SystemDiagnostics() {
                     onClick={() => setChartLayout((prev) => (prev === 'column' ? 'row' : 'column'))}
                     sx={orientationButtonSx}
                   >
-                    <AppstoreOutlined />
+                    <AntIcon icon={AppstoreOutlined} />
                   </IconButton>
                 </Tooltip>
               </Stack>
@@ -508,7 +509,7 @@ export default function SystemDiagnostics() {
                     }}
                     renderValue={(selected) => (
                       <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                        <ClockCircleOutlined style={{ color: 'var(--blue)' }} />
+                        <AntIcon icon={ClockCircleOutlined} style={{ color: 'var(--blue)' }} />
                         <Box component="span" sx={{ color: 'var(--green)' }}>
                           {selected}
                         </Box>
@@ -551,7 +552,7 @@ export default function SystemDiagnostics() {
                       }
                     }}
                   >
-                    <ReloadOutlined />
+                    <AntIcon icon={ReloadOutlined} />
                   </IconButton>
                 </Tooltip>
               </Stack>
@@ -587,7 +588,7 @@ export default function SystemDiagnostics() {
                           {graph.title}
                         </Typography>
                         <IconButton aria-label={`zoom ${graph.title}`} size="small" sx={{ color: 'var(--blue)' }}>
-                          <ZoomInOutlined />
+                          <AntIcon icon={ZoomInOutlined} />
                         </IconButton>
                       </Stack>
 

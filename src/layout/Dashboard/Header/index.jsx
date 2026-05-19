@@ -14,8 +14,9 @@ import { useDrawerToggle, useGetMenuMaster } from 'api/menu';
 import { DRAWER_WIDTH, MINI_DRAWER_WIDTH } from 'config';
 
 // assets
-import MenuFoldOutlined from '@ant-design/icons/MenuFoldOutlined';
-import MenuUnfoldOutlined from '@ant-design/icons/MenuUnfoldOutlined';
+import AntIcon from 'components/AntIcon';
+import MenuFoldOutlined from '@ant-design/icons-svg/lib/asn/MenuFoldOutlined';
+import MenuUnfoldOutlined from '@ant-design/icons-svg/lib/asn/MenuUnfoldOutlined';
 
 const SHELL_SURFACE_GRADIENT = 'radial-gradient(circle at 50% 15%, #00438f, #00102f)';
 const NAVBAR_TOOLBAR_HEIGHT = { xs: 56, sm: 64 };
@@ -56,7 +57,7 @@ export default function Header() {
           }
         }}
       >
-        {!drawerOpen ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+        {!drawerOpen ? <AntIcon icon={MenuUnfoldOutlined} /> : <AntIcon icon={MenuFoldOutlined} />}
       </IconButton>
       {headerContent}
     </Toolbar>

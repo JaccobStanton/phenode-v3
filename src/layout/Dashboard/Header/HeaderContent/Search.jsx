@@ -5,7 +5,8 @@ import OutlinedInput from '@mui/material/OutlinedInput';
 import Box from '@mui/material/Box';
 
 // assets
-import SearchOutlined from '@ant-design/icons/SearchOutlined';
+import AntIcon from 'components/AntIcon';
+import SearchOutlined from '@ant-design/icons-svg/lib/asn/SearchOutlined';
 
 // ==============================|| HEADER CONTENT - SEARCH ||============================== //
 
@@ -18,7 +19,7 @@ export default function Search() {
           id="header-search"
           startAdornment={
             <InputAdornment position="start" sx={{ mr: -0.5 }}>
-              <SearchOutlined />
+              <AntIcon icon={SearchOutlined} />
             </InputAdornment>
           }
           aria-describedby="header-search-text"

@@ -14,8 +14,9 @@ import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 
-import AimOutlined from '@ant-design/icons/AimOutlined';
-import ApartmentOutlined from '@ant-design/icons/ApartmentOutlined';
+import AntIcon from 'components/AntIcon';
+import AimOutlined from '@ant-design/icons-svg/lib/asn/AimOutlined';
+import ApartmentOutlined from '@ant-design/icons-svg/lib/asn/ApartmentOutlined';
 
 import ConfirmRenameModal from 'components/ConfirmRenameModal';
 import { useToast } from 'providers/ToastProvider';
@@ -1472,7 +1473,7 @@ export default function WirelessSensorFleetMap({
                 aria-label={proximityEnabled ? 'Hide nearby sensors' : 'Show nearby sensors'}
                 sx={singleToggleSx}
               >
-                <AimOutlined style={{ fontSize: 13 }} />
+                <AntIcon icon={AimOutlined} style={{ fontSize: 13 }} />
                 <Box component="span">Nearby</Box>
               </ToggleButton>
 
@@ -1496,7 +1497,7 @@ export default function WirelessSensorFleetMap({
                 aria-label={phenodeOverlayEnabled ? 'Hide parent PheNode pin' : 'Show parent PheNode pin'}
                 sx={singleToggleSx}
               >
-                <ApartmentOutlined style={{ fontSize: 13 }} />
+                <AntIcon icon={ApartmentOutlined} style={{ fontSize: 13 }} />
                 <Box component="span">PheNode</Box>
               </ToggleButton>
 
