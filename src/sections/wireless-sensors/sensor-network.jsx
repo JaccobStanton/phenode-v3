@@ -238,6 +238,29 @@ const chartSx = {
     strokeOpacity: 0.75,
     strokeWidth: 1.25
   },
+  // Hover highlight dot — the SVG circle MUI x-charts'
+  // LineHighlightPlot draws on each line at the cursor's X position
+  // (verified against node_modules/@mui/x-charts/LineChart/
+  // LineHighlightElement.js — class `MuiHighlightElement-root`,
+  // default `r: 5`). It DOES render by default for every line series
+  // on hover, but at default fill/stroke it tends to blend into the
+  // line itself on a dense chart and reads as invisible —
+  // especially in multi-series charts where the user is
+  // intentionally focused on one probe and expects the dot to be
+  // obvious. The styling below explicitly pins the radius, gives the
+  // dot a thin white stroke ring for contrast against the line color
+  // beneath it, and applies the same green-glow drop-shadow filter
+  // the line itself uses so the dot reads as part of the line's
+  // visual language. The per-series CSS variable
+  // `--chart-line-color` is set on the chart's wrapper Box, so each
+  // chart's dot gets its own glow color automatically.
+  '& .MuiHighlightElement-root': {
+    r: 5,
+    fillOpacity: 1,
+    stroke: 'rgba(255, 255, 255, 0.85)',
+    strokeWidth: 1.5,
+    filter: 'drop-shadow(0 0 6px var(--chart-line-color))'
+  },
   background: 'transparent',
   borderRadius: 1
 };
@@ -2097,12 +2120,32 @@ export default function SensorNetwork() {
                             // `probe` field) are unaffected.
                             const isDimmed = probeHighlight !== 'all' && s.probe != null && s.probe !== probeHighlight;
                             const seriesColor = isDimmed ? dimHexColor(s.color, PROBE_DIM_OPACITY) : s.color;
+                            // Area fill rule:
+                            //   - Single-line chart                → fill (canonical look)
+                            //   - Multi-series, Both mode          → no fill (overlap looks muddy)
+                            //   - Multi-series, P1 / P2 highlighted → fill the HIGHLIGHTED series only
+                            //
+                            // The third branch fixes the missing
+                            // hover-dot: MUI x-charts' closest-point
+                            // marker only registers when the cursor
+                            // is on the line or over an area fill.
+                            // Without a fill, multi-series charts
+                            // give the hover only a 1px line target,
+                            // so the dot effectively never appears.
+                            // Enabling the fill on whichever probe
+                            // the user just highlighted gives the
+                            // hover a wide surface to work with —
+                            // matching the dot behavior the
+                            // single-line + sensor-measurements
+                            // charts already have.
+                            const isHighlightedSole = probeHighlight !== 'all' && s.probe === probeHighlight;
+                            const showArea = seriesList.length === 1 || isHighlightedSole;
                             return {
                               id: `${config.key}-${s.id}`,
                               label: s.label,
                               data: s.values,
                               color: seriesColor,
-                              area: seriesList.length === 1,
+                              area: showArea,
                               showMark: false,
                               curve: 'linear',
                               connectNulls: true,
@@ -2309,12 +2352,18 @@ export default function SensorNetwork() {
                         series={seriesList.map((s) => {
                           const isDimmed = probeHighlight !== 'all' && s.probe != null && s.probe !== probeHighlight;
                           const seriesColor = isDimmed ? dimHexColor(s.color, PROBE_DIM_OPACITY) : s.color;
+                          // Same area-on-highlight rule as the grid
+                          // chart above — fill the highlighted probe
+                          // so the closest-point hover dot has a
+                          // wide surface to register against.
+                          const isHighlightedSole = probeHighlight !== 'all' && s.probe === probeHighlight;
+                          const showArea = seriesList.length === 1 || isHighlightedSole;
                           return {
                             id: `${config.key}-${s.id}-enlarged`,
                             label: s.label,
                             data: s.values,
                             color: seriesColor,
-                            area: seriesList.length === 1,
+                            area: showArea,
                             showMark: false,
                             curve: 'linear',
                             connectNulls: true,
