@@ -113,7 +113,44 @@ const ROUTES = [
   { path: '/dashboard/sensor-fleet-overview', name: 'sensor-fleet-overview' },
   { path: '/dashboard/sensor-measurements', name: 'sensor-measurements' },
   { path: '/dashboard/sensor-measurements?view=map', name: 'sensor-measurements-map' },
-  { path: '/dashboard/sensor-measurements?range=Last%205%20years', name: 'sensor-measurements-long-range' }
+  { path: '/dashboard/sensor-measurements?range=Last%205%20years', name: 'sensor-measurements-long-range' },
+  // ─────────────────────────────────────────────────────────────────
+  // sensor-network — mirrors the sensor-measurements audit triplet.
+  // The page accepts the same `?view=map` and `?range=<label>` URL
+  // params as sensor-measurements (added in sensor-network.jsx the
+  // same day this triplet was added), so the routes below deep-link
+  // directly into specific UI states with no puppeteer scaffolding.
+  //
+  //   1. sensor-network            — Default state. Diagram block +
+  //                                  Sensor Information / Soil Data
+  //                                  card + Rename card up top;
+  //                                  6-chart wireless-sensor panel
+  //                                  below ("Last 24 hours" of raw
+  //                                  data, dual-probe lines on Soil
+  //                                  Temp / Moisture / Conductivity).
+  //                                  The most common user-visible
+  //                                  state.
+  //   2. sensor-network-map        — Map view open. Captures the
+  //                                  Google Maps initial-load cost
+  //                                  for the WirelessSensorFleetMap
+  //                                  AND the chart panel below it
+  //                                  (always rendered now per the
+  //                                  layout fix on May 17). Catches
+  //                                  the worst-case "everything
+  //                                  mounted" performance profile.
+  //   3. sensor-network-long-range — Chart panel with "Last 5 years"
+  //                                  (bucketed 1d) across the 6
+  //                                  wireless-sensor charts. Stresses
+  //                                  the multi-series SVG paint path
+  //                                  — dual-probe charts have 2x the
+  //                                  data points to render vs the
+  //                                  single-series device charts, so
+  //                                  this number tells us whether the
+  //                                  shared chartSx + per-chart null
+  //                                  handling are scaling.
+  { path: '/dashboard/wireless-sensors', name: 'sensor-network' },
+  { path: '/dashboard/wireless-sensors?view=map', name: 'sensor-network-map' },
+  { path: '/dashboard/wireless-sensors?range=Last%205%20years', name: 'sensor-network-long-range' }
 ];
 
 // localStorage keys the V3 frontend uses for the JWT pair. Mirror of
