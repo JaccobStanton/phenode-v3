@@ -42,16 +42,22 @@ const projectTooltipSlotProps = {
   }
 };
 
-// Menu surface — very subtle radial gradient on a #003274 base, fading
-// just slightly to #002a63 (~7% darker) at the edges. Same radial shape
-// as the drawer (anchor at 50%/15%) so the dropdown stays in the same
-// visual family, but the contrast between the two stops is intentionally
-// minimal — the gradient reads as a soft tonal shift rather than a
-// visible spotlight.
+// Menu surface — one tonal step darker than the previous #003274/#002a63
+// pairing so the dropdown reads as a distinct surface against the brighter
+// app shell gradient (#00438f → #00102f) instead of blending into it.
+// Same radial anchor (50%/15%) as the drawer keeps the chrome in the same
+// visual family; the two stops stay close together so it still reads as a
+// soft tonal shift rather than a visible spotlight.
 const profileMenuPaperSx = {
-  backgroundColor: '#003274',
-  backgroundImage: 'radial-gradient(circle at 50% 15%, #003274, #002a63)',
-  border: '1px solid var(--reflected-light)',
+  backgroundColor: '#002a63',
+  backgroundImage: 'radial-gradient(circle at 50% 15%, #002a63, #001f53)',
+  // 1.5px solid #054085 — the opaque equivalent of var(--box-outline-blue)
+  // (#054085 at 69% alpha), which is the standard app-chrome border used on
+  // the Drawer (right edge) and MainCard. Using the SOLID hex (not the alpha
+  // CSS var) avoids the bg-dependent rendering issue documented in the
+  // alpha-border project memory — see project_phenode_alpha_border_gotcha.md.
+  // The 1.5px width also matches the Drawer/MainCard border weight.
+  border: '1.5px solid #054085',
   boxShadow: '0 11px 19px 1px #0000002e'
 };
 
@@ -134,7 +140,7 @@ function a11yProps(index) {
 
 // ==============================|| HEADER CONTENT - PROFILE ||============================== //
 
-export default function Profile() {
+export default function Profile({ embedded = false, onOpenSupport, onOpenPrivacy }) {
   const theme = useTheme();
 
   // Pull user info from AuthContext. The JWT carries:
@@ -176,9 +182,125 @@ export default function Profile() {
     setValue(newValue);
   };
 
+  // Shared menu content (header row, tabs, panels). Rendered both inside the
+  // standalone Profile Popper (desktop) and embedded inside the MobileSection
+  // Popper (mobile / down-LG). When `embedded` is true we skip the trigger
+  // button, Tooltip, ClickAwayListener, and Popper — the parent
+  // MobileSection already supplies those.
+  const menuContent = (
+    <>
+      <CardContent sx={{ px: 2.5, pt: 3 }}>
+        {/* Single flex row — user info shrinks (with email ellipsis) and the
+            logout button stays pinned to the right regardless of email length. */}
+        <Stack direction="row" sx={{ alignItems: 'center', gap: 1.25, minWidth: 0 }}>
+          <Avatar
+            alt="profile user"
+            src={avatar1}
+            sx={{ width: 32, height: 32, flexShrink: 0, bgcolor: 'transparent', color: 'inherit' }}
+          />
+          <Stack sx={{ minWidth: 0, flex: 1 }}>
+            <Typography
+              variant="h6"
+              noWrap
+              title={displayName}
+              sx={{
+                color: 'var(--green)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}
+            >
+              {displayName}
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'var(--blue)', fontSize: '0.78rem' }}>
+              {displayRole}
+            </Typography>
+          </Stack>
+          <Tooltip title="Logout" arrow={false} slotProps={projectTooltipSlotProps}>
+            <IconButton
+              onClick={handleLogout}
+              aria-label="Log out"
+              sx={{ flexShrink: 0, ...logoutIconButtonSx }}
+            >
+              <AntIcon icon={LogoutOutlined} />
+            </IconButton>
+          </Tooltip>
+        </Stack>
+      </CardContent>
+
+      <Box sx={{ borderBottom: '1px solid var(--reflected-light)' }}>
+        <Tabs
+          variant="fullWidth"
+          value={value}
+          onChange={handleChange}
+          aria-label="profile tabs"
+          sx={profileTabsSx}
+        >
+          <Tab
+            sx={{
+              display: 'flex',
+              flexDirection: 'row',
+              justifyContent: 'center',
+              alignItems: 'center',
+              textTransform: 'capitalize',
+              gap: 1.25,
+              '& .MuiTab-icon': {
+                marginBottom: 0
+              }
+            }}
+            icon={<AntIcon icon={UserOutlined} />}
+            label="Profile"
+            {...a11yProps(0)}
+          />
+          <Tab
+            sx={{
+              display: 'flex',
+              flexDirection: 'row',
+              justifyContent: 'center',
+              alignItems: 'center',
+              textTransform: 'capitalize',
+              gap: 1.25,
+              '& .MuiTab-icon': {
+                marginBottom: 0
+              }
+            }}
+            icon={<AntIcon icon={SettingOutlined} />}
+            label="Settings"
+            {...a11yProps(1)}
+          />
+        </Tabs>
+      </Box>
+      <TabPanel value={value} index={0} dir={theme.direction}>
+        <ProfileTab onLogout={handleLogout} />
+      </TabPanel>
+      <TabPanel value={value} index={1} dir={theme.direction}>
+        {/* Both modal callbacks flow from HeaderContent. We also close the
+            Profile popper alongside opening either modal so the modal
+            isn't visually competing with the menu underneath. */}
+        <SettingTab
+          onOpenSupport={() => {
+            setOpen(false);
+            if (onOpenSupport) onOpenSupport();
+          }}
+          onOpenPrivacy={() => {
+            setOpen(false);
+            if (onOpenPrivacy) onOpenPrivacy();
+          }}
+        />
+      </TabPanel>
+    </>
+  );
+
+  // Embedded mode: render only the menu content. The parent (MobileSection)
+  // owns the Popper, ClickAwayListener, and Paper surface — duplicating any
+  // of those here would either nest two poppers or fight the parent for the
+  // click-away target.
+  if (embedded) {
+    return <Box sx={{ width: '100%' }}>{menuContent}</Box>;
+  }
+
   return (
     <Box sx={{ flexShrink: 0, ml: 'auto' }}>
-      <Tooltip title="Profile" arrow={false} slotProps={projectTooltipSlotProps}>
+      <Tooltip title="Profile Menu" arrow={false} slotProps={projectTooltipSlotProps}>
         <IconButton
           color="secondary"
           variant="light"
@@ -254,101 +376,7 @@ export default function Profile() {
                     MainCard.jsx:37-46 paints its own multi-stop gradient
                     that overrides whatever sx the consumer passes,
                     which would mask the drawer gradient on the Paper. */}
-                <Box>
-                  <CardContent sx={{ px: 2.5, pt: 3 }}>
-                    {/* Single flex row — user info shrinks (with email
-                        ellipsis) and the logout button stays pinned to
-                        the right regardless of email length. */}
-                    <Stack
-                      direction="row"
-                      sx={{ alignItems: 'center', gap: 1.25, minWidth: 0 }}
-                    >
-                      <Avatar
-                        alt="profile user"
-                        src={avatar1}
-                        sx={{ width: 32, height: 32, flexShrink: 0, bgcolor: 'transparent', color: 'inherit' }}
-                      />
-                      <Stack sx={{ minWidth: 0, flex: 1 }}>
-                        <Typography
-                          variant="h6"
-                          noWrap
-                          title={displayName}
-                          sx={{
-                            color: 'var(--green)',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis'
-                          }}
-                        >
-                          {displayName}
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          sx={{ color: 'var(--blue)', fontSize: '0.78rem' }}
-                        >
-                          {displayRole}
-                        </Typography>
-                      </Stack>
-                      <Tooltip title="Logout" arrow={false} slotProps={projectTooltipSlotProps}>
-                        <IconButton
-                          onClick={handleLogout}
-                          aria-label="Log out"
-                          sx={{ flexShrink: 0, ...logoutIconButtonSx }}
-                        >
-                          <AntIcon icon={LogoutOutlined} />
-                        </IconButton>
-                      </Tooltip>
-                    </Stack>
-                  </CardContent>
-
-                  <Box sx={{ borderBottom: '1px solid var(--reflected-light)' }}>
-                    <Tabs
-                      variant="fullWidth"
-                      value={value}
-                      onChange={handleChange}
-                      aria-label="profile tabs"
-                      sx={profileTabsSx}
-                    >
-                      <Tab
-                        sx={{
-                          display: 'flex',
-                          flexDirection: 'row',
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                          textTransform: 'capitalize',
-                          gap: 1.25,
-                          '& .MuiTab-icon': {
-                            marginBottom: 0
-                          }
-                        }}
-                        icon={<AntIcon icon={UserOutlined} />}
-                        label="Profile"
-                        {...a11yProps(0)}
-                      />
-                      <Tab
-                        sx={{
-                          display: 'flex',
-                          flexDirection: 'row',
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                          textTransform: 'capitalize',
-                          gap: 1.25,
-                          '& .MuiTab-icon': {
-                            marginBottom: 0
-                          }
-                        }}
-                        icon={<AntIcon icon={SettingOutlined} />}
-                        label="Setting"
-                        {...a11yProps(1)}
-                      />
-                    </Tabs>
-                  </Box>
-                  <TabPanel value={value} index={0} dir={theme.direction}>
-                    <ProfileTab onLogout={handleLogout} />
-                  </TabPanel>
-                  <TabPanel value={value} index={1} dir={theme.direction}>
-                    <SettingTab />
-                  </TabPanel>
-                </Box>
+                <Box>{menuContent}</Box>
               </ClickAwayListener>
             </Paper>
           </Transitions>
@@ -359,3 +387,9 @@ export default function Profile() {
 }
 
 TabPanel.propTypes = { children: PropTypes.node, value: PropTypes.number, index: PropTypes.number, other: PropTypes.any };
+
+Profile.propTypes = {
+  embedded: PropTypes.bool,
+  onOpenSupport: PropTypes.func,
+  onOpenPrivacy: PropTypes.func
+};
