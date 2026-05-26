@@ -753,7 +753,24 @@ export default function FleetOverviewView({
               // `width: 100%` alone doesn't do it because `flex: 1`
               // sets `flex-basis: 0`, which overrides width for the
               // flex algorithm's hypothetical-main-size calc.
-              sx={{ alignItems: 'flex-end', width: { xs: '100%', sm: 'auto' }, flex: { xs: '0 0 100%', sm: '0 1 auto' }, minWidth: 0 }}
+              //
+              // GATING ON `isSearchOpen`: the original overlap bug only
+              // occurs when the search input is expanded (closed-state
+              // is just a 40px IconButton + optional scope selector,
+              // which fits alongside the right-side controls on a 414px
+              // viewport without overlapping). When `isSearchOpen` is
+              // false we drop the 100%-width / hard-wrap rules so the
+              // right sub-stack (Sort / Status / MAC toggles) stays on
+              // the same row as the search icon at every breakpoint —
+              // no needless second row for an empty toolbar. When the
+              // user expands the search, the rules re-engage and the
+              // right stack drops to row 2 to give the input room.
+              sx={{
+                alignItems: 'flex-end',
+                width: isSearchOpen ? { xs: '100%', sm: 'auto' } : 'auto',
+                flex: isSearchOpen ? { xs: '0 0 100%', sm: '0 1 auto' } : '0 1 auto',
+                minWidth: 0
+              }}
             >
               {/*
               Optional scope-selector slot. When supplied (currently by

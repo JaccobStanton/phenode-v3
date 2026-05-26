@@ -66,3 +66,35 @@ export const renameSensor = (externalSensorId, label, accessToken) =>
     body: { label },
     token: accessToken
   });
+
+/**
+ * Delete a single image from a device by its filename.
+ *
+ * Backend reference:
+ *   phenodeX/phenode_backend/api/devices/routes.py:795 —
+ *   DELETE /devices/{external_device_id}/images/delete-by-filename/{filename}
+ *
+ * The backend uses filename (not numeric id) as the lookup key — see
+ * the route signature. Filename is URL-encoded by the endpoint helper
+ * so reserved characters in the name survive the path segment.
+ *
+ * Auth: the backend route is gated by `require_role('ADMIN')`. Non-
+ * admin callers will receive 403; the caller should surface a friendly
+ * "you don't have permission" toast on `error.status === 403` rather
+ * than the raw ApiError message.
+ *
+ * Cache invalidation is the caller's responsibility — the caller
+ * already holds the `mutate` callback from the useDeviceImages hook
+ * and should invoke it after a successful delete to drop the row
+ * from the table.
+ *
+ * @param {string} externalDeviceId - The device's external id.
+ * @param {string} filename - The image filename to delete.
+ * @param {string} accessToken - Bearer token from useAuth().
+ * @returns {Promise<{success: boolean}>} `{ success: true }` on success.
+ */
+export const deleteDeviceImage = (externalDeviceId, filename, accessToken) =>
+  mutationRequest(buildUrl(API.devices.imageDeleteByFilename(externalDeviceId, filename)), {
+    method: 'DELETE',
+    token: accessToken
+  });

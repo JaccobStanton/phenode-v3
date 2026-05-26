@@ -1,10 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import Checkbox from '@mui/material/Checkbox';
+import CircularProgress from '@mui/material/CircularProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
@@ -24,20 +29,38 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 
 import MainCard from 'components/MainCard';
-import mockImage1 from 'assets/mock-images/D3_1F_20_E1_49_B7-1764522192573.jpg';
-import mockImage2 from 'assets/mock-images/D3_1F_20_E1_49_B7-1769714749408.jpg';
-import mockImage3 from 'assets/mock-images/D3_1F_20_E1_49_B7-1770138236808.jpg';
-import mockImage4 from 'assets/mock-images/D3_1F_20_E1_49_B7-1771270350213.jpg';
-import mockImage5 from 'assets/mock-images/D3_1F_20_E1_49_B7-1772221035999.jpg';
-import mockImage6 from 'assets/mock-images/D3_1F_20_E1_49_B7-1772989423177.jpg';
+import ConfirmActionModal from 'components/ConfirmActionModal';
+import PhenodeSelector from 'components/PhenodeSelector';
+import useMyDevices from 'hooks/data/useMyDevices';
+import useDeviceImages from 'hooks/data/useDeviceImages';
+import useImageDetail from 'hooks/data/useImageDetail';
+import useAuth from 'hooks/useAuth';
+import { useToast } from 'providers/ToastProvider';
+import { deleteDeviceImage } from 'services/mutations';
+import API from 'services/endpoints';
+import { buildUrl, fetcher } from 'services/fetcher';
 
 import AntIcon from 'components/AntIcon';
+import CloseOutlined from '@ant-design/icons-svg/lib/asn/CloseOutlined';
 import DownloadOutlined from '@ant-design/icons-svg/lib/asn/DownloadOutlined';
 import InfoCircleOutlined from '@ant-design/icons-svg/lib/asn/InfoCircleOutlined';
 import LeftOutlined from '@ant-design/icons-svg/lib/asn/LeftOutlined';
 import RightOutlined from '@ant-design/icons-svg/lib/asn/RightOutlined';
 
 import { glassSurfaceSx, reflectedCardChromeSx, neonControlSx, tooltipSlotProps } from 'themes/sx-tokens';
+
+// Default rows-per-page for the imaging table. Mirrored as the
+// page_size for the SWR hook so one page of UI === one network request.
+// Per product requirement: the imaging page lands on the 10 most-recent
+// images.
+const IMAGES_PER_PAGE = 10;
+
+// URL search-param name for the externally-selected device, kept in
+// lockstep with sections/sensor-measurements/sensor-measurements.jsx
+// (DEVICE_PARAM = 'device'). Sharing the convention means a fleet-card
+// click that deep-links to /imaging?device=... lands the user on the
+// right PheNode without any extra wiring.
+const DEVICE_PARAM = 'device';
 
 const datePickerTextFieldSx = {
   flex: 1,
@@ -118,6 +141,81 @@ const datePickerPopperSx = {
     backgroundColor: 'rgba(72, 247, 245, 0.2)',
     color: 'var(--green)',
     boxShadow: '0 0 7px -5px var(--green)'
+  },
+  // Year picker view — appears when the user clicks the calendar
+  // header's year switcher chevron in the date picker. The default
+  // styling renders year buttons in MUI's primary color (a bright
+  // royal blue against the neon-on-navy popper), which reads as
+  // foreign chrome. The recipe below recolors them to match the
+  // calendar day cells: green text, teal hover, green-tinted
+  // selected state, blue+opacity for disabled (out-of-range) years.
+  //
+  // Class names are MUI X v8-specific. The earlier v6/v7 selectors
+  // (`.MuiPickersYear-yearButton`, `.MuiPickersMonth-monthButton`)
+  // don't exist in v8 — verified against
+  // node_modules/@mui/x-date-pickers/YearCalendar/yearCalendarClasses.js
+  // which generates classes under `MuiYearCalendar-*`. The matching
+  // month classes live under `MuiMonthCalendar-*`. State suffixes
+  // are wired both as the local class (`MuiYearCalendar-selected`,
+  // `MuiYearCalendar-disabled`) AND the global `Mui-selected` /
+  // `Mui-disabled` — target both so the rule wins regardless of
+  // which one MUI applies on a given render.
+  '& .MuiYearCalendar-root': {
+    scrollbarWidth: 'thin',
+    scrollbarColor: 'rgba(0, 68, 143, 0.6) transparent',
+    '&::-webkit-scrollbar': { width: '6px' },
+    '&::-webkit-scrollbar-track': { background: 'transparent' },
+    '&::-webkit-scrollbar-thumb': { backgroundColor: 'rgba(0, 68, 143, 0.6)', borderRadius: '3px' }
+  },
+  '& .MuiYearCalendar-button': {
+    color: 'var(--green)',
+    fontWeight: 500,
+    borderRadius: 1,
+    transition: 'color 0.18s ease, background-color 0.18s ease',
+    '&:hover, &:focus': {
+      backgroundColor: 'rgba(72, 247, 245, 0.12)',
+      color: 'var(--green)'
+    }
+  },
+  '& .MuiYearCalendar-button.Mui-selected, & .MuiYearCalendar-button.MuiYearCalendar-selected': {
+    backgroundColor: 'rgba(72, 247, 245, 0.2)',
+    color: 'var(--green)',
+    textShadow: '0 0 6px rgba(72, 247, 245, 0.45)',
+    fontWeight: 700,
+    '&:hover, &:focus': {
+      backgroundColor: 'rgba(72, 247, 245, 0.28)'
+    }
+  },
+  '& .MuiYearCalendar-button.Mui-disabled, & .MuiYearCalendar-button.MuiYearCalendar-disabled': {
+    color: 'var(--blue)',
+    opacity: 0.35
+  },
+  // Month picker view — parallel recipe with v8's MuiMonthCalendar-*
+  // class set. Same vocabulary as the year buttons above so the two
+  // views read as one cohesive surface when the user clicks through
+  // year → month → day.
+  '& .MuiMonthCalendar-button': {
+    color: 'var(--green)',
+    fontWeight: 500,
+    borderRadius: 1,
+    transition: 'color 0.18s ease, background-color 0.18s ease',
+    '&:hover, &:focus': {
+      backgroundColor: 'rgba(72, 247, 245, 0.12)',
+      color: 'var(--green)'
+    }
+  },
+  '& .MuiMonthCalendar-button.Mui-selected, & .MuiMonthCalendar-button.MuiMonthCalendar-selected': {
+    backgroundColor: 'rgba(72, 247, 245, 0.2)',
+    color: 'var(--green)',
+    textShadow: '0 0 6px rgba(72, 247, 245, 0.45)',
+    fontWeight: 700,
+    '&:hover, &:focus': {
+      backgroundColor: 'rgba(72, 247, 245, 0.28)'
+    }
+  },
+  '& .MuiMonthCalendar-button.Mui-disabled, & .MuiMonthCalendar-button.MuiMonthCalendar-disabled': {
+    color: 'var(--blue)',
+    opacity: 0.35
   }
 };
 
@@ -143,86 +241,324 @@ const datePickerSlotProps = (placeholder) => ({
   }
 });
 
-const carouselImages = [
-  { id: 'capture-001', name: 'D3_1F_20_E1_49_B7-1764522192573.jpg', src: mockImage1 },
-  { id: 'capture-002', name: 'D3_1F_20_E1_49_B7-1769714749408.jpg', src: mockImage2 },
-  { id: 'capture-003', name: 'D3_1F_20_E1_49_B7-1770138236808.jpg', src: mockImage3 },
-  { id: 'capture-004', name: 'D3_1F_20_E1_49_B7-1771270350213.jpg', src: mockImage4 },
-  { id: 'capture-005', name: 'D3_1F_20_E1_49_B7-1772221035999.jpg', src: mockImage5 },
-  { id: 'capture-006', name: 'D3_1F_20_E1_49_B7-1772989423177.jpg', src: mockImage6 }
-];
-
 const imagingTableBorder = '1px solid var(--reflected-light)';
 const imagingTableHeaderBg = 'rgb(8, 36, 82)';
 
-const parseTimestampFromImageName = (name) => {
-  const match = name.match(/-(\d+)\.jpg$/i);
-  return match ? Number(match[1]) : Date.now();
+// Normalize a single ImageRead row from the API into the view-shape
+// the carousel / table / details panel expect. Centralized so the
+// table cells, the carousel slide, and the details panel all read
+// from the same canonical fields and a backend rename (e.g. `s3_url`
+// → `image_url`) only needs to be patched once.
+//
+// Backend reference: phenodeX/phenode_backend/schemas/images.py:9-20
+const normalizeImage = (img) => {
+  const ts = img?.timestamp ? dayjs(img.timestamp) : null;
+  return {
+    // String id so it composes cleanly with array-based selection state
+    // (selectedRows is string[]). The backend returns numeric ids; we
+    // coerce here so all downstream code can treat them uniformly.
+    id: img?.id != null ? String(img.id) : null,
+    rawId: img?.id,
+    name: img?.filename || (img?.id != null ? `image-${img.id}.jpg` : 'image.jpg'),
+    src: img?.s3_url || null,
+    hasData: Boolean(img?.has_data),
+    timestamp: ts ? ts.valueOf() : null,
+    date: ts ? ts.format('MM/DD/YYYY') : '—',
+    time: ts ? ts.format('hh:mm A') : '—'
+  };
 };
 
-const carouselImageEntries = carouselImages
-  .map((image) => {
-    const timestamp = parseTimestampFromImageName(image.name);
-    return {
-      ...image,
-      timestamp,
-      date: dayjs(timestamp).format('MM/DD/YYYY'),
-      time: dayjs(timestamp).format('hh:mm A')
-    };
-  })
-  .sort((a, b) => a.timestamp - b.timestamp);
-
-const imageTableRows = carouselImageEntries.map((image, index) => ({
-  id: `row-${String(index + 1).padStart(3, '0')}`,
-  imageName: image.name,
-  date: image.date,
-  time: image.time,
-  timestamp: image.timestamp
-}));
-
 export default function Imaging() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  // fromDate / toDate are BOTH the visible date-picker values AND the
+  // filter arguments sent to the API. Starting as null is load-bearing:
+  // the SWR hook drops null params from the query string, so the first
+  // fetch is the unconstrained "give me the 10 most recent" request the
+  // product requirement asks for. After that response lands, a one-shot
+  // effect (see prefillTimespanRef below) seeds these from the response
+  // so the pickers show the timespan they currently represent — user can
+  // edit either side to narrow the range.
   const [fromDate, setFromDate] = useState(null);
   const [toDate, setToDate] = useState(null);
   const [page, setPage] = useState(1);
   const [selectedRows, setSelectedRows] = useState([]);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadedCount, setDownloadedCount] = useState(0);
-  const rowsPerPage = 10;
+  const rowsPerPage = IMAGES_PER_PAGE;
 
-  const currentImage = carouselImageEntries[currentImageIndex] || carouselImageEntries[0];
-  const lastCapturedImage = carouselImageEntries[carouselImageEntries.length - 1];
-  const filteredRows = useMemo(() => {
-    return imageTableRows.filter((row) => {
-      const capturedAt = dayjs(row.timestamp);
-      if (toDate && capturedAt.isAfter(dayjs(toDate).endOf('day'))) return false;
-      if (fromDate && capturedAt.isBefore(dayjs(fromDate).startOf('day'))) return false;
-      return true;
+  // -----------------------------------------------------------------
+  // Device selection — URL-first with a frozen recency fallback.
+  //
+  // This is a direct copy of the pattern in sensor-measurements.jsx so
+  // a deep-link like /imaging?device=<external_id> lands the user on
+  // the correct PheNode, AND a bare /imaging visit lands them on the
+  // most-recently-reporting device on their account. The pattern:
+  //
+  //   1. `defaultPhenodeId` — most-recently-reporting device, recomputed
+  //      whenever the devices list changes (60s SWR poll could shift
+  //      this).
+  //   2. `frozenDefaultPhenodeId` — one-shot capture of the first
+  //      non-null `defaultPhenodeId`. Without this freeze, a 60s SWR
+  //      poll that returns a different "most recent" device would yank
+  //      the user's selection out from under them mid-look. The freeze
+  //      naturally resets when the page unmounts (e.g. navigating away
+  //      and back).
+  //   3. `externalDeviceId` — what we actually use. URL value wins IF
+  //      it matches a real device; otherwise we fall back to the frozen
+  //      default. A URL pointing at a deleted device falls through to
+  //      the default rather than rendering nothing.
+  // -----------------------------------------------------------------
+  const { devices, isLoading: devicesLoading } = useMyDevices();
+  const deviceFromUrl = searchParams.get(DEVICE_PARAM);
+
+  const defaultPhenodeId = useMemo(() => {
+    if (!devices?.length) return null;
+    const byRecency = [...devices].sort((a, b) => {
+      const aTime = a?.last_measurement_at ? new Date(a.last_measurement_at).getTime() : -Infinity;
+      const bTime = b?.last_measurement_at ? new Date(b.last_measurement_at).getTime() : -Infinity;
+      return bTime - aTime;
     });
-  }, [fromDate, toDate]);
-  const filteredRowIds = useMemo(() => filteredRows.map((row) => row.id), [filteredRows]);
-  const selectedFilteredCount = useMemo(
-    () => filteredRows.filter((row) => selectedRows.includes(row.id)).length,
-    [filteredRows, selectedRows]
+    return byRecency[0]?.external_device_id ?? null;
+  }, [devices]);
+
+  // Frozen copy of the recency default — captured exactly once on the
+  // first non-null evaluation, then held stable for the rest of the
+  // visit. See block comment above for the rationale (don't let a 60s
+  // poll re-pick the default).
+  const [frozenDefaultPhenodeId, setFrozenDefaultPhenodeId] = useState(null);
+  useEffect(() => {
+    if (defaultPhenodeId && !frozenDefaultPhenodeId) {
+      setFrozenDefaultPhenodeId(defaultPhenodeId);
+    }
+  }, [defaultPhenodeId, frozenDefaultPhenodeId]);
+
+  const externalDeviceId = useMemo(() => {
+    if (deviceFromUrl) {
+      const exists = devices?.some((d) => d.external_device_id === deviceFromUrl);
+      if (exists) return deviceFromUrl;
+    }
+    return frozenDefaultPhenodeId;
+  }, [deviceFromUrl, devices, frozenDefaultPhenodeId]);
+
+  // If the URL referenced a device that no longer exists in the fleet,
+  // clean the param out so back/forward + reload don't keep pointing at
+  // a phantom selection. Guarded against the loading window where
+  // `devices` is still undefined.
+  useEffect(() => {
+    if (!devices) return;
+    if (!deviceFromUrl) return;
+    const exists = devices.some((d) => d.external_device_id === deviceFromUrl);
+    if (!exists) {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete(DEVICE_PARAM);
+          return next;
+        },
+        { replace: true }
+      );
+    }
+  }, [devices, deviceFromUrl, setSearchParams]);
+
+  // PheNodeSelector change → write to the URL. URL is the source of
+  // truth — the next render reads the new value back out of
+  // searchParams. replace:false (default) so the dropdown action
+  // creates a real history entry (Back button takes the user to their
+  // previous PheNode).
+  const handlePhenodeChange = useCallback(
+    (nextDeviceId) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        if (nextDeviceId) {
+          next.set(DEVICE_PARAM, nextDeviceId);
+        } else {
+          next.delete(DEVICE_PARAM);
+        }
+        return next;
+      });
+    },
+    [setSearchParams]
   );
-  const allSelected = filteredRows.length > 0 && selectedFilteredCount === filteredRows.length;
-  const someSelected = selectedFilteredCount > 0 && !allSelected;
-  const pageCount = Math.max(1, Math.ceil(filteredRows.length / rowsPerPage));
-  const paginatedRows = useMemo(() => {
-    const start = (page - 1) * rowsPerPage;
-    return filteredRows.slice(start, start + rowsPerPage);
-  }, [filteredRows, page]);
+
+  // Active DeviceRead for the resolved id — used by the description
+  // panel below to display the human label ("Greenhouse 3") rather
+  // than the raw external id ("D3:1F:20:E1:49:B7"). Null while devices
+  // are still loading; the panel falls back to the external id in
+  // that case so the row never reads as blank.
+  const activeDevice = useMemo(() => {
+    if (!devices || !externalDeviceId) return null;
+    return devices.find((d) => d.external_device_id === externalDeviceId) ?? null;
+  }, [devices, externalDeviceId]);
+
+  // -----------------------------------------------------------------
+  // Device-switch reset. When the user picks a different PheNode in
+  // the dropdown (or the deep-link param changes), the previous
+  // device's filter state would otherwise carry over — most visibly:
+  // the prefilled from/to dates would still constrain the new device's
+  // query, hiding most of its images for no obvious reason. Reset
+  // from/to to null (so the next fetch is the unconstrained "10 most
+  // recent" request), page to 1, and clear cross-page selection.
+  //
+  // Skipping the very first transition (previousDeviceIdRef.current ===
+  // null) avoids clobbering state on initial mount before any image
+  // has loaded.
+  // -----------------------------------------------------------------
+  const previousDeviceIdRef = useRef(null);
+  useEffect(() => {
+    if (previousDeviceIdRef.current && previousDeviceIdRef.current !== externalDeviceId) {
+      setFromDate(null);
+      setToDate(null);
+      setPage(1);
+      setSelectedRows([]);
+    }
+    previousDeviceIdRef.current = externalDeviceId;
+  }, [externalDeviceId]);
+
+  // -----------------------------------------------------------------
+  // ISO strings for the API. Use startOf('day') / endOf('day') so the
+  // calendar-day the user picked is fully inclusive — picking "May 21"
+  // as `to` should include any image captured before midnight on May 21,
+  // not just the start of that day.
+  // -----------------------------------------------------------------
+  const fromIso = useMemo(() => (fromDate ? dayjs(fromDate).startOf('day').toISOString() : null), [fromDate]);
+  const toIso = useMemo(() => (toDate ? dayjs(toDate).endOf('day').toISOString() : null), [toDate]);
+
+  const {
+    images: apiImages,
+    total: apiTotal,
+    isLoading: imagesLoading,
+    error: imagesError,
+    mutate: mutateImages
+  } = useDeviceImages(externalDeviceId, {
+    page,
+    pageSize: rowsPerPage,
+    from: fromIso,
+    to: toIso
+  });
+
+  // Access token — used by the per-image detail fetches that power
+  // download() and by deleteDeviceImage() below. fetcher accepts a
+  // [url, token] tuple and attaches the Bearer header.
+  const { accessToken } = useAuth();
+
+  // Themed toast surface for success / error feedback. Replaces the
+  // browser-native window.alert() we used during the initial wire-up;
+  // the toast lives at the app root and matches the project's neon-on-
+  // navy chrome (see providers/ToastProvider.jsx).
+  const toast = useToast();
+
+  // The API returns images sorted newest-first
+  // (phenodeX/phenode_backend/api/devices/routes.py:619 — order_by
+  // timestamp.desc()). We preserve that ordering for the table and the
+  // carousel so the "latest capture" affordance is always slide 0.
+  const normalizedImages = useMemo(() => (apiImages ?? []).map(normalizeImage).filter((img) => img.id != null), [apiImages]);
+
+  // -----------------------------------------------------------------
+  // One-shot effect: when the first batch of images lands AND the user
+  // hasn't touched the date pickers, seed the pickers with the timespan
+  // of the returned page (newest → toDate, oldest → fromDate). This
+  // matches the product requirement: the pickers display the active
+  // range and are editable.
+  //
+  // Tracked with a ref so we don't re-prefill after a user clears a
+  // picker back to null (which would otherwise re-trigger this branch
+  // every poll). The ref is reset if the user navigates to a different
+  // device — otherwise the second device would inherit the first
+  // device's prefill state and never show its own timespan.
+  // -----------------------------------------------------------------
+  const prefilledForDeviceRef = useRef(null);
+  useEffect(() => {
+    if (prefilledForDeviceRef.current === externalDeviceId) return;
+    if (!normalizedImages.length) return;
+    // Only prefill while both pickers are still untouched (null). If
+    // the user has already picked a from/to we never want to clobber
+    // their choice.
+    if (fromDate !== null || toDate !== null) {
+      prefilledForDeviceRef.current = externalDeviceId;
+      return;
+    }
+    const timestamps = normalizedImages.map((img) => img.timestamp).filter((ts) => Number.isFinite(ts));
+    if (!timestamps.length) return;
+    const newest = Math.max(...timestamps);
+    const oldest = Math.min(...timestamps);
+    setFromDate(dayjs(oldest));
+    setToDate(dayjs(newest));
+    prefilledForDeviceRef.current = externalDeviceId;
+  }, [externalDeviceId, normalizedImages, fromDate, toDate]);
+
+  // -----------------------------------------------------------------
+  // Carousel: current image + nav. Bound to the rows currently on
+  // screen so flipping pages doesn't desync the carousel from the
+  // table the user is reading.
+  // -----------------------------------------------------------------
+  const safeCarouselIndex = normalizedImages.length === 0 ? 0 : Math.min(currentImageIndex, normalizedImages.length - 1);
+  const currentImage = normalizedImages[safeCarouselIndex] ?? null;
+  const lastCapturedImage = normalizedImages[0] ?? null; // newest-first ordering
+
+  // -----------------------------------------------------------------
+  // Carousel preview source. The /images list endpoint only ships
+  // metadata (no base64), so when a row has no `s3_url` (the dev /
+  // seed-demo path where images are stored as base64 in Postgres) the
+  // <img> would render blank. useImageDetail lazy-fetches the single
+  // active image's full record and exposes a ready-to-use `src` —
+  // either the s3_url verbatim, or a `data:image/jpeg;base64,...`
+  // wrapping the encoded payload.
+  //
+  // `enabled` short-circuits the fetch when the list row already has
+  // an s3_url — no point hitting the detail endpoint just to confirm
+  // what we already know.
+  // -----------------------------------------------------------------
+  const carouselNeedsDetail = Boolean(currentImage && !currentImage.src);
+  const { src: carouselDetailSrc, isLoading: carouselDetailLoading } = useImageDetail(externalDeviceId, currentImage?.rawId, {
+    enabled: carouselNeedsDetail
+  });
+  const carouselDisplaySrc = currentImage?.src || carouselDetailSrc || null;
+
+  // -----------------------------------------------------------------
+  // View dialog — opened from the row's "View" button. Holds the
+  // metadata row we want to show. Source resolution mirrors the
+  // carousel: prefer s3_url, fall back to lazy-fetched base64.
+  // -----------------------------------------------------------------
+  const [viewingImage, setViewingImage] = useState(null);
+  const viewDialogNeedsDetail = Boolean(viewingImage && !viewingImage.src);
+  const { src: viewDetailSrc, isLoading: viewDetailLoading } = useImageDetail(externalDeviceId, viewingImage?.rawId, {
+    enabled: viewDialogNeedsDetail
+  });
+  const viewDialogSrc = viewingImage?.src || viewDetailSrc || null;
+
+  // Page rows ARE the API page — server-side pagination handles the
+  // slicing. Selection-set math is therefore scoped to "the rows
+  // currently visible" rather than "the full filtered set" (which the
+  // backend never sends in one payload). Practically the user can
+  // still select-all the visible page and then page forward to select
+  // more; cross-page selection persists in `selectedRows`.
+  const pageRows = normalizedImages;
+  const pageRowIds = useMemo(() => pageRows.map((row) => row.id), [pageRows]);
+  const selectedOnPageCount = useMemo(() => pageRows.filter((row) => selectedRows.includes(row.id)).length, [pageRows, selectedRows]);
+  const allSelected = pageRows.length > 0 && selectedOnPageCount === pageRows.length;
+  const someSelected = selectedOnPageCount > 0 && !allSelected;
+  const pageCount = Math.max(1, Math.ceil((apiTotal ?? 0) / rowsPerPage));
   const totalImagesToDownload = selectedRows.length;
   const estimatedDownloadSizeMb = (totalImagesToDownload * 4.2).toFixed(1);
   const downloadProgress = totalImagesToDownload > 0 ? (downloadedCount / totalImagesToDownload) * 100 : 0;
 
   const handlePreviousImage = () => {
-    setCurrentImageIndex((prev) => (prev === 0 ? carouselImageEntries.length - 1 : prev - 1));
+    if (normalizedImages.length === 0) return;
+    setCurrentImageIndex((prev) => (prev === 0 ? normalizedImages.length - 1 : prev - 1));
   };
 
   const handleNextImage = () => {
-    setCurrentImageIndex((prev) => (prev === carouselImageEntries.length - 1 ? 0 : prev + 1));
+    if (normalizedImages.length === 0) return;
+    setCurrentImageIndex((prev) => (prev === normalizedImages.length - 1 ? 0 : prev + 1));
   };
+
+  // Reset the carousel pointer when the underlying page of images
+  // changes — otherwise paging forward leaves the carousel pointing
+  // at index 7 on a fresh page of 10 with no obvious cue.
+  useEffect(() => {
+    setCurrentImageIndex(0);
+  }, [page, externalDeviceId, fromIso, toIso]);
 
   const handleToggleRow = (rowId) => {
     setSelectedRows((prev) => (prev.includes(rowId) ? prev.filter((id) => id !== rowId) : [...prev, rowId]));
@@ -231,17 +567,185 @@ export default function Imaging() {
   const handleToggleAllRows = () => {
     setSelectedRows((prev) => {
       if (allSelected) {
-        return prev.filter((id) => !filteredRowIds.includes(id));
+        return prev.filter((id) => !pageRowIds.includes(id));
       }
-      return [...new Set([...prev, ...filteredRowIds])];
+      return [...new Set([...prev, ...pageRowIds])];
     });
   };
 
-  const handleDownload = () => {
-    if (!totalImagesToDownload) return;
+  // -----------------------------------------------------------------
+  // View action — open the larger preview in a Dialog. We hand the
+  // normalized row to setViewingImage; the Dialog reads src / name /
+  // date / time off it and the useImageDetail hook above lazy-fetches
+  // the bytes if s3_url is missing.
+  // -----------------------------------------------------------------
+  const handleView = useCallback((row) => {
+    setViewingImage(row);
+  }, []);
+
+  // -----------------------------------------------------------------
+  // Delete action. Backend expects a filename (not numeric id) on the
+  // DELETE path and gates the route on require_role('ADMIN'). We
+  // confirm via window.confirm — adequate for a destructive action
+  // until the project has a dedicated themed confirm dialog.
+  //
+  // On success: refetch the list (mutateImages) and prune the row's
+  // id from any cross-page selection state. On failure: log and let
+  // the SWR cache continue serving the (still-present) row, which
+  // matches the user's mental model — "delete didn't take, image
+  // still here."
+  // -----------------------------------------------------------------
+  // Two-phase delete:
+  //   1. `handleDelete(row)` opens the themed ConfirmActionModal by
+  //      setting `pendingDeleteRow`. Nothing hits the network until
+  //      the user clicks Continue.
+  //   2. `runDelete()` is invoked by the modal's onConfirm. It calls
+  //      the API, surfaces success/error via the themed toast, and
+  //      mutates the SWR cache on success.
+  //
+  // `deletingRowIds` is still tracked so the table row's Delete
+  // button can show "Deleting…" while the network call is in
+  // flight — covering the case where the user closes the modal and
+  // watches the table directly.
+  const [deletingRowIds, setDeletingRowIds] = useState([]);
+  const [pendingDeleteRow, setPendingDeleteRow] = useState(null);
+
+  const handleDelete = useCallback((row) => {
+    if (!row?.name) return;
+    setPendingDeleteRow(row);
+  }, []);
+
+  const runDelete = useCallback(async () => {
+    if (!externalDeviceId || !pendingDeleteRow?.name) return;
+    const row = pendingDeleteRow;
+    setDeletingRowIds((prev) => [...prev, row.id]);
+    try {
+      await deleteDeviceImage(externalDeviceId, row.name, accessToken);
+      setSelectedRows((prev) => prev.filter((id) => id !== row.id));
+      if (viewingImage?.id === row.id) setViewingImage(null);
+      await mutateImages();
+      toast.success(`Deleted ${row.name}.`);
+      setPendingDeleteRow(null);
+    } catch (err) {
+      // Friendlier copy for the most common failure (403 — backend
+      // gates this route on require_role('ADMIN')). Everything else
+      // falls through to the backend's `detail`, then the JS message,
+      // then a generic fallback.
+      const message =
+        err?.status === 403
+          ? "You don't have permission to delete this image."
+          : `Could not delete ${row.name}: ${err?.detail || err?.message || 'unknown error'}`;
+      toast.error(message);
+      // Keep the modal OPEN on failure so the user can read the
+      // toast then retry or cancel. Mirrors the ConfirmRenameModal
+      // contract used elsewhere in the app.
+    } finally {
+      setDeletingRowIds((prev) => prev.filter((id) => id !== row.id));
+    }
+  }, [externalDeviceId, accessToken, mutateImages, viewingImage, pendingDeleteRow, toast]);
+
+  // -----------------------------------------------------------------
+  // Download action — fetches the bytes for each selected image and
+  // triggers a browser download via a Blob URL. Two source paths:
+  //
+  //   1. Row has `s3_url` → fetch the URL directly, blob the response.
+  //      This is the prod path; the browser caches the bytes and the
+  //      file lands at full fidelity.
+  //   2. Row has no `s3_url` → hit the detail endpoint
+  //      (/devices/{ext}/images/{id}) for base64encoded, decode into
+  //      a Uint8Array, wrap in a Blob. This is the dev / seed-demo
+  //      path.
+  //
+  // Sequential rather than parallel so the progress bar stays honest
+  // and we don't fire 50 concurrent fetches at the backend on a
+  // bulk-selection download. If throughput becomes a problem we can
+  // bump the concurrency to ~3 — but for the typical "download what
+  // I just selected" case, serial is fine.
+  //
+  // Errors per-row are swallowed so a single bad row doesn't abort
+  // the whole batch — the surrounding finally clears `isDownloading`
+  // regardless.
+  // -----------------------------------------------------------------
+  const downloadOne = useCallback(
+    async (row) => {
+      let blob;
+      if (row.src) {
+        const response = await fetch(row.src);
+        if (!response.ok) throw new Error(`Failed to fetch ${row.src}: ${response.status}`);
+        blob = await response.blob();
+      } else {
+        // Hit detail endpoint for base64. Going through `fetcher` so
+        // we get the same auto-401-refresh-and-retry behavior the SWR
+        // hooks have.
+        const detailUrl = buildUrl(API.devices.imageDetail(externalDeviceId, row.rawId));
+        const detail = await fetcher([detailUrl, accessToken]);
+        if (!detail?.base64encoded) {
+          throw new Error('No image data available');
+        }
+        // atob → byte string → Uint8Array. We can't pass the raw
+        // base64 to a Blob directly; the wrapper has to be binary.
+        const byteString = atob(detail.base64encoded);
+        const u8 = new Uint8Array(byteString.length);
+        for (let i = 0; i < byteString.length; i += 1) u8[i] = byteString.charCodeAt(i);
+        blob = new Blob([u8], { type: 'image/jpeg' });
+      }
+      // Standard "anchor with download attribute" idiom — works in all
+      // modern browsers without an extra library. Clean up the
+      // object URL right after click() so we don't leak memory on
+      // bulk downloads.
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = row.name || `image-${row.id}.jpg`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(objectUrl);
+    },
+    [externalDeviceId, accessToken]
+  );
+
+  const handleDownload = useCallback(async () => {
+    if (!totalImagesToDownload || !externalDeviceId) return;
+    // Only download rows from the CURRENT page that the user has
+    // selected — selectedRows can carry ids from prior pages we've
+    // navigated past but no longer have row metadata for. Downloading
+    // those would require re-fetching their metadata, which is more
+    // moving parts than this iteration warrants. Future enhancement:
+    // remember row metadata across pages.
+    const toDownload = pageRows.filter((row) => selectedRows.includes(row.id));
+    if (toDownload.length === 0) return;
+
     setDownloadedCount(0);
     setIsDownloading(true);
-  };
+    let successCount = 0;
+    let failureCount = 0;
+    try {
+      for (const row of toDownload) {
+        try {
+          await downloadOne(row);
+          successCount += 1;
+          setDownloadedCount((prev) => prev + 1);
+        } catch (err) {
+          failureCount += 1;
+          // Per-row failures don't abort the batch — we just count
+          // them and surface a single summary toast at the end.
+          console.error('Failed to download image', row?.id, err);
+        }
+      }
+    } finally {
+      setIsDownloading(false);
+      // One summarizing toast at the end rather than one-per-row,
+      // which would feel spammy on a 10-image batch.
+      if (failureCount === 0) {
+        toast.success(`Downloaded ${successCount} image${successCount === 1 ? '' : 's'}.`);
+      } else if (successCount === 0) {
+        toast.error(`Download failed for all ${failureCount} image${failureCount === 1 ? '' : 's'}.`);
+      } else {
+        toast.error(`Downloaded ${successCount} of ${toDownload.length} — ${failureCount} failed.`);
+      }
+    }
+  }, [totalImagesToDownload, externalDeviceId, pageRows, selectedRows, downloadOne, toast]);
 
   useEffect(() => {
     if (page > pageCount) {
@@ -249,22 +753,34 @@ export default function Imaging() {
     }
   }, [page, pageCount]);
 
-  useEffect(() => {
-    if (!isDownloading) return;
-    if (totalImagesToDownload === 0 || downloadedCount >= totalImagesToDownload) {
-      setIsDownloading(false);
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setDownloadedCount((prev) => Math.min(prev + 1, totalImagesToDownload));
-    }, 320);
-
-    return () => clearTimeout(timer);
-  }, [isDownloading, downloadedCount, totalImagesToDownload]);
+  // Top-level loading / empty states. Showing distinct copy for each
+  // case matters: "loading" implies a spinner is doing work, "no
+  // device" implies the account hasn't been linked yet, "no images"
+  // implies the device exists but hasn't captured anything in range.
+  const showingFullPageSpinner = (devicesLoading || imagesLoading) && normalizedImages.length === 0;
+  const hasNoDevice = !devicesLoading && !externalDeviceId;
+  const hasNoImages = !showingFullPageSpinner && !hasNoDevice && normalizedImages.length === 0;
 
   return (
-    <MainCard content={false} sx={{ overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
+    <MainCard
+      content={false}
+      sx={{
+        // width: '100%' is load-bearing — the dashboard layout sets
+        // `display: flex` on the container that holds this MainCard
+        // but doesn't force the card to grow, so by default the card
+        // sizes to its CONTENT width (default flex: 0 1 auto). That
+        // meant when the carousel showed a 40px spinner during
+        // image-load, the card collapsed inward to fit, then snapped
+        // back to full width once the wide image appeared — visibly
+        // "shrinking from the right then returning." Locking the
+        // card to 100% of its parent's width pins it regardless of
+        // what's inside.
+        width: '100%',
+        overflow: 'hidden',
+        ...glassSurfaceSx,
+        ...reflectedCardChromeSx
+      }}
+    >
       <Box sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 2.5 } }}>
         <Stack
           direction={{ xs: 'column', md: 'row' }}
@@ -300,12 +816,61 @@ export default function Imaging() {
         </Stack>
       </Box>
 
-      <Box sx={{ p: { xs: 2, sm: 3 } }}>
+      {/*
+        PheNode picker row — drives every downstream data fetch on this
+        page (carousel images, table rows, total count, last-captured
+        timestamp). Lives in its own Box with the same px/pt/pb spacing
+        sensor-measurements.jsx uses, so the dropdown sits at the same
+        vertical distance below the title divider on both pages.
+
+        PhenodeSelector is the shared themed Autocomplete — passing
+        `label={null}` suppresses the inline label since the page
+        title above already provides the context.
+      */}
+      <Box sx={{ px: { xs: 2, sm: 3 }, pt: 0, pb: { xs: 1.5, sm: 2 } }}>
+        <Stack
+          direction="row"
+          sx={{
+            justifyContent: 'flex-start',
+            alignItems: 'center',
+            mb: { xs: 1.5, sm: 2 },
+            gap: 1
+          }}
+        >
+          <PhenodeSelector
+            devices={devices}
+            selectedDeviceId={externalDeviceId}
+            onChange={handlePhenodeChange}
+            isLoading={devicesLoading}
+            label={null}
+          />
+        </Stack>
+      </Box>
+
+      <Box sx={{ p: { xs: 2, sm: 3 }, pt: 0 }}>
         <Grid container spacing={2.5}>
           <Grid size={{ xs: 12, lg: 12 }}>
             <Card
               sx={{
                 position: 'relative',
+                // Explicit width: 100% so the Card's width is
+                // determined by the parent (Grid item / dashboard
+                // main column) and never by its content. Without
+                // this, when the carousel switches between a 40px
+                // spinner and a 1280px-natural-width <img>, the flex
+                // layout above can re-resolve the Card's flex-basis
+                // and briefly compute a narrower box — which read as
+                // the "shrinks from the right then snaps back" the
+                // user saw in the screenshots.
+                width: '100%',
+                // Back to the original minHeight floor — the inner
+                // image-container Box now carries an EXPLICIT height
+                // (see below) so Card size is dictated by Box, not by
+                // its inner content. That keeps the loaded-state size
+                // (what users were used to) as the steady state, and
+                // the loading state matches it because Box's height
+                // is fixed regardless of whether a spinner or image
+                // is centered inside.
                 minHeight: { xs: 380, sm: 480, lg: 560 },
                 overflow: 'hidden',
                 backgroundColor: 'var(--drf)',
@@ -355,11 +920,33 @@ export default function Imaging() {
                 <AntIcon icon={RightOutlined} />
               </IconButton>
 
+              {/*
+                Image container with an EXPLICIT height (vs the
+                previous height:100%) so the slot reserved for the
+                preview is the same size whether a CircularProgress
+                or a fully-loaded <img> is centered inside it. The
+                values below are image maxHeight + the Box's own
+                vertical padding, computed for each breakpoint:
+                  xs:  320 (img) + 112 (24 pt + 88 pb) = 432
+                  sm:  430 (img) + 124 (28 pt + 96 pb) = 554
+                  lg:  650 (img) + 124                  = 774
+                Box-sizing is border-box, so `height` already includes
+                the padding — image content area lands at exactly the
+                image's maxHeight.
+
+                Card's minHeight is the floor; this Box's explicit
+                height pushes Card up to the loaded-state size at
+                every breakpoint, so the Card has the SAME total size
+                whether the image is in flight or already painted.
+                The spinner just centers inside the otherwise-empty
+                slot rather than collapsing the Box around itself.
+              */}
               <Box
                 sx={{
                   position: 'relative',
                   zIndex: 1,
-                  height: '100%',
+                  width: '100%',
+                  height: { xs: 432, sm: 554, lg: 774 },
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -368,38 +955,63 @@ export default function Imaging() {
                   pb: { xs: 11, sm: 12 }
                 }}
               >
-                <Box
-                  component="img"
-                  src={currentImage.src}
-                  alt={currentImage.name}
-                  sx={{
-                    width: 'auto',
-                    height: 'auto',
-                    maxWidth: '100%',
-                    maxHeight: { xs: 320, sm: 430, lg: 650 },
-                    objectFit: 'contain',
-                    border: '1px solid var(--reflected-light)',
-                    borderRadius: 1,
-                    filter: 'drop-shadow(0 12px 24px rgba(0, 0, 0, 0.35))'
-                  }}
-                />
+                {showingFullPageSpinner || (carouselNeedsDetail && carouselDetailLoading) ? (
+                  <CircularProgress sx={{ color: 'var(--green)' }} />
+                ) : currentImage && carouselDisplaySrc ? (
+                  <Box
+                    component="img"
+                    src={carouselDisplaySrc}
+                    alt={currentImage.name}
+                    // `decoding=async` lets the browser decode the image
+                    // off the main thread instead of blocking the layout
+                    // pass. Without it, the synchronous decode frame can
+                    // be just long enough to register as a one-frame
+                    // layout reflow.
+                    decoding="async"
+                    sx={{
+                      width: 'auto',
+                      height: 'auto',
+                      maxWidth: '100%',
+                      maxHeight: { xs: 320, sm: 430, lg: 650 },
+                      objectFit: 'contain',
+                      border: '1px solid var(--reflected-light)',
+                      borderRadius: 1,
+                      filter: 'drop-shadow(0 12px 24px rgba(0, 0, 0, 0.35))'
+                    }}
+                  />
+                ) : (
+                  // Placeholder copy. Reaches this branch when:
+                  //   - no device on the account, OR
+                  //   - no images in the selected range, OR
+                  //   - detail endpoint returned no usable src
+                  //     (genuinely-orphaned row).
+                  <Typography variant="body2" sx={{ color: 'var(--blue)', textAlign: 'center' }}>
+                    {hasNoDevice
+                      ? 'No PheNode found on this account yet.'
+                      : hasNoImages
+                        ? 'No images have been captured for the selected range.'
+                        : 'Preview unavailable for this image.'}
+                  </Typography>
+                )}
               </Box>
 
-              <Box
-                sx={{
-                  position: 'absolute',
-                  left: { xs: 16, sm: 20 },
-                  bottom: { xs: 16, sm: 18 },
-                  zIndex: 2
-                }}
-              >
-                <Typography variant="subtitle1" sx={{ color: 'var(--green)', fontWeight: 600 }}>
-                  {currentImage.name}
-                </Typography>
-                <Typography variant="body2" sx={{ color: 'var(--blue)' }}>
-                  {currentImage.date} | {currentImage.time}
-                </Typography>
-              </Box>
+              {currentImage && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    left: { xs: 16, sm: 20 },
+                    bottom: { xs: 16, sm: 18 },
+                    zIndex: 2
+                  }}
+                >
+                  <Typography variant="subtitle1" sx={{ color: 'var(--green)', fontWeight: 600 }}>
+                    {currentImage.name}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: 'var(--blue)' }}>
+                    {currentImage.date} | {currentImage.time}
+                  </Typography>
+                </Box>
+              )}
 
               <Stack
                 direction="row"
@@ -412,24 +1024,19 @@ export default function Imaging() {
                   zIndex: 2
                 }}
               >
-                {carouselImageEntries.map((image, index) => (
-                  <Tooltip
-                    key={image.id}
-                    title={image.name}
-                    arrow={false}
-                    slotProps={tooltipSlotProps}
-                  >
+                {normalizedImages.map((image, index) => (
+                  <Tooltip key={image.id} title={image.name} arrow={false} slotProps={tooltipSlotProps}>
                     <Box
                       component="button"
                       type="button"
                       onClick={() => setCurrentImageIndex(index)}
                       sx={{
-                        width: index === currentImageIndex ? 28 : 10,
+                        width: index === safeCarouselIndex ? 28 : 10,
                         height: 10,
                         borderRadius: 999,
                         border: '1px solid var(--reflected-light)',
-                        backgroundColor: index === currentImageIndex ? 'var(--green)' : 'rgba(72, 247, 245, 0.18)',
-                        boxShadow: index === currentImageIndex ? '0 0 8px var(--green)' : 'none',
+                        backgroundColor: index === safeCarouselIndex ? 'var(--green)' : 'rgba(72, 247, 245, 0.18)',
+                        boxShadow: index === safeCarouselIndex ? '0 0 8px var(--green)' : 'none',
                         p: 0,
                         cursor: 'pointer',
                         transition: 'all 0.2s ease'
@@ -453,21 +1060,21 @@ export default function Imaging() {
                     Total Images:
                   </Typography>
                   <Typography variant="h6" sx={{ textAlign: 'right', color: 'var(--green)', fontWeight: 600 }}>
-                    {carouselImageEntries.length}
+                    {apiTotal ?? 0}
                   </Typography>
 
                   <Typography variant="h6" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
                     PheNode Taken From:
                   </Typography>
                   <Typography variant="h6" sx={{ textAlign: 'right', color: 'var(--green)', fontWeight: 600 }}>
-                    12:34:56:78
+                    {activeDevice?.label || externalDeviceId || '—'}
                   </Typography>
 
                   <Typography variant="h6" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
                     Date:
                   </Typography>
                   <Typography variant="h6" sx={{ textAlign: 'right', color: 'var(--green)', fontWeight: 600 }}>
-                    {currentImage.date}
+                    {currentImage?.date ?? '—'}
                   </Typography>
 
                   <Typography variant="h6" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
@@ -485,7 +1092,7 @@ export default function Imaging() {
                     borderTop: '1px solid var(--box-outline-blue)'
                   }}
                 /> */}
-                 <Box sx={{ pt: 1 }}>
+                <Box sx={{ pt: 1 }}>
                   <LinearProgress
                     variant="determinate"
                     value={downloadProgress}
@@ -577,17 +1184,26 @@ export default function Imaging() {
           <Grid size={{ xs: 12, lg: 12 }} sx={{ order: { xs: 2, lg: 2 } }}>
             <Card sx={{ p: { xs: 1.5, sm: 2 }, overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
               <Stack spacing={2}>
-                <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+                {/*
+                  Title row uses justifyContent: 'space-between' so the
+                  info-icon hugs the top-right corner of the card per
+                  the imaging spec. The tooltip explains the default
+                  load-state (10 most recent) and that the date pickers
+                  ship prefilled with the timespan of the current page
+                  but are editable to narrow the range.
+                */}
+                <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
                   <Typography variant="h5" sx={{ color: 'var(--blue)' }}>
                     PheNode Images
                   </Typography>
                   <Tooltip
-                    title="Images are defaulted to load the last 5 taken by your PheNode."
+                    title="Showing the 10 most recent images captured by your PheNode. The To / From dates are prefilled with the timespan of these images — edit either side to narrow the range."
                     arrow={false}
                     slotProps={tooltipSlotProps}
                   >
                     <Box
                       component="span"
+                      aria-label="About this table"
                       sx={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -602,18 +1218,12 @@ export default function Imaging() {
                 </Stack>
 
                 <LocalizationProvider dateAdapter={AdapterDayjs}>
+                  {/*
+                    Order is From → To (left to right) per the imaging
+                    spec — reading direction matches range semantics
+                    ("from start, to end").
+                  */}
                   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                    <Stack spacing={0.5} sx={{ flex: 1 }}>
-                      <Typography variant="subtitle2" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
-                        To
-                      </Typography>
-                      <DatePicker
-                        value={toDate}
-                        onChange={(newValue) => setToDate(newValue)}
-                        format="MM/DD/YY"
-                        slotProps={datePickerSlotProps('MM/DD/YY')}
-                      />
-                    </Stack>
                     <Stack spacing={0.5} sx={{ flex: 1 }}>
                       <Typography variant="subtitle2" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
                         From
@@ -625,16 +1235,64 @@ export default function Imaging() {
                         slotProps={datePickerSlotProps('MM/DD/YY')}
                       />
                     </Stack>
+                    <Stack spacing={0.5} sx={{ flex: 1 }}>
+                      <Typography variant="subtitle2" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
+                        To
+                      </Typography>
+                      <DatePicker
+                        value={toDate}
+                        onChange={(newValue) => setToDate(newValue)}
+                        format="MM/DD/YY"
+                        slotProps={datePickerSlotProps('MM/DD/YY')}
+                      />
+                    </Stack>
                   </Stack>
                 </LocalizationProvider>
 
                 <TableContainer
                   sx={{
-                    maxHeight: 360,
+                    // Taller table — 600px gives 10 typical rows
+                    // (header ~52px + ~52px per row) breathing room
+                    // and lets the user see the full page without
+                    // immediately scrolling. The maxHeight still
+                    // caps it on shorter viewports so the table
+                    // doesn't shove the description card / paginator
+                    // off-screen.
+                    maxHeight: 600,
+                    // overflow-y: scroll (not 'auto') forces the
+                    // vertical scrollbar to render even when the
+                    // body is short enough not to need scrolling —
+                    // per product requirement, the scrollbar is
+                    // always visible inside this table.
+                    overflowY: 'scroll',
                     backgroundColor: 'transparent',
                     border: imagingTableBorder,
                     borderRadius: 1,
                     boxShadow: '0 11px 19px 1px #0000002e',
+                    // Themed scrollbar — matches the recipe used by
+                    // sensor-measurements / sensor-network / privacy
+                    // modal so the scrollbar reads as part of the
+                    // same chrome vocabulary across the app.
+                    //
+                    // Firefox uses `scrollbarWidth` + `scrollbarColor`;
+                    // WebKit (Safari + Chrome) uses ::-webkit-scrollbar
+                    // pseudo-elements. Specifying both covers every
+                    // evergreen browser.
+                    scrollbarWidth: 'thin',
+                    scrollbarColor: 'rgba(0, 68, 143, 0.6) transparent',
+                    '&::-webkit-scrollbar': { width: '8px' },
+                    '&::-webkit-scrollbar-track': { background: 'transparent' },
+                    '&::-webkit-scrollbar-thumb': {
+                      backgroundColor: 'rgba(0, 68, 143, 0.6)',
+                      borderRadius: '4px',
+                      // Brighter on hover so the user gets an active
+                      // affordance when they reach for the bar — same
+                      // hover treatment the sensor-measurements
+                      // scroll containers use.
+                      '&:hover': {
+                        backgroundColor: 'rgba(0, 68, 143, 0.85)'
+                      }
+                    },
                     '& .MuiTable-root': { backgroundColor: 'transparent' },
                     '& .MuiTableHead-root': {
                       backgroundColor: imagingTableHeaderBg,
@@ -644,7 +1302,6 @@ export default function Imaging() {
                     '& .MuiTableCell-stickyHeader': {
                       backgroundColor: `${imagingTableHeaderBg} !important`,
                       borderBottom: '1px solid var(--reflected-light) !important'
-                      // boxShadow: 'inset 0 -1px 0 red'
                     },
                     '& .MuiTableBody-root': { backgroundColor: 'transparent' }
                   }}
@@ -688,14 +1345,26 @@ export default function Imaging() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {paginatedRows.length === 0 ? (
+                      {showingFullPageSpinner ? (
+                        <TableRow>
+                          <TableCell colSpan={5} align="center" sx={{ color: 'var(--blue)', py: 4 }}>
+                            <CircularProgress size={24} sx={{ color: 'var(--green)' }} />
+                          </TableCell>
+                        </TableRow>
+                      ) : imagesError ? (
+                        <TableRow>
+                          <TableCell colSpan={5} align="center" sx={{ color: 'var(--critical, #ff5c5c)' }}>
+                            Could not load images. Please refresh or try again later.
+                          </TableCell>
+                        </TableRow>
+                      ) : pageRows.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={5} align="center" sx={{ color: 'var(--blue)' }}>
-                            No images found for the selected range.
+                            {hasNoDevice ? 'No PheNode found on this account yet.' : 'No images found for the selected range.'}
                           </TableCell>
                         </TableRow>
                       ) : (
-                        paginatedRows.map((row) => {
+                        pageRows.map((row) => {
                           const isSelected = selectedRows.includes(row.id);
 
                           return (
@@ -733,7 +1402,7 @@ export default function Imaging() {
                                 />
                               </TableCell>
                               <TableCell align="center" sx={{ color: 'var(--green)' }}>
-                                {row.imageName}
+                                {row.name}
                               </TableCell>
                               <TableCell align="center" sx={{ color: 'var(--green)' }}>
                                 {row.date}
@@ -746,6 +1415,7 @@ export default function Imaging() {
                                   <Button
                                     variant="text"
                                     disableRipple
+                                    onClick={() => handleView(row)}
                                     sx={{
                                       minWidth: 0,
                                       px: 0.75,
@@ -767,6 +1437,8 @@ export default function Imaging() {
                                   <Button
                                     variant="text"
                                     disableRipple
+                                    onClick={() => handleDelete(row)}
+                                    disabled={deletingRowIds.includes(row.id)}
                                     sx={{
                                       minWidth: 0,
                                       px: 0.75,
@@ -777,10 +1449,13 @@ export default function Imaging() {
                                       '&:hover': {
                                         backgroundColor: 'transparent',
                                         color: 'var(--critical)'
+                                      },
+                                      '&.Mui-disabled': {
+                                        color: 'var(--med-grey)'
                                       }
                                     }}
                                   >
-                                    Delete
+                                    {deletingRowIds.includes(row.id) ? 'Deleting…' : 'Delete'}
                                   </Button>
                                 </Stack>
                               </TableCell>
@@ -798,7 +1473,7 @@ export default function Imaging() {
                   sx={{ justifyContent: 'space-between', alignItems: 'center' }}
                 >
                   <Typography variant="caption" sx={{ color: 'var(--blue)' }}>
-                    {`Showing ${paginatedRows.length} of ${filteredRows.length} images`}
+                    {`Showing ${pageRows.length} of ${apiTotal ?? 0} images`}
                   </Typography>
                   <Pagination
                     page={page}
@@ -823,6 +1498,120 @@ export default function Imaging() {
           </Grid>
         </Grid>
       </Box>
+
+      {/*
+        Themed delete confirmation. Replaces the original
+        window.confirm(): same destructive-action contract (Continue
+        button shows critical hover-color, OFF by default), shares
+        the project's neon-on-navy paper / blur-backdrop chrome with
+        ConfirmRenameModal, and lets the success/error path flow
+        through the toast surface below.
+      */}
+      <ConfirmActionModal
+        open={Boolean(pendingDeleteRow)}
+        title="Delete image?"
+        description="This will permanently remove the image from this PheNode."
+        itemBadgeLabel="Filename"
+        itemBadgeValue={pendingDeleteRow?.name}
+        confirmLabel="Delete"
+        confirmTone="critical"
+        submittingLabel="Deleting…"
+        onConfirm={runDelete}
+        onCancel={() => setPendingDeleteRow(null)}
+      />
+
+      {/*
+        View dialog — opens when a row's "View" button is clicked.
+        Mirrors the carousel's lazy-fetch pattern: if the row already
+        carries an s3_url we render it immediately; otherwise we
+        show a spinner while useImageDetail fetches the base64
+        payload from /images/{id}.
+
+        Paper styling matches the neon-on-navy popper surfaces used
+        elsewhere (DatePicker popper, sensor-measurements DateTimePicker)
+        so the affordance reads as part of the same vocabulary.
+      */}
+      <Dialog
+        open={Boolean(viewingImage)}
+        onClose={() => setViewingImage(null)}
+        maxWidth="lg"
+        fullWidth
+        slotProps={{
+          paper: {
+            sx: {
+              backgroundColor: 'rgba(0, 20, 61, 0.96)',
+              backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))',
+              border: '1px solid var(--reflected-light)',
+              boxShadow: '0 11px 19px 1px #0000002e',
+              color: 'var(--green)'
+            }
+          }
+        }}
+      >
+        <DialogTitle
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            color: 'var(--blue)',
+            borderBottom: '1px solid var(--reflected-light)',
+            py: 1.5
+          }}
+        >
+          <Stack spacing={0.25}>
+            <Typography variant="subtitle1" sx={{ color: 'var(--green)', fontWeight: 600 }}>
+              {viewingImage?.name || 'Image'}
+            </Typography>
+            {viewingImage && (
+              <Typography variant="caption" sx={{ color: 'var(--blue)' }}>
+                {viewingImage.date} | {viewingImage.time}
+              </Typography>
+            )}
+          </Stack>
+          <IconButton
+            aria-label="close image preview"
+            onClick={() => setViewingImage(null)}
+            sx={{
+              color: 'var(--blue)',
+              '&:hover': { color: 'var(--green)', backgroundColor: 'rgba(72, 247, 245, 0.08)' }
+            }}
+          >
+            <AntIcon icon={CloseOutlined} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: { xs: 240, sm: 360 },
+            p: { xs: 2, sm: 3 }
+          }}
+        >
+          {viewDialogNeedsDetail && viewDetailLoading ? (
+            <CircularProgress sx={{ color: 'var(--green)' }} />
+          ) : viewDialogSrc ? (
+            <Box
+              component="img"
+              src={viewDialogSrc}
+              alt={viewingImage?.name || ''}
+              sx={{
+                width: 'auto',
+                height: 'auto',
+                maxWidth: '100%',
+                maxHeight: '80vh',
+                objectFit: 'contain',
+                border: '1px solid var(--reflected-light)',
+                borderRadius: 1
+              }}
+            />
+          ) : (
+            <Typography variant="body2" sx={{ color: 'var(--blue)' }}>
+              Preview unavailable for this image.
+            </Typography>
+          )}
+        </DialogContent>
+      </Dialog>
     </MainCard>
   );
 }

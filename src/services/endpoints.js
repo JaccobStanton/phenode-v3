@@ -41,7 +41,40 @@ const API = {
     //   bucketed → { time, temperature_min, temperature_max, temperature_avg, ... }
     //
     // Source: phenodeX/phenode_backend/api/devices/routes.py:823
-    sensorData: (externalDeviceId) => `/devices/${externalDeviceId}/sensor-data`
+    sensorData: (externalDeviceId) => `/devices/${externalDeviceId}/sensor-data`,
+    // GET — paginated list of images captured by a device, newest first.
+    // Required path param: external_device_id. Optional query params:
+    //   page       (default 1, min 1)
+    //   page_size  (default 25, min 1, max 100)
+    //   from       (ISO-8601 — filter to images at/after this timestamp)
+    //   to         (ISO-8601 — filter to images at/before this timestamp)
+    //
+    // Response shape (ImageListResponse):
+    //   {
+    //     images: [{ id, device_id, timestamp, latitude, longitude,
+    //                filename, s3_url, has_data }],
+    //     page, page_size, total
+    //   }
+    //
+    // The list endpoint returns *metadata only* — no base64 payload — so
+    // it stays cheap to page. Use `imageDetail` to pull the full
+    // base64-encoded body for a single image.
+    //
+    // Source: phenodeX/phenode_backend/api/devices/routes.py:572
+    images: (externalDeviceId) => `/devices/${externalDeviceId}/images`,
+    // GET — single image with `base64encoded` payload included
+    // (ImageDetail extends ImageRead with `base64encoded`). Use when the
+    // carousel/lightbox needs to display a thumbnail-less image that has
+    // no `s3_url`.
+    // Source: phenodeX/phenode_backend/api/devices/routes.py:649
+    imageDetail: (externalDeviceId, imageId) => `/devices/${externalDeviceId}/images/${imageId}`,
+    // DELETE — remove a single image identified by its filename. The
+    // backend requires ADMIN role (require_role('ADMIN')) — non-admin
+    // callers will receive 403. URL-encode the filename so values
+    // containing reserved characters survive the path segment.
+    // Source: phenodeX/phenode_backend/api/devices/routes.py:795
+    imageDeleteByFilename: (externalDeviceId, filename) =>
+      `/devices/${externalDeviceId}/images/delete-by-filename/${encodeURIComponent(filename)}`
   },
   wirelessSensors: {
     // GET — { success, sensors: WirelessSensorListItem[] } visible to current user.

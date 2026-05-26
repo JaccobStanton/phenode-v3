@@ -55,6 +55,27 @@ body {
   background-image: none;
 }
 
+/*
+  Reserve the vertical scrollbar's gutter ALWAYS, even when no
+  scrollbar is needed. Without this, the scrollbar pops in the
+  instant a page's content grows past viewport height (e.g. a
+  carousel image finishing its decode) and pops back out when it
+  shrinks — each toggle steals or restores ~15px from the right
+  edge of every element on the page, which reads visually as the
+  whole layout "shrinking from the right then returning."
+
+  `scrollbar-gutter: stable` is the browser-native fix: the gutter
+  width is reserved up front, the scrollbar simply appears or
+  disappears inside its already-reserved slot, and nothing else
+  on the page reflows. Supported in all evergreen browsers
+  (Chrome 94+, Firefox 97+, Safari 18.2+). For older Safari,
+  `overflow-y: scroll` would be the fallback (always show the
+  scrollbar) — but we're well past that compatibility bar.
+*/
+html {
+  scrollbar-gutter: stable;
+}
+
 #root {
   background-color: var(--midnight-blue);
 }
