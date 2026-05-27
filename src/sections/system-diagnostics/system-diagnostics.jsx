@@ -1,6 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 
-import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import FormControl from '@mui/material/FormControl';
 import Grid from '@mui/material/Grid';
@@ -8,16 +7,42 @@ import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import Stack from '@mui/material/Stack';
-import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { LineChart } from '@mui/x-charts/LineChart';
 
 import MainCard from 'components/MainCard';
+import PhenodeSelector from 'components/PhenodeSelector';
 import { useSelection } from 'contexts/SelectionContext';
 import useMyDevices from 'hooks/data/useMyDevices';
-import phenodeDiagram from 'assets/diagrams/Phenode-Diagram.svg';
+// Colorless wireframe base — the sensor pieces below carry all the color
+// (green = Active, purple = Inactive), so the base art stays neutral and only
+// the lit/unlit pieces communicate state. Shares the same 390.8 x 253.8
+// viewBox as every piece, so the layers still register exactly.
+import phenodeDiagram from 'assets/diagnostics/Diagnosics_Wireframe.svg';
 import wirelessSensorsDiagram from 'assets/diagrams/Wireless-Sensors.svg';
+
+// Per-sensor diagram pieces. Each sensor has an Active (green) and an
+// Inactive (purple) variant exported from the same Illustrator artboard, so
+// every file shares the base diagram's viewBox (0 0 390.8 253.8). That shared
+// coordinate space is what lets us stack a piece directly over the base art
+// and have it register pixel-for-pixel — see the overlay block in the diagram
+// card below. The status card for each sensor decides which variant renders.
+import rainActive from 'assets/diagnostics/Rain_Active.svg';
+import rainInactive from 'assets/diagnostics/Rain_Inactive.svg';
+import cameraActive from 'assets/diagnostics/Camera_Active.svg';
+import cameraInactive from 'assets/diagnostics/Camera_Inactive.svg';
+import solarRadiationActive from 'assets/diagnostics/Solar_Radiation_Active.svg';
+import solarRadiationInactive from 'assets/diagnostics/Solar_Radiation_Inactive.svg';
+import soilActive from 'assets/diagnostics/Soil_Active.svg';
+import soilInactive from 'assets/diagnostics/Soil_Inactive.svg';
+import windActive from 'assets/diagnostics/Wind_Active.svg';
+import windInactive from 'assets/diagnostics/Wind_Inactive.svg';
+import airLightActive from 'assets/diagnostics/WS_Active.svg';
+import airLightInactive from 'assets/diagnostics/WS_Inactive.svg';
+// Control box is always-on — it has no Inactive variant and isn't tied to a
+// status card, so it renders as a permanent lit layer over the base art.
+import controlBoxActive from 'assets/diagnostics/Control_Box_Active.svg';
 
 import AntIcon from 'components/AntIcon';
 import ClockCircleOutlined from '@ant-design/icons-svg/lib/asn/ClockCircleOutlined';
@@ -29,9 +54,6 @@ import {
   glassSurfaceSx,
   reflectedCardChromeSx,
   drfSurfaceSx,
-  neonControlSx,
-  neonMenuPaperSx,
-  neonMenuItemSx,
   orientationButtonSx,
   tooltipSlotProps,
   neonSelectMenuPaperProps
@@ -48,14 +70,76 @@ const chartSurfaceSx = {
 // Module-scope constants - hoisted to avoid being re-created every render.
 const signalBarHeights = [12, 18, 24, 30];
 
+// Single source of truth for the six sensor states. Each entry drives BOTH
+// the status card at the bottom of the page AND the matching piece overlaid on
+// the diagram, so a card that reads "Active" and its lit-up diagram piece can
+// never disagree — they read the same `status`. `activeSvg` / `inactiveSvg`
+// are the green/purple variants for that sensor. When this flips to live data,
+// only `status` needs to change; the SVG wiring stays put.
 const sensorStatusCards = [
-  { title: 'Rainfall', status: 'Inactive', statusColor: 'var(--purple)', notchColor: 'var(--purple)' },
-  { title: 'Camera', status: 'Active', statusColor: 'var(--green)', notchColor: 'var(--green)' },
-  { title: 'Solar Radiation', status: 'Inactive', statusColor: 'var(--purple)', notchColor: 'var(--purple)' },
-  { title: 'Soil', status: 'Inactive', statusColor: 'var(--purple)', notchColor: 'var(--purple)' },
-  { title: 'Air & Light', status: 'Active', statusColor: 'var(--green)', notchColor: 'var(--green)' },
-  { title: 'Wind', status: 'Inactive', statusColor: 'var(--purple)', notchColor: 'var(--purple)' }
+  {
+    title: 'Rainfall',
+    status: 'Inactive',
+    statusColor: 'var(--purple)',
+    notchColor: 'var(--purple)',
+    activeSvg: rainActive,
+    inactiveSvg: rainInactive
+  },
+  {
+    title: 'Camera',
+    status: 'Active',
+    statusColor: 'var(--green)',
+    notchColor: 'var(--green)',
+    activeSvg: cameraActive,
+    inactiveSvg: cameraInactive
+  },
+  {
+    title: 'Solar Radiation',
+    status: 'Inactive',
+    statusColor: 'var(--purple)',
+    notchColor: 'var(--purple)',
+    activeSvg: solarRadiationActive,
+    inactiveSvg: solarRadiationInactive
+  },
+  {
+    title: 'Soil',
+    status: 'Inactive',
+    statusColor: 'var(--purple)',
+    notchColor: 'var(--purple)',
+    activeSvg: soilActive,
+    inactiveSvg: soilInactive
+  },
+  {
+    title: 'Air & Light',
+    status: 'Active',
+    statusColor: 'var(--green)',
+    notchColor: 'var(--green)',
+    activeSvg: airLightActive,
+    inactiveSvg: airLightInactive
+  },
+  {
+    title: 'Wind',
+    status: 'Inactive',
+    statusColor: 'var(--purple)',
+    notchColor: 'var(--purple)',
+    activeSvg: windActive,
+    inactiveSvg: windInactive
+  }
 ];
+
+// Shared style for every layer in the diagram stack (the base art plus each
+// sensor piece). Because all SVGs share the same viewBox, giving every layer
+// the same box and `objectFit: contain` makes them line up exactly. The pieces
+// are decorative echoes of the status cards, so they're inert to pointer +
+// screen-reader.
+const diagramLayerSx = {
+  position: 'absolute',
+  inset: 0,
+  width: '100%',
+  height: '100%',
+  objectFit: 'contain',
+  pointerEvents: 'none'
+};
 
 const graphCards = [
   {
@@ -84,15 +168,10 @@ export default function SystemDiagnostics() {
 
   // PheNode selection is shared app-wide via SelectionContext, so the device
   // chosen here (or on any other page) stays put until the user changes it or
-  // logs out. Options come from the live device list rather than the old mock
-  // string array, so the dropdown reflects the user's real fleet.
-  const { devices } = useMyDevices();
+  // logs out. The shared PhenodeSelector takes the raw device list and the
+  // selected id directly, so the page no longer pre-shapes an options array.
+  const { devices, isLoading: devicesLoading } = useMyDevices();
   const { selectedPheNodeId, selectPheNode } = useSelection() ?? {};
-  const phenodeOptions = useMemo(
-    () => (devices ?? []).map((d) => ({ id: d.external_device_id, label: d.label || d.external_device_id })),
-    [devices]
-  );
-  const selectedPheNodeOption = phenodeOptions.find((o) => o.id === selectedPheNodeId) ?? null;
 
   return (
     <MainCard content={false} sx={{ overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
@@ -131,7 +210,28 @@ export default function SystemDiagnostics() {
         </Stack>
       </Box>
 
-      <Box sx={{ p: { xs: 2, sm: 3 } }}>
+      {/*
+        PheNode picker row — lifted out of the diagram card and back up to the
+        top-left, directly under the title divider, so this page's device
+        dropdown sits in the same spot (and uses the same shared
+        PhenodeSelector chrome) as imaging / sensor-measurements. It still
+        drives the app-wide SelectionContext, so the choice persists across
+        pages. `label={null}` because the "Diagnostics" title above already
+        provides the context.
+      */}
+      <Box sx={{ px: { xs: 2, sm: 3 }, pt: 0, pb: { xs: 1.5, sm: 2 } }}>
+        <Stack direction="row" sx={{ justifyContent: 'flex-start', alignItems: 'center', gap: 1 }}>
+          <PhenodeSelector
+            devices={devices}
+            selectedDeviceId={selectedPheNodeId}
+            onChange={(id) => selectPheNode?.(id ?? null)}
+            isLoading={devicesLoading}
+            label={null}
+          />
+        </Stack>
+      </Box>
+
+      <Box sx={{ p: { xs: 2, sm: 3 }, pt: 0 }}>
         <Grid container spacing={2.5} sx={{ alignItems: 'stretch' }}>
           <Grid size={{ xs: 12, lg: 2 }}>
             <Box
@@ -208,84 +308,27 @@ export default function SystemDiagnostics() {
               }}
             >
               <Stack spacing={1.25} sx={{ width: '100%', height: '100%' }}>
-                <Stack
-                  direction={{ xs: 'column', sm: 'row' }}
-                  spacing={{ xs: 0, sm: 1.25 }}
-                  sx={{ width: '100%', alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between' }}
+                {/*
+                  MAC address — now centered above the diagram. It used to
+                  share this row with the device dropdown; with the dropdown
+                  lifted up to the page header, the MAC stands on its own and
+                  reads centered over the SVG. (sm+ only — the xs layout keeps
+                  the dedicated mobile MAC line below the diagram.)
+                */}
+                <Typography
+                  variant="body1"
+                  sx={{ display: { xs: 'none', sm: 'block' }, textAlign: 'center', fontWeight: 600, width: '100%' }}
                 >
-                  <Box sx={{ width: { xs: '100%', sm: 'clamp(250px, 44%, 380px)' }, flex: '0 1 auto' }}>
-                    <Autocomplete
-                      options={phenodeOptions}
-                      value={selectedPheNodeOption}
-                      onChange={(_, newValue) => selectPheNode?.(newValue?.id ?? null)}
-                      getOptionLabel={(option) => option?.label ?? ''}
-                      isOptionEqualToValue={(option, val) => option?.id === val?.id}
-                      sx={{ width: '100%' }}
-                      renderInput={(params) => (
-                        <TextField
-                          {...params}
-                          placeholder="Select PheNode..."
-                          size="small"
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
-                              ...neonControlSx,
-                              '& .MuiOutlinedInput-notchedOutline': {
-                                border: 'none'
-                              },
-                              '&.Mui-focused': {
-                                borderColor: 'var(--blue)'
-                              }
-                            },
-                            '& .MuiInputBase-input': {
-                              color: 'var(--green)',
-                              '&::placeholder': {
-                                color: 'var(--green)',
-                                opacity: 1
-                              }
-                            },
-                            '& .MuiSvgIcon-root': {
-                              color: 'var(--blue)'
-                            }
-                          }}
-                        />
-                      )}
-                      slotProps={{
-                        paper: {
-                          sx: neonMenuPaperSx
-                        },
-                        listbox: {
-                          sx: {
-                            p: 0.5,
-                            '& .MuiAutocomplete-option': {
-                              ...neonMenuItemSx
-                            }
-                          }
-                        }
-                      }}
-                    />
+                  <Box component="span" sx={{ color: 'var(--blue)' }}>
+                    [ MAC ADDR:
+                  </Box>{' '}
+                  <Box component="span" sx={{ color: 'var(--green)', textShadow: '0 1px 9px #1a75e0c9' }}>
+                    E3:45:2C:89:B6
+                  </Box>{' '}
+                  <Box component="span" sx={{ color: 'var(--blue)' }}>
+                    ]
                   </Box>
-
-                  <Typography
-                    variant="body1"
-                    sx={{
-                      display: { xs: 'none', sm: 'block' },
-                      textAlign: 'right',
-                      fontWeight: 600,
-                      width: { sm: 'clamp(250px, 44%, 380px)' },
-                      flex: '0 1 auto'
-                    }}
-                  >
-                    <Box component="span" sx={{ color: 'var(--blue)' }}>
-                      [ MAC ADDR:
-                    </Box>{' '}
-                    <Box component="span" sx={{ color: 'var(--green)', textShadow: '0 1px 9px #1a75e0c9' }}>
-                      E3:45:2C:89:B6
-                    </Box>{' '}
-                    <Box component="span" sx={{ color: 'var(--blue)' }}>
-                      ]
-                    </Box>
-                  </Typography>
-                </Stack>
+                </Typography>
 
                 <Box
                   sx={{
@@ -295,17 +338,39 @@ export default function SystemDiagnostics() {
                     justifyContent: 'center'
                   }}
                 >
+                  {/*
+                    Diagram stack. The sizing/transform that used to live on
+                    the <img> now lives on this relative wrapper, and an
+                    explicit aspectRatio (the SVGs' 390.8 x 253.8 viewBox)
+                    gives it a definite height. The base art and every sensor
+                    piece are absolutely-positioned children filling the
+                    wrapper with the same objectFit, so they all share one box
+                    and register exactly. Moving the transform up here keeps
+                    every layer shifted together.
+                  */}
                   <Box
-                    component="img"
-                    src={phenodeDiagram}
-                    alt="Phenode system diagram"
                     sx={{
+                      position: 'relative',
                       width: { xs: '90%', sm: '88%', md: '88%', lg: '92%', xl: '94%' },
+                      aspectRatio: '390.8 / 253.8',
                       maxHeight: { md: 390, lg: 490, xl: 590 },
-                      objectFit: 'contain',
                       transform: { xs: 'translateX(20px)', md: 'translateX(12px)', xl: 'translateX(42px)' }
                     }}
-                  />
+                  >
+                    <Box component="img" src={phenodeDiagram} alt="Phenode system diagram" sx={diagramLayerSx} />
+                    {/* Always-active control box — no state toggle, drawn over the base art. */}
+                    <Box component="img" src={controlBoxActive} alt="" aria-hidden="true" sx={diagramLayerSx} />
+                    {sensorStatusCards.map((card) => (
+                      <Box
+                        key={`${card.title}-layer`}
+                        component="img"
+                        src={card.status === 'Active' ? card.activeSvg : card.inactiveSvg}
+                        alt=""
+                        aria-hidden="true"
+                        sx={diagramLayerSx}
+                      />
+                    ))}
+                  </Box>
                 </Box>
 
                 <Typography
