@@ -31,6 +31,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import MainCard from 'components/MainCard';
 import ConfirmActionModal from 'components/ConfirmActionModal';
 import PhenodeSelector from 'components/PhenodeSelector';
+import { useSelection } from 'contexts/SelectionContext';
 import useMyDevices from 'hooks/data/useMyDevices';
 import useDeviceImages from 'hooks/data/useDeviceImages';
 import useImageDetail from 'hooks/data/useImageDetail';
@@ -288,58 +289,34 @@ export default function Imaging() {
   const rowsPerPage = IMAGES_PER_PAGE;
 
   // -----------------------------------------------------------------
-  // Device selection — URL-first with a frozen recency fallback.
+  // Device selection — shared, session-scoped (see SelectionContext).
   //
-  // This is a direct copy of the pattern in sensor-measurements.jsx so
-  // a deep-link like /imaging?device=<external_id> lands the user on
-  // the correct PheNode, AND a bare /imaging visit lands them on the
-  // most-recently-reporting device on their account. The pattern:
+  // The recency default + per-page freeze that used to live here moved
+  // up to SelectionContext so the Imaging page shares ONE selection with
+  // every other device page: a PheNode picked on Sensor Measurements,
+  // Wireless Sensors, or System Diagnostics shows up here too, and a pick
+  // made here carries back to them. It only resets on logout.
   //
-  //   1. `defaultPhenodeId` — most-recently-reporting device, recomputed
-  //      whenever the devices list changes (60s SWR poll could shift
-  //      this).
-  //   2. `frozenDefaultPhenodeId` — one-shot capture of the first
-  //      non-null `defaultPhenodeId`. Without this freeze, a 60s SWR
-  //      poll that returns a different "most recent" device would yank
-  //      the user's selection out from under them mid-look. The freeze
-  //      naturally resets when the page unmounts (e.g. navigating away
-  //      and back).
-  //   3. `externalDeviceId` — what we actually use. URL value wins IF
-  //      it matches a real device; otherwise we fall back to the frozen
-  //      default. A URL pointing at a deleted device falls through to
-  //      the default rather than rendering nothing.
+  // The URL `?device=` stays as a deep-link entry point + shareable
+  // mirror. A valid `?device=` is treated as an explicit pick and pushed
+  // into the shared selection (the bridge effect below); the dropdown
+  // change handler writes both the shared selection and the URL.
   // -----------------------------------------------------------------
   const { devices, isLoading: devicesLoading } = useMyDevices();
   const deviceFromUrl = searchParams.get(DEVICE_PARAM);
+  const { selectedPheNodeId, selectPheNode } = useSelection() ?? {};
 
-  const defaultPhenodeId = useMemo(() => {
-    if (!devices?.length) return null;
-    const byRecency = [...devices].sort((a, b) => {
-      const aTime = a?.last_measurement_at ? new Date(a.last_measurement_at).getTime() : -Infinity;
-      const bTime = b?.last_measurement_at ? new Date(b.last_measurement_at).getTime() : -Infinity;
-      return bTime - aTime;
-    });
-    return byRecency[0]?.external_device_id ?? null;
-  }, [devices]);
-
-  // Frozen copy of the recency default — captured exactly once on the
-  // first non-null evaluation, then held stable for the rest of the
-  // visit. See block comment above for the rationale (don't let a 60s
-  // poll re-pick the default).
-  const [frozenDefaultPhenodeId, setFrozenDefaultPhenodeId] = useState(null);
+  // Deep-link bridge — a valid `?device=` becomes the explicit shared
+  // selection. selectPheNode no-ops on an unchanged id, so re-running on
+  // every render is cheap.
   useEffect(() => {
-    if (defaultPhenodeId && !frozenDefaultPhenodeId) {
-      setFrozenDefaultPhenodeId(defaultPhenodeId);
-    }
-  }, [defaultPhenodeId, frozenDefaultPhenodeId]);
+    if (!devices || !deviceFromUrl) return;
+    const exists = devices.some((d) => d.external_device_id === deviceFromUrl);
+    if (exists) selectPheNode?.(deviceFromUrl);
+  }, [devices, deviceFromUrl, selectPheNode]);
 
-  const externalDeviceId = useMemo(() => {
-    if (deviceFromUrl) {
-      const exists = devices?.some((d) => d.external_device_id === deviceFromUrl);
-      if (exists) return deviceFromUrl;
-    }
-    return frozenDefaultPhenodeId;
-  }, [deviceFromUrl, devices, frozenDefaultPhenodeId]);
+  // What the page actually renders — simply the shared selection.
+  const externalDeviceId = selectedPheNodeId ?? null;
 
   // If the URL referenced a device that no longer exists in the fleet,
   // clean the param out so back/forward + reload don't keep pointing at
@@ -368,6 +345,9 @@ export default function Imaging() {
   // previous PheNode).
   const handlePhenodeChange = useCallback(
     (nextDeviceId) => {
+      // Record the explicit pick in the shared selection first so it sticks
+      // app-wide, then mirror it to the URL for shareability + back-button.
+      selectPheNode?.(nextDeviceId ?? null);
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         if (nextDeviceId) {
@@ -378,7 +358,7 @@ export default function Imaging() {
         return next;
       });
     },
-    [setSearchParams]
+    [setSearchParams, selectPheNode]
   );
 
   // Active DeviceRead for the resolved id — used by the description

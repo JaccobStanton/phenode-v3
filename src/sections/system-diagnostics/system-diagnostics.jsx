@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
@@ -14,6 +14,8 @@ import Typography from '@mui/material/Typography';
 import { LineChart } from '@mui/x-charts/LineChart';
 
 import MainCard from 'components/MainCard';
+import { useSelection } from 'contexts/SelectionContext';
+import useMyDevices from 'hooks/data/useMyDevices';
 import phenodeDiagram from 'assets/diagrams/Phenode-Diagram.svg';
 import wirelessSensorsDiagram from 'assets/diagrams/Wireless-Sensors.svg';
 
@@ -35,7 +37,6 @@ import {
   neonSelectMenuPaperProps
 } from 'themes/sx-tokens';
 import { timeRangeOptions } from 'data/mocks/time-ranges';
-import { pheNodeSelectionOptions } from 'data/mocks/phenode-options';
 
 // System diagnostics uses a slightly different chart surface (gradient + custom border).
 const chartSurfaceSx = {
@@ -79,8 +80,19 @@ const chartTimeLabels = ['0h', '3h', '6h', '9h', '12h', '15h', '18h', '24h'];
 export default function SystemDiagnostics() {
   const [timeRange, setTimeRange] = useState('Last 24 hours');
   const [chartLayout, setChartLayout] = useState('row');
-  const [selectedPheNode, setSelectedPheNode] = useState(null);
   const chartHeight = chartLayout === 'row' ? 228 : 258;
+
+  // PheNode selection is shared app-wide via SelectionContext, so the device
+  // chosen here (or on any other page) stays put until the user changes it or
+  // logs out. Options come from the live device list rather than the old mock
+  // string array, so the dropdown reflects the user's real fleet.
+  const { devices } = useMyDevices();
+  const { selectedPheNodeId, selectPheNode } = useSelection() ?? {};
+  const phenodeOptions = useMemo(
+    () => (devices ?? []).map((d) => ({ id: d.external_device_id, label: d.label || d.external_device_id })),
+    [devices]
+  );
+  const selectedPheNodeOption = phenodeOptions.find((o) => o.id === selectedPheNodeId) ?? null;
 
   return (
     <MainCard content={false} sx={{ overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
@@ -203,9 +215,11 @@ export default function SystemDiagnostics() {
                 >
                   <Box sx={{ width: { xs: '100%', sm: 'clamp(250px, 44%, 380px)' }, flex: '0 1 auto' }}>
                     <Autocomplete
-                      options={pheNodeSelectionOptions}
-                      value={selectedPheNode}
-                      onChange={(_, newValue) => setSelectedPheNode(newValue)}
+                      options={phenodeOptions}
+                      value={selectedPheNodeOption}
+                      onChange={(_, newValue) => selectPheNode?.(newValue?.id ?? null)}
+                      getOptionLabel={(option) => option?.label ?? ''}
+                      isOptionEqualToValue={(option, val) => option?.id === val?.id}
                       sx={{ width: '100%' }}
                       renderInput={(params) => (
                         <TextField

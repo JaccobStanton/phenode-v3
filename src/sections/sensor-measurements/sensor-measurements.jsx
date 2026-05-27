@@ -26,6 +26,7 @@ import DownloadOutlined from '@ant-design/icons-svg/lib/asn/DownloadOutlined';
 import ChartGlowDefs from 'components/ChartGlowDefs';
 import MainCard from 'components/MainCard';
 import PhenodeSelector from 'components/PhenodeSelector';
+import { useSelection } from 'contexts/SelectionContext';
 // PheNodeFleetMap is lazy-loaded so the @vis.gl/react-google-maps wrapper
 // (and the Google Maps JS API runtime it pulls in at use-time) only
 // parses for users who actually open the map view. Most users on this
@@ -1008,64 +1009,28 @@ export default function SensorMeasurements() {
   const toast = useToast();
   const [downloading, setDownloading] = useState(false);
 
-  // Most-recently-reporting PheNode — used as the fallback selection
-  // when the URL doesn't carry a device id (e.g. the user navigated
-  // here directly via the sidebar rather than clicking a fleet card).
-  //
-  // -Infinity fallback for devices that have never reported keeps
-  // them from incorrectly "winning" the recency race against a peer
-  // with a real last_measurement_at. Mirrors the same sort comparator
-  // used in sensor-fleet-overview.jsx and FleetOverviewView's default
-  // recency sort, so the "default device" surfaced here is the same
-  // one that sits at the top of the fleet list.
-  const defaultPhenodeId = useMemo(() => {
-    if (!devices?.length) return null;
-    const byRecency = [...devices].sort((a, b) => {
-      const aTime = a.last_measurement_at ? new Date(a.last_measurement_at).getTime() : -Infinity;
-      const bTime = b.last_measurement_at ? new Date(b.last_measurement_at).getTime() : -Infinity;
-      return bTime - aTime;
-    });
-    return byRecency[0]?.external_device_id ?? null;
-  }, [devices]);
+  // Cross-page device selection. The session-scoped SelectionContext now
+  // owns BOTH the explicit pick and the frozen most-recent fallback (it used
+  // to be a per-page freeze here, which reset on every navigation and let a
+  // device that reported mid-navigation swap the selection out from under the
+  // user). The page renders from `selectedPheNodeId`; the URL `?device=` is
+  // kept as a deep-link entry point + shareable mirror, not an independent
+  // source of truth.
+  const { selectedPheNodeId, selectPheNode } = useSelection() ?? {};
 
-  // FROZEN copy of the recency default — captured exactly once on the
-  // first non-null evaluation, then held stable for the rest of the
-  // page visit. Without this, every 60s SWR poll could shift
-  // `activeDeviceId` (and therefore the whole page's selection,
-  // including the map's selected pin and the chart panel's device
-  // data) to whatever device just became most-recently-reporting —
-  // yanking the user's view out from under them mid-look.
-  //
-  // The freeze persists only as long as the component is mounted —
-  // when the user navigates away and back, the component unmounts and
-  // remounts, state resets, and the next visit captures whichever
-  // device is most-recent at that moment. Matches the requested
-  // behavior: "only update to the most-recent when the user leaves
-  // the page."
-  //
-  // URL deep-link (deviceFromUrl) still wins over the frozen default
-  // — the freeze is only the fallback when no URL is present.
-  const [frozenDefaultPhenodeId, setFrozenDefaultPhenodeId] = useState(null);
+  // Deep-link bridge — a valid `?device=` is treated as an explicit pick and
+  // pushed into the shared selection, so a fleet-card click / shared URL /
+  // back-button navigation drives the same session selection every other
+  // page reads. selectPheNode no-ops when the id is unchanged (React bails on
+  // an equal setState), so re-running this on every render is cheap.
   useEffect(() => {
-    if (defaultPhenodeId && !frozenDefaultPhenodeId) {
-      setFrozenDefaultPhenodeId(defaultPhenodeId);
-    }
-  }, [defaultPhenodeId, frozenDefaultPhenodeId]);
+    if (!devices || !deviceFromUrl) return;
+    const exists = devices.some((d) => d.external_device_id === deviceFromUrl);
+    if (exists) selectPheNode?.(deviceFromUrl);
+  }, [devices, deviceFromUrl, selectPheNode]);
 
-  // Resolve the active device id, preferring the URL value but falling
-  // back to the FROZEN recency-default (not the live one — see the
-  // frozenDefaultPhenodeId comment above). We tolerate a URL value
-  // that no longer matches any device (e.g. the user deep-linked an
-  // external_id that's since been removed) by treating the unmatched
-  // case the same as "no URL value" and falling through to the
-  // frozen default.
-  const activeDeviceId = useMemo(() => {
-    if (deviceFromUrl) {
-      const exists = devices?.some((d) => d.external_device_id === deviceFromUrl);
-      if (exists) return deviceFromUrl;
-    }
-    return frozenDefaultPhenodeId;
-  }, [deviceFromUrl, devices, frozenDefaultPhenodeId]);
+  // The active device id is simply the shared selection.
+  const activeDeviceId = selectedPheNodeId ?? null;
 
   // If the URL referenced a device that no longer exists in the fleet,
   // clean the param out of the URL so back/forward + reload don't keep
@@ -1107,6 +1072,11 @@ export default function SensorMeasurements() {
   // entry. Back button takes the user to the previously-selected device.
   const handlePhenodeChange = useCallback(
     (nextDeviceId) => {
+      // Record the explicit pick in the shared selection first so it sticks
+      // app-wide (every page + a hard refresh) regardless of the URL...
+      selectPheNode?.(nextDeviceId ?? null);
+      // ...then mirror it to the URL so the selection stays shareable and the
+      // back button walks between previously-selected devices.
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         if (nextDeviceId) {
@@ -1117,7 +1087,7 @@ export default function SensorMeasurements() {
         return next;
       });
     },
-    [setSearchParams]
+    [setSearchParams, selectPheNode]
   );
 
   // The three circles' content is fully derived from the active

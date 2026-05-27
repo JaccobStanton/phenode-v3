@@ -12,6 +12,7 @@ import Footer from './Footer';
 import ErrorBoundary from 'components/ErrorBoundary';
 import Loader from 'components/Loader';
 import Breadcrumbs from 'components/@extended/Breadcrumbs';
+import { SelectionProvider } from 'contexts/SelectionContext';
 
 import { useDrawerToggle, useGetMenuMaster } from 'api/menu';
 import useConfig from 'hooks/useConfig';
@@ -65,15 +66,26 @@ export default function DashboardLayout() {
             }}
           >
             {/*
+              SelectionProvider wraps the ErrorBoundary (NOT the other way
+              around) on purpose. The boundary is keyed by location.pathname
+              so it remounts on every navigation; if the provider sat inside
+              it, the shared device selection would be torn down and rebuilt
+              on each page change — defeating the whole point of a session-
+              persistent selection. Mounted here, above the keyed boundary
+              and inside the long-lived DashboardLayout, the provider stays
+              alive across in-app navigation and only resets on logout.
+
               key={location.pathname} resets the boundary on route change.
               Without it, an error on /fleet-overview would persist when
               the user clicks a different page in the drawer — they'd see
               the fallback on every page until reload. With the key, each
               navigation gets a fresh boundary instance.
             */}
-            <ErrorBoundary key={location.pathname}>
-              <Outlet />
-            </ErrorBoundary>
+            <SelectionProvider>
+              <ErrorBoundary key={location.pathname}>
+                <Outlet />
+              </ErrorBoundary>
+            </SelectionProvider>
           </Box>
           <Footer />
         </Box>

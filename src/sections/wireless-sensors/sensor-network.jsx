@@ -27,6 +27,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import ChartGlowDefs from 'components/ChartGlowDefs';
 import ConfirmRenameModal from 'components/ConfirmRenameModal';
 import MainCard from 'components/MainCard';
+import { useSelection } from 'contexts/SelectionContext';
 import WirelessSensorFleetMap from 'sections/wireless-sensors/wireless-sensor-fleet-map';
 import useAuth from 'hooks/useAuth';
 import useDisplayPreferences from 'hooks/useDisplayPreferences';
@@ -757,12 +758,17 @@ export default function SensorNetwork() {
     [setSearchParams]
   );
 
-  // PheNode + sensor selection. Both start as `undefined` (the
-  // "uninitialized" sentinel) so the auto-default effect below can
-  // tell the difference between "user hasn't picked yet" and "user
-  // explicitly cleared the selection." Mirrors the same pattern used
-  // in sections/fleet-overview/sensor-fleet-overview.jsx.
-  const [selectedPhenodeId, setSelectedPhenodeId] = useState(undefined);
+  // PheNode selection comes from the shared, session-scoped SelectionContext
+  // so it persists across pages and only resets on logout. `selectedPhenodeId`
+  // is null until the device list loads and the provider resolves the
+  // explicit-or-recency default.
+  const { selectedPheNodeId, selectPheNode } = useSelection() ?? {};
+  const selectedPhenodeId = selectedPheNodeId ?? null;
+
+  // Wireless-sensor sub-selection stays page-local — this dropdown only
+  // exists here and is scoped to the selected PheNode's cohort. `undefined`
+  // is the "uninitialized" sentinel the auto-default effect below keys off of
+  // (vs `null` = user explicitly cleared).
   const [selectedSensorId, setSelectedSensorId] = useState(undefined);
 
   // Info-card state (mode + soil-probe selection) lives in a hook so we can
@@ -933,68 +939,23 @@ export default function SensorNetwork() {
   const sectionTitle = isMapView ? 'Sensor Overview' : 'Wireless Sensor Measurements';
   const mapToggleTooltip = isMapView ? 'Sensor Overview' : 'Map View';
 
-  // Most-recently-reporting PheNode — same recency-sort with -Infinity
-  // fallback used in sensor-fleet-overview.jsx so devices that have
-  // never reported sink to the bottom rather than incorrectly winning
-  // the recency race.
+  // PheNode selection now comes from the shared, session-scoped
+  // SelectionContext (see contexts/SelectionContext.jsx). The recency
+  // default + freeze that used to live here as local state has moved up to
+  // that provider so the selection is stable across BOTH the 60s SWR poll
+  // and navigation between pages — a PheNode that reported in the gap
+  // between two page loads can no longer swap the selection out from under
+  // the user.
   //
-  // URL sensor's parent PheNode wins over recency: if the user landed
-  // here from a fleet-card click, the deep-link target's parent is the
-  // PheNode they expect to see selected — promoting it past recency
-  // keeps that intent intact even when the parent isn't the most-
-  // recently-reporting device on the account.
-  const defaultPhenodeId = useMemo(() => {
-    if (urlSensorResolution?.phenodeId) return urlSensorResolution.phenodeId;
-    if (!devices?.length) return null;
-    const byRecency = [...devices].sort((a, b) => {
-      const aTime = a.last_measurement_at ? new Date(a.last_measurement_at).getTime() : -Infinity;
-      const bTime = b.last_measurement_at ? new Date(b.last_measurement_at).getTime() : -Infinity;
-      return bTime - aTime;
-    });
-    return byRecency[0]?.external_device_id ?? null;
-  }, [devices, urlSensorResolution]);
-
-  // FROZEN copy of the recency default — captured once on the first
-  // non-null evaluation, then held stable for the rest of the page
-  // visit. The local `selectedPhenodeId` state is already sticky
-  // (only set when undefined or when the selection vanishes), so SWR
-  // polls don't directly shift the user's selection. But the
-  // "stale selection" recovery branch below was previously falling
-  // back to the LIVE default — meaning if the user's selected PheNode
-  // somehow vanished, the page would jump to whatever happens to be
-  // most-recent right now. The frozen value gives a more predictable
-  // recovery target.
-  //
-  // Resets on component unmount → remount, so a fresh visit picks up
-  // fresh defaults. Matches the requested behavior: "only update to
-  // the most-recent when the user leaves the page."
-  const [frozenDefaultPhenodeId, setFrozenDefaultPhenodeId] = useState(null);
+  // Deep-link bridge: a `?sensor=` URL resolves to a parent PheNode (see
+  // urlSensorResolution above). When the user lands here from a fleet-card
+  // click, that parent is the PheNode they expect selected, so we push it
+  // into the shared selection as an explicit pick — promoting it past
+  // recency, and making it stick app-wide. selectPheNode no-ops on an
+  // unchanged id, so re-running on every render is cheap.
   useEffect(() => {
-    if (defaultPhenodeId && !frozenDefaultPhenodeId) {
-      setFrozenDefaultPhenodeId(defaultPhenodeId);
-    }
-  }, [defaultPhenodeId, frozenDefaultPhenodeId]);
-
-  // Apply the auto-default once on mount, and again if the user's
-  // selected PheNode disappears from the fleet (e.g. an SWR
-  // revalidation drops it). Same shape as sensor-fleet-overview.
-  // Uses the FROZEN default so the recovery path doesn't snap to a
-  // different "currently most-recent" PheNode after the user has
-  // already been on the page for a while. If the frozen default is
-  // also gone, falls back to the live default as a last resort.
-  useEffect(() => {
-    if (selectedPhenodeId === undefined) {
-      if (frozenDefaultPhenodeId) setSelectedPhenodeId(frozenDefaultPhenodeId);
-      else if (defaultPhenodeId) setSelectedPhenodeId(defaultPhenodeId);
-      return;
-    }
-    const stillExists = devices?.some((d) => d.external_device_id === selectedPhenodeId);
-    if (!stillExists) {
-      const frozenStillExists = frozenDefaultPhenodeId && devices?.some((d) => d.external_device_id === frozenDefaultPhenodeId);
-      if (frozenStillExists) setSelectedPhenodeId(frozenDefaultPhenodeId);
-      else if (defaultPhenodeId) setSelectedPhenodeId(defaultPhenodeId);
-    }
-  }, [frozenDefaultPhenodeId, defaultPhenodeId, devices, selectedPhenodeId]);
+    if (urlSensorResolution?.phenodeId) selectPheNode?.(urlSensorResolution.phenodeId);
+  }, [urlSensorResolution, selectPheNode]);
 
   // Stale-URL cleanup. If the URL referenced a sensor that is no longer
   // resolvable (sensor was removed, parent PheNode was unassigned,
@@ -1447,7 +1408,7 @@ export default function SensorNetwork() {
                   // the dropdown on a stale ID. Also clear any
                   // deep-link `?sensor` param — the user has explicitly
                   // moved off the URL-targeted PheNode/sensor pair.
-                  setSelectedPhenodeId(newValue?.id ?? null);
+                  selectPheNode?.(newValue?.id ?? null);
                   setSelectedSensorId(undefined);
                   clearSensorUrlParam();
                 }}

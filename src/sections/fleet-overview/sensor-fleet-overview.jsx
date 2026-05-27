@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import FleetOverviewView from 'sections/fleet-overview/FleetOverviewView';
 import PhenodeSelector from 'components/PhenodeSelector';
+import { useSelection } from 'contexts/SelectionContext';
 import useAuth from 'hooks/useAuth';
 import useMyDevices from 'hooks/data/useMyDevices';
 import useMyWirelessSensors from 'hooks/data/useMyWirelessSensors';
@@ -58,45 +59,14 @@ export default function SensorFleetOverview() {
   // re-derivation without a refetch.
   const displayPrefs = useDisplayPreferences();
 
-  // The user's selected PheNode (external_device_id). `undefined` is
-  // the "uninitialized" sentinel — distinct from `null` (no PheNode
-  // available) so the auto-default useEffect can tell whether to fire.
-  const [selectedPhenodeId, setSelectedPhenodeId] = useState(undefined);
-
-  // Most-recently-reporting PheNode — the auto-default selection. If
-  // no devices have measurements yet, falls back to the first device
-  // alphabetically. If no devices at all, null.
-  //
-  // Sorted at the same -Infinity-fallback used in FleetOverviewView's
-  // recency comparator so devices that have never reported sink to
-  // the bottom rather than accidentally winning the "most recent"
-  // race against a confirmed-recent peer.
-  const defaultPhenodeId = useMemo(() => {
-    if (!devices?.length) return null;
-    const byRecency = [...devices].sort((a, b) => {
-      const aTime = a.last_measurement_at ? new Date(a.last_measurement_at).getTime() : -Infinity;
-      const bTime = b.last_measurement_at ? new Date(b.last_measurement_at).getTime() : -Infinity;
-      return bTime - aTime;
-    });
-    return byRecency[0]?.external_device_id ?? null;
-  }, [devices]);
-
-  // Apply the auto-default once on mount (and again if the previously-
-  // selected device disappears from the fleet — handles the case where
-  // an SWR revalidation drops a device the user had selected).
-  useEffect(() => {
-    if (selectedPhenodeId === undefined) {
-      // First render with data — pick the default.
-      if (defaultPhenodeId) setSelectedPhenodeId(defaultPhenodeId);
-      return;
-    }
-    // Subsequent renders — clamp to a valid selection if the user's
-    // current pick has been removed from the fleet.
-    const stillExists = devices?.some((d) => d.external_device_id === selectedPhenodeId);
-    if (!stillExists && defaultPhenodeId) {
-      setSelectedPhenodeId(defaultPhenodeId);
-    }
-  }, [defaultPhenodeId, devices, selectedPhenodeId]);
+  // The scoped PheNode (external_device_id) comes from the shared,
+  // session-scoped SelectionContext so the dropdown here reflects — and
+  // sets — the same device every other page uses. The recency default +
+  // freeze that used to live here as local state now lives in that
+  // provider, which also clamps to a valid device if the current pick
+  // disappears from the fleet. Resets only on logout.
+  const { selectedPheNodeId, selectPheNode } = useSelection() ?? {};
+  const selectedPhenodeId = selectedPheNodeId ?? null;
 
   // The sensors connected to the selected PheNode, identified by their
   // external_sensor_id. We use a Set for O(1) membership checks since
@@ -202,7 +172,7 @@ export default function SensorFleetOverview() {
         <PhenodeSelector
           devices={devices}
           selectedDeviceId={selectedPhenodeId}
-          onChange={setSelectedPhenodeId}
+          onChange={(id) => selectPheNode?.(id ?? null)}
           isLoading={devicesLoading}
         />
       }
