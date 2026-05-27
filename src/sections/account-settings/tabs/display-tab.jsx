@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 // material-ui
+import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -10,12 +11,14 @@ import Grid from '@mui/material/Grid';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import Stack from '@mui/material/Stack';
+import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 
 // project imports
 import useAuth from 'hooks/useAuth';
 import useUserPreferences, { defaultUiPreferences } from 'hooks/data/useUserPreferences';
 import { useToast } from 'providers/ToastProvider';
+import { neonControlSx, neonMenuPaperSx, neonMenuItemSx } from 'themes/sx-tokens';
 import { updateUserPreferences } from 'services/mutations';
 import {
   themedSelectSx,
@@ -68,6 +71,39 @@ function getAllTimezones() {
   return ['UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles'];
 }
 
+// Sentinel for the "Use device timezone" entry. An empty string maps to
+// "use whatever the user's computer is set to" on save (see handleSave
+// below — it converts '' → null when sending to the backend), so we
+// reuse the same value here. Including it as the first option keeps
+// the choice typeable/discoverable from inside the dropdown, not just
+// implicit by leaving the field blank.
+const USE_DEVICE_TZ_VALUE = '';
+const USE_DEVICE_TZ_LABEL = 'Use device timezone (recommended)';
+
+// Themed Autocomplete TextField sx — same pattern the device picker in
+// device-settings-tab.jsx uses, so the typeable timezone field reads
+// as part of the same control family. neonControlSx surface, green
+// value text, blue chevron going green on hover/focus, no MUI
+// notched-outline border.
+const timezoneInputSx = {
+  '& .MuiOutlinedInput-root': {
+    ...neonControlSx,
+    border: '1px solid var(--reflected-light)',
+    '&.Mui-disabled': { opacity: 1 },
+    '&:hover:not(.Mui-disabled)': { borderColor: 'var(--green)' },
+    '&.Mui-focused:not(.Mui-disabled)': { borderColor: 'var(--green)' },
+    '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
+  },
+  '& .MuiInputBase-input': {
+    color: 'var(--green)',
+    WebkitTextFillColor: 'var(--green)',
+    '&::placeholder': { color: 'var(--green)', opacity: 1 }
+  },
+  '& .MuiSvgIcon-root': { color: 'var(--blue)' },
+  '& .MuiOutlinedInput-root:hover:not(.Mui-disabled) .MuiSvgIcon-root': { color: 'var(--green)' },
+  '& .MuiOutlinedInput-root.Mui-focused:not(.Mui-disabled) .MuiSvgIcon-root': { color: 'var(--green)' }
+};
+
 function UnitSelect({ label, id, value, onChange, options }) {
   return (
     <Box>
@@ -104,10 +140,6 @@ const SPEED_OPTIONS = [
   { value: 'kmh', label: 'Kilometers / hour (km/h)' },
   { value: 'ms', label: 'Meters / second (m/s)' }
 ];
-const DISTANCE_OPTIONS = [
-  { value: 'mi', label: 'Miles' },
-  { value: 'km', label: 'Kilometers' }
-];
 const PRESSURE_OPTIONS = [
   { value: 'kpa', label: 'Kilopascal (kPa)' },
   { value: 'hpa', label: 'Hectopascal (hPa)' }
@@ -123,14 +155,6 @@ const VOLTAGE_OPTIONS = [
 const CONDUCTIVITY_OPTIONS = [
   { value: 'dsm', label: 'Decisiemens / meter (dS/m)' },
   { value: 'mscm', label: 'Millisiemens / centimeter (mS/cm)' }
-];
-const RESISTANCE_OPTIONS = [
-  { value: 'kohm', label: 'Kilohms (kΩ)' },
-  { value: 'ohm', label: 'Ohms (Ω)' }
-];
-const ACCELERATION_OPTIONS = [
-  { value: 'ms2', label: 'Meters / second² (m/s²)' },
-  { value: 'g', label: 'Gravity (g)' }
 ];
 
 export default function DisplayTab() {
@@ -218,24 +242,44 @@ export default function DisplayTab() {
           Controls the timezone used to display timestamps in charts, tables, and download files. Leave on
           &quot;Use device timezone&quot; to let the app follow whatever timezone your computer is set to.
         </Typography>
-        <FormControl fullWidth>
-          <Select
-            id="tz"
-            value={timezone}
-            onChange={(e) => setTimezone(e.target.value)}
-            sx={themedSelectSx}
-            MenuProps={themedDropdownMenuProps}
-            displayEmpty
-            renderValue={(selected) => selected || 'Use device timezone (recommended)'}
-          >
-            <MenuItem value="">Use device timezone (recommended)</MenuItem>
-            {timezones.map((tz) => (
-              <MenuItem key={tz} value={tz}>
-                {tz}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+        {/* Typeable timezone picker — same Autocomplete recipe as the
+            device picker in device-settings-tab.jsx and the multi-select
+            controls in data-downloads.jsx so the control reads as part
+            of the project's standard input family. Filtering happens via
+            Autocomplete's built-in fuzzy match against `getOptionLabel`,
+            so typing "central" narrows ~430 zones to the half-dozen
+            America/Central, Australia/Currie, etc. that actually match. */}
+        <Autocomplete
+          id="tz"
+          options={[USE_DEVICE_TZ_VALUE, ...timezones]}
+          getOptionLabel={(opt) => (opt === USE_DEVICE_TZ_VALUE ? USE_DEVICE_TZ_LABEL : opt)}
+          isOptionEqualToValue={(a, b) => a === b}
+          value={timezone}
+          // Autocomplete fires `null` when cleared. We treat null as the
+          // same intent as "Use device timezone" (the sentinel '' value)
+          // so the user can't accidentally end up in a "no timezone" state
+          // the backend doesn't know how to interpret.
+          onChange={(_e, next) => setTimezone(next ?? USE_DEVICE_TZ_VALUE)}
+          disableClearable
+          autoHighlight
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              placeholder={USE_DEVICE_TZ_LABEL}
+              size="small"
+              sx={timezoneInputSx}
+            />
+          )}
+          slotProps={{
+            paper: { sx: { ...neonMenuPaperSx, maxHeight: 360 } },
+            listbox: {
+              sx: {
+                p: 0.5,
+                '& .MuiAutocomplete-option': { ...neonMenuItemSx, fontSize: '0.85rem' }
+              }
+            }
+          }}
+        />
       </Box>
 
       <Divider sx={{ borderColor: 'var(--reflected-light)' }} />
@@ -266,15 +310,6 @@ export default function DisplayTab() {
               value={units.speed}
               onChange={(v) => setUnits((u) => ({ ...u, speed: v }))}
               options={SPEED_OPTIONS}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <UnitSelect
-              label="Distance"
-              id="unit-distance"
-              value={units.distance}
-              onChange={(v) => setUnits((u) => ({ ...u, distance: v }))}
-              options={DISTANCE_OPTIONS}
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
@@ -311,24 +346,6 @@ export default function DisplayTab() {
               value={units.conductivity}
               onChange={(v) => setUnits((u) => ({ ...u, conductivity: v }))}
               options={CONDUCTIVITY_OPTIONS}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <UnitSelect
-              label="Resistance"
-              id="unit-resistance"
-              value={units.resistance}
-              onChange={(v) => setUnits((u) => ({ ...u, resistance: v }))}
-              options={RESISTANCE_OPTIONS}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <UnitSelect
-              label="Acceleration"
-              id="unit-acceleration"
-              value={units.acceleration}
-              onChange={(v) => setUnits((u) => ({ ...u, acceleration: v }))}
-              options={ACCELERATION_OPTIONS}
             />
           </Grid>
         </Grid>

@@ -155,11 +155,11 @@ export default function DrawerUserMenu() {
   // hover treatment as the header Profile menu's list.
   const menuList = (
     <List component="nav" sx={{ p: 0.75, minWidth: 200 }}>
-      <ListItemButton sx={themedListItemSx} onClick={handleLogout}>
+      <ListItemButton sx={themedListItemSx} onClick={handleAccountSettings}>
         <ListItemIcon>
-          <AntIcon icon={LogoutOutlined} />
+          <AntIcon icon={SettingOutlined} />
         </ListItemIcon>
-        <ListItemText primary="Logout" />
+        <ListItemText primary="Account Settings" />
       </ListItemButton>
       <ListItemButton sx={themedListItemSx} onClick={handleProfile}>
         <ListItemIcon>
@@ -167,11 +167,11 @@ export default function DrawerUserMenu() {
         </ListItemIcon>
         <ListItemText primary="Profile" />
       </ListItemButton>
-      <ListItemButton sx={themedListItemSx} onClick={handleAccountSettings}>
+      <ListItemButton sx={themedListItemSx} onClick={handleLogout}>
         <ListItemIcon>
-          <AntIcon icon={SettingOutlined} />
+          <AntIcon icon={LogoutOutlined} />
         </ListItemIcon>
-        <ListItemText primary="Account Settings" />
+        <ListItemText primary="Logout" />
       </ListItemButton>
     </List>
   );
