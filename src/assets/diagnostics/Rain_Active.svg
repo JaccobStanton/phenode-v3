@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Rain_Green" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 390.8 253.8">
+  <!-- Generator: Adobe Illustrator 30.3.0, SVG Export Plug-In . SVG Version: 2.1.3 Build 182)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: #48f7f5;
+      }
+    </style>
+    <image id="image" width="142" height="73" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAI4AAABJCAYAAADrEB4EAAAACXBIWXMAAAsSAAALEgHS3X78AAACqUlEQVR4nO3avU4bQRSG4ffMGnvXlgUkcpmGgiZlroX74X5yLSnTpIgipbQSjJBZ/+zOSTFrMMQFDczKfI9kbWX5aObz/C6IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiEiPWO4C/uc9rKkPzHNXsK9HnfQQmPS86lNtGX1lF5ju2Y8A9aBz9gJzDXzHmGPcYXwBbvpQYwbnON+AKc4M5zPONdCTAGXulL3QXHWBucT4TaDGmHX1rXLX+cbKLhxznArnE5EfXYDSCJQ9PH0ITgrNTwIXGBMCfwiUBNYYU+wD4Jvctb4NG+J/Ae5wRjgrIh+JLIn8xLkgPobnXQbHd2uZwBxjRgAKSgK3BALF6RbzMeYNRvlYqzfHFSIb8BiAFW4D3O7x2xOcSMspkRURaJkTu5Endt/OEp5Bjh/dkwJwibEh0BKIFGeB0BpFOyb4msAIo4GqxRgDRd6iX8U91AXOAFjjNiZOG2IRYBExSqDAOce5wUltl23EyR0cmJOmq71PaxQ+IPgyPasao4IIlq+pXl8JTg11wFliTKBtgM1DUIxltxbMGBroQ3CeOdtirQEN5iVWbTAfYmxSeGhzV/hKhuA1xhCvNlCXmHVT8tkWW5zkLvCp3gVncYJPG2CA2xKvB6khqXDfhecY1WlhvBtxbIUzwWlSm+Qu77n8wZl18/YGp8WJeLGlbRtgAqzxVZX+eRXYcS2Ln6rBqcDWuE2I1hALp2WIE3AKnOH+djyf3MFJc3c6o4iQFoGLiBPg9J64v6taD4D2SHdVIwiQdlWjZ7uq8LCrivzCmQGZw6NznJ7ROc6L6OT4IJ0cv4Tuqg7SXdVL6Xb8IN2Ov5TexzmsH4ERERERERERERERERERERERERERERERERERERERERERkXfuH+AvJyMxDLwIAAAAAElFTkSuQmCC"/>
+  </defs>
+  <use transform="translate(-23 -.7)" xlink:href="#image"/>
+  <use transform="translate(-23 -.7)" xlink:href="#image"/>
+  <rect class="st0" x="13.4" y="35.3" width="69.3" height=".4" rx=".2" ry=".2"/>
+</svg>

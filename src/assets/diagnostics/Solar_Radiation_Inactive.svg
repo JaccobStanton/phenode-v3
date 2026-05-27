@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Antenna_Purple" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 390.8 253.8">
+  <!-- Generator: Adobe Illustrator 30.3.0, SVG Export Plug-In . SVG Version: 2.1.3 Build 182)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: #f0f;
+      }
+    </style>
+    <image id="image" width="83" height="74" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFMAAABKCAYAAADHa2hTAAAACXBIWXMAAAsSAAALEgHS3X78AAACi0lEQVR4nO3YQW7cNhTG8f8jqdFkAKO1kYV7gSx8iZyi56l7npwil/AiF6gXge1igHg0It/rQpp26lUWaegG3w/gSoJIfRDJJ4KIiIiIiIiIiIiIiIiIiIiIyA/Leg/g38LiK+9cBv7Vt38XryTMJcTfwW7OxnT3Ynw3EGfX4jeI1xRq9zCDsFOId2C/gF2C3YNdvBjfHuIa4hHiD4gbiH9C7R9o1zDPg3yENEG6hnSAtAW7vyJdrfc+ANcP+AFiC34PPoJfgr+WQDuGGXZ7FuQGcoacINtP5OqkFqSyjrFCZMNLwuNPmkNr0I7QToHeQvSc8qVXxwF8OAvyC5Tdz5TSKFOlJCeXLTnHaa8h4kA7Jtp4QZ0z9csTtgMegRvw+HsN7aNT38tXCaQryCNkLhkuKsNzYxMbhhIUc7JDAkjgkWjVqHZkfpM57gszj8wTtAdogN92/DpTj05P3gMXYBVSbuTJKcNIGZ3BG6MXxpKX5oXRG+PoDMNImZySG7lCugB73/NFVl3D/LTOjO1bbAjMg4STCbIN5BSUtrYUFBuWazjZgzQEtn27POPTK6hMuob5o+ka5ru1CD98JmYjkuEkGkaLmeZGzWtzo8a8XCPRkuGzEYfPyzPenRX0vXTbzQE+AlcQI3jLtF1QnydSbLBihNVlTYR1A8q0yag2Ud9k6j7TCvge4mPPF1l1W2eCsA+QXpZGY1s2l+RkOyuN2loaeaKNiTotpVHdQT3Vmr+C9yzcu01zY/m/vgQ/QttBzU/Mvue4KUwUDnXmudWl1ZlnCodNYfI9x/zEfB7kXeca8/RO3eh38hvTQcc3pyO4/8D/+3BYREREREREREREREREREREREREvrO/ANz/TpHZZ2u2AAAAAElFTkSuQmCC"/>
+  </defs>
+  <use transform="translate(87 -4.7)" xlink:href="#image"/>
+  <use transform="translate(87 -4.7)" xlink:href="#image"/>
+  <path class="st0" d="M133.1,33.1h-9.1s1.5-1,4.5-1,4.5,1,4.5,1Z"/>
+</svg>

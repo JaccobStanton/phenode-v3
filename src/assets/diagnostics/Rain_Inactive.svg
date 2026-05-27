@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Rain_Purple" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 390.8 253.8">
+  <!-- Generator: Adobe Illustrator 30.3.0, SVG Export Plug-In . SVG Version: 2.1.3 Build 182)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: #f0f;
+      }
+    </style>
+    <image id="image" width="142" height="73" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAI4AAABJCAYAAADrEB4EAAAACXBIWXMAAAsSAAALEgHS3X78AAADLElEQVR4nO3aT24TTRDG4V/1GCc2JNZHECuQEGLHkgtwiZzHX86TS3ABluwQQiIrxD8niu0ETxeLrrEhkB2kR/H7SNbYkSL1dF73VHUHRERERERERERERERERERERERERERERERERERERESkR6z2AH7n5rWH0DPlj9SvaRnUHkDHcQM4ink6/kOoD296UDfs+A8/OwT/H5hScmM9CVAPVpz1CtONxV6B7cXnd2DP6wysmjfAU0pSzsBflvddYLwPK1Dl4PwSmvXrLaQTsJ0Y37D6OG/WZYTkAvwR+DPIbMLj9CA8VR9VP4fmNaQR2BjSDBKQMtgAbALMtiQ8E/DPwCoCMoP8HmwOeQH+ooQIX4enjorB8XUtcwg2AptBs4J0D9IZNPtgDdhqsxqxB5zfshDdBT+L9yvwPfC2BMjvQXsKdl6+QC1gx5Tap8xhnVWnWnCcUghPy0cbQ1pBWkCTIY0jRHNICewusADrJnhcadx/2xzo7mkUAcrgQ8jjsspwEfc/jlXoEPyoJKbaqlPtmxtdlL2C9LA8npoJNLvQfILBfUhfoRlAWpZgsSwr0620AHbB53FdQf4P2i+QH8BqCe0M2gm0HyG/jLqnVpfVm3b8MXBaXrYPzMES2DKul+VKqjvMfyYBcY++pDQE85iLU7Ahmznqg94E5wMwAfbBPwH3wb+C78ZExtVy3WH+M5nfVhwfg38BHsQcdHPUB1UfVVHjGJDeQ3MKzQKaHUiX0Nwp119qnO73b1ON0xmBn7Opcb5DHkJ7AXkE7T60T0qBnI/Ap9v4qDJKWxBdlc8hn0dAdsC/AQeQd+JR1XVSXVe1rDXwvyyx6aoWwB54jq5qBj6BNpW5yYOoa46BaeV2vGpb2xXIXNnH+Vza8XQn9nEO2M59nO+lNc8HkK/s48Qm4JZuAHarDkBMiBHP9zPIKWqabQkNwIzyqIomwCfgT67dOa6ncnFsbuXYYX0OA9hJ+aZt7VnVO8pZ1RA4KUcOOqu6zs+n41N0Ot6JzT6mERydjl9L/49zVR9WGBERERERERERERERERERERERERERERERERERERERERERAH4AZHMpasr85jQAAAAASUVORK5CYII="/>
+  </defs>
+  <use transform="translate(-23 -.7)" xlink:href="#image"/>
+  <use transform="translate(-23 -.7)" xlink:href="#image"/>
+  <rect class="st0" x="13.3" y="35.4" width="69.3" height=".4" rx=".2" ry=".2"/>
+</svg>
