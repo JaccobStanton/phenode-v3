@@ -48,6 +48,21 @@ const API = {
     //
     // Source: phenodeX/phenode_backend/api/devices/routes.py:823
     sensorData: (externalDeviceId) => `/devices/${externalDeviceId}/sensor-data`,
+    // GET — typed JSON diagnostics/system-health time-series for one device.
+    // Same envelope + query params as `sensorData` (`from` / `to` required,
+    // optional `fields`, `limit`, `bucket` incl. 'auto'). Distinct from the
+    // environmental `sensorData` feed: this surfaces the Notecard's own
+    // telemetry written on each `_session.qo`.
+    //
+    // Response shape: { deviceExternalId, from, to, bucket, rows: [...] }
+    //   raw      → { time, rssi, sinr, bars, rat, notecard_voltage,
+    //                notecard_temp, wifi_rssi, wifi_snr, wifi_bars }
+    //   bucketed → { time, rssi_min, rssi_max, rssi_avg, ... }
+    // Wi-Fi fields are null unless the device actually reports them.
+    //
+    // Source: phenodeX/phenode_backend/api/devices/routes.py:1032
+    //         phenodeX/phenode_backend/services/downloads.py:786 (DEVICE_HEALTH_FIELDS)
+    healthData: (externalDeviceId) => `/devices/${externalDeviceId}/health-data`,
     // GET — paginated list of images captured by a device, newest first.
     // Required path param: external_device_id. Optional query params:
     //   page       (default 1, min 1)
@@ -96,7 +111,13 @@ const API = {
     // as-is by the browser and ':' / '+' chars can confuse some proxies.
     // Source: phenodeX/phenode_backend/api/devices/routes.py:909
     sensorDataDownload: (externalDeviceId, fromIso, toIso) =>
-      `/devices/${externalDeviceId}/sensor-data/${encodeURIComponent(fromIso)}/${encodeURIComponent(toIso)}`
+      `/devices/${externalDeviceId}/sensor-data/${encodeURIComponent(fromIso)}/${encodeURIComponent(toIso)}`,
+    // POST — server-generated diagnostics/health CSV download for a date
+    // range. Same preference-application + filename behavior as
+    // sensorDataDownload, but pulls the Notecard health series.
+    // Source: phenodeX/phenode_backend/api/devices/routes.py:989
+    healthDataDownload: (externalDeviceId, fromIso, toIso) =>
+      `/devices/${externalDeviceId}/health-data/${encodeURIComponent(fromIso)}/${encodeURIComponent(toIso)}`
   },
   wirelessSensors: {
     // GET — { success, sensors: WirelessSensorListItem[] } visible to current user.

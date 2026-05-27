@@ -78,6 +78,11 @@ const deviceReadSchema = yup.object({
   rainfall_today_mm: yup.number().nullable().optional(),
   wind_speed: yup.number().nullable().optional(),
   battery_percent: yup.number().nullable().optional(),
+  // Backend-computed { key: "Active" | "Not Active" } map of per-sensor health,
+  // keyed by sensor id (+ dedicated rain_sensor / camera entries). Drives the
+  // system-diagnostics sensor status cards.
+  // Source: phenodeX/phenode_backend/schemas/devices.py:44 (sensor_health)
+  sensor_health: yup.object().nullable().optional(),
 
   assigned_user: assignedUserSchema,
   wireless_sensors: yup.array().of(wirelessSensorReadSchema).nullable().optional()

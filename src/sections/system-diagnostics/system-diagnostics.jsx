@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import Box from '@mui/material/Box';
 import FormControl from '@mui/material/FormControl';
@@ -15,6 +15,13 @@ import MainCard from 'components/MainCard';
 import PhenodeSelector from 'components/PhenodeSelector';
 import { useSelection } from 'contexts/SelectionContext';
 import useMyDevices from 'hooks/data/useMyDevices';
+import useDeviceHealth from 'hooks/data/useDeviceHealth';
+import useDeviceMeasurements from 'hooks/data/useDeviceMeasurements';
+import useDisplayPreferences from 'hooks/useDisplayPreferences';
+import useAuth from 'hooks/useAuth';
+import { useToast } from 'providers/ToastProvider';
+import { downloadDeviceHealthData } from 'services/mutations';
+import triggerBlobDownload from 'utils/triggerBlobDownload';
 // Colorless wireframe base — the sensor pieces below carry all the color
 // (green = Active, purple = Inactive), so the base art stays neutral and only
 // the lit/unlit pieces communicate state. Shares the same 390.8 x 253.8
@@ -47,7 +54,7 @@ import controlBoxActive from 'assets/diagnostics/Control_Box_Active.svg';
 import AntIcon from 'components/AntIcon';
 import ClockCircleOutlined from '@ant-design/icons-svg/lib/asn/ClockCircleOutlined';
 import AppstoreOutlined from '@ant-design/icons-svg/lib/asn/AppstoreOutlined';
-import ReloadOutlined from '@ant-design/icons-svg/lib/asn/ReloadOutlined';
+import DownloadOutlined from '@ant-design/icons-svg/lib/asn/DownloadOutlined';
 import ZoomInOutlined from '@ant-design/icons-svg/lib/asn/ZoomInOutlined';
 
 import {
@@ -58,7 +65,15 @@ import {
   tooltipSlotProps,
   neonSelectMenuPaperProps
 } from 'themes/sx-tokens';
-import { timeRangeOptions } from 'data/mocks/time-ranges';
+import {
+  CHART_TIME_RANGE_LABELS,
+  DEFAULT_CHART_TIME_RANGE,
+  axisTickNumberFor,
+  computeAxisTicks,
+  computeChartWindow,
+  formatAxisTick,
+  formatTooltipDate
+} from 'utils/chartTimeRanges';
 
 // System diagnostics uses a slightly different chart surface (gradient + custom border).
 const chartSurfaceSx = {
@@ -70,62 +85,60 @@ const chartSurfaceSx = {
 // Module-scope constants - hoisted to avoid being re-created every render.
 const signalBarHeights = [12, 18, 24, 30];
 
-// Single source of truth for the six sensor states. Each entry drives BOTH
-// the status card at the bottom of the page AND the matching piece overlaid on
-// the diagram, so a card that reads "Active" and its lit-up diagram piece can
-// never disagree — they read the same `status`. `activeSvg` / `inactiveSvg`
-// are the green/purple variants for that sensor. When this flips to live data,
-// only `status` needs to change; the SVG wiring stays put.
-const sensorStatusCards = [
-  {
-    title: 'Rainfall',
-    status: 'Inactive',
-    statusColor: 'var(--purple)',
-    notchColor: 'var(--purple)',
-    activeSvg: rainActive,
-    inactiveSvg: rainInactive
-  },
-  {
-    title: 'Camera',
-    status: 'Active',
-    statusColor: 'var(--green)',
-    notchColor: 'var(--green)',
-    activeSvg: cameraActive,
-    inactiveSvg: cameraInactive
-  },
-  {
-    title: 'Solar Radiation',
-    status: 'Inactive',
-    statusColor: 'var(--purple)',
-    notchColor: 'var(--purple)',
-    activeSvg: solarRadiationActive,
-    inactiveSvg: solarRadiationInactive
-  },
-  {
-    title: 'Soil',
-    status: 'Inactive',
-    statusColor: 'var(--purple)',
-    notchColor: 'var(--purple)',
-    activeSvg: soilActive,
-    inactiveSvg: soilInactive
-  },
-  {
-    title: 'Air & Light',
-    status: 'Active',
-    statusColor: 'var(--green)',
-    notchColor: 'var(--green)',
-    activeSvg: airLightActive,
-    inactiveSvg: airLightInactive
-  },
-  {
-    title: 'Wind',
-    status: 'Inactive',
-    statusColor: 'var(--purple)',
-    notchColor: 'var(--purple)',
-    activeSvg: windActive,
-    inactiveSvg: windInactive
-  }
+const SENSOR_ACTIVE_COLOR = 'var(--green)';
+const SENSOR_INACTIVE_COLOR = 'var(--purple)';
+
+// Base definitions for the six sensor status cards. Each carries its diagram
+// pieces plus the `healthKeys` to look up in the device's backend-computed
+// `sensor_health` map. Status/colors are derived per-render (see
+// deriveSensorCards) so the bottom status card and its diagram overlay piece
+// always read the same Active/Inactive value.
+//
+// `sensor_health` (DeviceRead.sensor_health) is a flat { key: "Active" |
+// "Not Active" } map the backend builds from the device's latest samples
+// (_sensor_health_for_device in api/devices/routes.py). Keys are sensor ids,
+// with dedicated `rain_sensor` + `camera` entries; a sensor id that appears
+// more than once is suffixed (e.g. teros12_1, teros12_2), so we match a key
+// that equals the id OR starts with `${id}_`.
+//
+// Card → sensor_health key mapping:
+//   • Rainfall        → rain_sensor (backend's dedicated rain key)
+//   • Camera          → camera (driven by last_image_ts server-side)
+//   • Solar Radiation → atmos41 (no dedicated key; the all-in-one station
+//                       carries the pyranometer reading)
+//   • Soil            → teros12 (+ teros12_1 / teros12_2 when multiple)
+//   • Air & Light     → atmos14
+//   • Wind            → atmos22 / calypso
+const SENSOR_CARDS = [
+  { title: 'Rainfall', activeSvg: rainActive, inactiveSvg: rainInactive, healthKeys: ['rain_sensor'] },
+  { title: 'Camera', activeSvg: cameraActive, inactiveSvg: cameraInactive, healthKeys: ['camera'] },
+  { title: 'Solar Radiation', activeSvg: solarRadiationActive, inactiveSvg: solarRadiationInactive, healthKeys: ['atmos41'] },
+  { title: 'Soil', activeSvg: soilActive, inactiveSvg: soilInactive, healthKeys: ['teros12'] },
+  { title: 'Air & Light', activeSvg: airLightActive, inactiveSvg: airLightInactive, healthKeys: ['atmos14'] },
+  { title: 'Wind', activeSvg: windActive, inactiveSvg: windInactive, healthKeys: ['atmos22', 'calypso'] }
 ];
+
+// Backend reports exactly "Active" / "Not Active" (_sample_status_to_health).
+const HEALTH_ACTIVE = 'Active';
+
+// A card is active when the sensor_health map reports "Active" for any key that
+// matches one of its healthKeys (exact id, or `${id}_…` suffixed duplicate).
+const sensorHealthActive = (sensorHealth, healthKeys) => {
+  if (!sensorHealth) return false;
+  return healthKeys.some((prefix) =>
+    Object.entries(sensorHealth).some(([key, value]) => (key === prefix || key.startsWith(`${prefix}_`)) && value === HEALTH_ACTIVE)
+  );
+};
+
+// Resolve render-ready cards (status + colors) from the device's sensor_health.
+const deriveSensorCards = (device) => {
+  const sensorHealth = device?.sensor_health ?? {};
+  return SENSOR_CARDS.map((card) => {
+    const status = sensorHealthActive(sensorHealth, card.healthKeys) ? 'Active' : 'Inactive';
+    const color = status === 'Active' ? SENSOR_ACTIVE_COLOR : SENSOR_INACTIVE_COLOR;
+    return { ...card, status, statusColor: color, notchColor: color };
+  });
+};
 
 // Shared style for every layer in the diagram stack (the base art plus each
 // sensor piece). Because all SVGs share the same viewBox, giving every layer
@@ -141,28 +154,134 @@ const diagramLayerSx = {
   pointerEvents: 'none'
 };
 
-const graphCards = [
-  {
-    title: 'Cellular Signal (RSSI)',
-    lineColor: '#48f7f5',
-    data: [-105, -97, -98, -90, -92, -86, -83, -78]
-  },
-  {
-    title: 'Internal Temperature',
-    lineColor: '#c96cfc',
-    data: [85, 94, 92, 100, 97, 103, 107, 112]
-  },
-  {
-    title: 'Battery Charge',
-    lineColor: '#f47568',
-    data: [82, 80, 77, 75, 71, 68, 65, 63]
-  }
-];
+// ---------------------------------------------------------------------------
+// Live-data helpers.
+// ---------------------------------------------------------------------------
 
-const chartTimeLabels = ['0h', '3h', '6h', '9h', '12h', '15h', '18h', '24h'];
+// Coerce a backend value to a finite number or null. The health dict + rows
+// can carry strings, nulls, or absent keys; everything funnels through here so
+// downstream math + formatting only ever see `number | null`.
+const toNumber = (value) => {
+  if (value === null || value === undefined) return null;
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? n : null;
+};
+
+// Signal bars arrive 0–4 from the backend. Clamp + round defensively so a
+// stray 5 or a float still maps to a sane filled-bar count (0 when missing).
+const clampBars = (value) => {
+  const n = toNumber(value);
+  if (n === null) return 0;
+  return Math.max(0, Math.min(4, Math.round(n)));
+};
+
+const cToF = (celsius) => (celsius * 9) / 5 + 32;
+const identity = (v) => v;
+const mvToV = (mv) => mv / 1000;
+const vToMv = (v) => v * 1000;
+
+// Internal temperature color thresholds are defined in °F (with °C
+// equivalents); the band is the same physical temperature regardless of the
+// unit the user displays, so we always classify on the °F value.
+//   ≤ 75 °F        → green
+//   76–120 °F      → orange
+//   ≥ 121 °F       → critical
+// Missing reading → blue (the page's neutral label color), not a status color.
+const tempColorFromF = (tempF) => {
+  if (tempF === null) return 'var(--blue)';
+  if (tempF <= 75) return 'var(--green)';
+  if (tempF <= 120) return 'var(--orange)';
+  return 'var(--critical)';
+};
+
+// Battery charge color thresholds (percent):
+//   0–30   → critical
+//   31–60  → orange
+//   61–100 → green
+const batteryColorFromPct = (pct) => {
+  if (pct === null) return 'var(--blue)';
+  if (pct <= 30) return 'var(--critical)';
+  if (pct <= 60) return 'var(--orange)';
+  return 'var(--green)';
+};
+
+// Health fields fetched for the time-series charts (subset of the hook's
+// KNOWN_HEALTH_FIELDS). `bars`/`wifi_snr`/`wifi_bars` aren't plotted here, so
+// we don't request them — keeps the payload lean on long ranges.
+const HEALTH_CHART_FIELDS = ['notecard_temp', 'rssi', 'sinr', 'notecard_voltage', 'wifi_rssi'];
+// Battery voltage is an *environmental* metric (analog board measurement),
+// served by the sensor-data feed — not part of the Notecard health series.
+const ENV_CHART_FIELDS = ['battery_voltage'];
+
+// Per-chart configuration for the "Diagnostics Over Time" panel. `source`
+// selects which feed the series comes from; `field` is the normalized row key;
+// `transform` adapts the raw value to the displayed unit.
+//
+// NOTE on the two voltages (flagged for confirmation):
+//   • "Voltage (mV)" = Notecard supply voltage (`notecard_voltage`). The
+//     Notecard reports this in volts, so we ×1000 to render mV as labeled.
+//   • "Battery Voltage (mV)" = the analog board battery measurement
+//     (`battery_voltage`), already in mV.
+// Wi-Fi RSSI renders empty until devices actually report Wi-Fi telemetry
+// (backend returns null otherwise).
+function buildDiagnosticsChartConfigs(displayPrefs) {
+  const tempUnit = displayPrefs?.tempUnit ?? 'F';
+  const voltageUnit = displayPrefs?.voltageUnit ?? 'mv';
+
+  const tempTransform = tempUnit === 'C' ? identity : cToF;
+  const tempLabel = tempUnit === 'C' ? '°C' : '°F';
+  const battVTransform = voltageUnit === 'v' ? mvToV : identity;
+  const battVLabel = voltageUnit === 'v' ? 'V' : 'mV';
+
+  return [
+    {
+      key: 'notecard_temp',
+      source: 'health',
+      title: `Internal Ambient Temperature (${tempLabel})`,
+      color: '#c96cfc',
+      unit: tempLabel,
+      transform: tempTransform
+    },
+    { key: 'rssi', source: 'health', title: 'Cellular RSSI', color: '#48f7f5', unit: 'dBm', transform: identity },
+    { key: 'sinr', source: 'health', title: 'Cellular SNIR', color: '#7bdff2', unit: 'dB', transform: identity },
+    { key: 'notecard_voltage', source: 'health', title: 'Voltage (mV)', color: '#f4d04b', unit: 'mV', transform: vToMv },
+    {
+      key: 'battery_voltage',
+      source: 'env',
+      title: `Battery Voltage (${battVLabel})`,
+      color: '#f47568',
+      unit: battVLabel,
+      transform: battVTransform
+    },
+    { key: 'wifi_rssi', source: 'health', title: 'Wi-Fi RSSI', color: '#8539e0', unit: 'dBm', transform: identity }
+  ];
+}
+
+// Build a {times, data} pair for one chart from a normalized rows array
+// (either feed). Reads the bucket-agnostic `.avg` the hooks produce, applies
+// the per-chart transform, and keeps nulls as gaps so an empty bucket reads as
+// a break in the line rather than a drop to zero.
+const buildChartSeries = (rows, field, transform) => {
+  if (!rows) return { times: [], data: [] };
+  const times = [];
+  const data = [];
+  for (const row of rows) {
+    const value = toNumber(row.fields?.[field]?.avg);
+    times.push(new Date(row.time));
+    data.push(value === null ? null : transform ? transform(value) : value);
+  }
+  return { times, data };
+};
+
+// Compact Y-axis tick formatter — thousands → "1.5k", with the unit appended.
+const makeYAxisFormatter = (unit) => (value) => {
+  if (value === null || value === undefined) return '';
+  const compact = Math.abs(value) >= 1000 ? `${(value / 1000).toFixed(1)}k` : `${Math.round(value)}`;
+  return unit ? `${compact} ${unit}` : compact;
+};
 
 export default function SystemDiagnostics() {
-  const [timeRange, setTimeRange] = useState('Last 24 hours');
+  const [timeRange, setTimeRange] = useState(DEFAULT_CHART_TIME_RANGE);
   const [chartLayout, setChartLayout] = useState('row');
   const chartHeight = chartLayout === 'row' ? 228 : 258;
 
@@ -172,6 +291,100 @@ export default function SystemDiagnostics() {
   // selected id directly, so the page no longer pre-shapes an options array.
   const { devices, isLoading: devicesLoading } = useMyDevices();
   const { selectedPheNodeId, selectPheNode } = useSelection() ?? {};
+  const displayPrefs = useDisplayPreferences();
+
+  // The selected DeviceRead drives the current-value snapshot (the right-hand
+  // bars/temp/battery card + the MAC line). Its `health` JSONB holds the most
+  // recent Notecard telemetry regardless of the chart time range, so the
+  // snapshot stays meaningful even when the chosen graph window is empty.
+  const selectedDevice = useMemo(
+    () => (devices ?? []).find((d) => d.external_device_id === selectedPheNodeId) ?? null,
+    [devices, selectedPheNodeId]
+  );
+  const health = selectedDevice?.health ?? {};
+
+  // Wireless sensors connected to this PheNode — the count surfaced in the
+  // left card. `wireless_sensors` is the device's paired-sensor list on
+  // DeviceRead (validated in services/schemas/device.js).
+  const wirelessSensorCount = selectedDevice?.wireless_sensors?.length ?? 0;
+
+  // The six sensor status cards, with Active/Inactive read from the backend's
+  // `sensor_health` map on the selected device. This single derived array feeds
+  // BOTH the diagram overlay pieces and the bottom status cards, so they always
+  // agree.
+  const sensorCards = useMemo(() => deriveSensorCards(selectedDevice), [selectedDevice]);
+
+  // Snapshot derivations. Ingestion only captures cellular health, so
+  // `wifi_bars` is virtually always absent → clampBars returns 0 (empty bars),
+  // which is the correct "no Wi-Fi telemetry" presentation.
+  const cellularBars = clampBars(health.bars);
+  const wifiBars = clampBars(health.wifi_bars);
+
+  // Internal temperature comes from the Notecard's own `temp` (°C). Color is
+  // classified on the °F value; the displayed string follows the user's unit.
+  const internalTempC = toNumber(health.temp);
+  const internalTempF = internalTempC === null ? null : cToF(internalTempC);
+  const internalTempColor = tempColorFromF(internalTempF);
+  const internalTempDisplay =
+    internalTempC === null ? 'N/A' : displayPrefs.tempUnit === 'C' ? `${internalTempC.toFixed(2)}°C` : `${internalTempF.toFixed(2)}°F`;
+
+  // Battery charge percent is computed server-side from the analog board
+  // voltage and shipped on DeviceRead.
+  const batteryPct = toNumber(selectedDevice?.battery_percent);
+  const batteryColor = batteryColorFromPct(batteryPct);
+  const batteryDisplay = batteryPct === null ? 'N/A' : `${batteryPct.toFixed(2)}%`;
+
+  // The MAC address shown above the diagram IS the device's external id (the
+  // "sensor id" surfaced on the fleet overview), so it tracks the selection.
+  const macAddress = selectedPheNodeId || '—';
+
+  // Last reading timestamp for the header — live off the selected device.
+  const lastMeasurement = selectedDevice?.last_measurement_at;
+  const lastMeasurementDisplay = lastMeasurement ? new Date(lastMeasurement).toLocaleString() : '—';
+
+  // Chart time window. computeChartWindow maps the selected label to a
+  // [from, to] Date pair + an axis-format hint; the hooks floor from/to to the
+  // minute for their SWR keys, so a re-render within the same minute reuses the
+  // cache instead of refetching.
+  const { from, to, axisFormat } = useMemo(() => computeChartWindow(timeRange), [timeRange]);
+  const xAxisTicks = useMemo(() => computeAxisTicks(from, to, axisFormat), [from, to, axisFormat]);
+
+  // Two feeds back the six charts: the Notecard health series and the
+  // environmental series (battery voltage only). `bucket: 'auto'` lets the
+  // backend pick raw vs aggregated based on the window width.
+  const { rows: healthRows } = useDeviceHealth(selectedPheNodeId, { from, to, fields: HEALTH_CHART_FIELDS, bucket: 'auto' });
+  const { rows: envRows } = useDeviceMeasurements(selectedPheNodeId, { from, to, fields: ENV_CHART_FIELDS, bucket: 'auto' });
+
+  const chartConfigs = useMemo(() => buildDiagnosticsChartConfigs(displayPrefs), [displayPrefs]);
+
+  // Diagnostics CSV download — mirrors the sensor-measurements Download button.
+  // Pulls the Notecard health series for the active [from, to] window; the
+  // backend applies the user's saved data-download preferences before
+  // responding. (The charts auto-refresh on their own 60s SWR poll, so no
+  // manual refresh control is needed.)
+  const { accessToken } = useAuth();
+  const toast = useToast();
+  const [downloading, setDownloading] = useState(false);
+  const handleDownloadDiagnostics = useCallback(async () => {
+    if (!selectedPheNodeId || downloading) return;
+    setDownloading(true);
+    try {
+      const { blob, filename } = await downloadDeviceHealthData(selectedPheNodeId, from.toISOString(), to.toISOString(), accessToken);
+      const label = (selectedDevice?.label || selectedPheNodeId).replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'phenode';
+      const extMatch = filename ? /\.([a-z0-9]+)$/i.exec(filename) : null;
+      const ext = extMatch ? extMatch[1].toLowerCase() : 'csv';
+      triggerBlobDownload(blob, `${label}_diagnostics.${ext}`);
+      toast.success('Download started.');
+    } catch (err) {
+      if (err?.status === 404) {
+        toast.error('No diagnostics data found in this date range.');
+      } else {
+        toast.error("Couldn't generate the download. Please try again.");
+      }
+    } finally {
+      setDownloading(false);
+    }
+  }, [selectedPheNodeId, selectedDevice, from, to, accessToken, downloading, toast]);
 
   return (
     <MainCard content={false} sx={{ overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
@@ -204,7 +417,7 @@ export default function SystemDiagnostics() {
               Last Measurements Taken:
             </Box>
             <Box component="span" sx={{ color: 'var(--green)', ml: { xs: 'auto', md: 1.5 }, display: 'inline-block', textAlign: 'right' }}>
-              1/9/2026, 1:03PM
+              {lastMeasurementDisplay}
             </Box>
           </Typography>
         </Stack>
@@ -270,7 +483,7 @@ export default function SystemDiagnostics() {
                     }}
                   >
                     <Typography variant="h3" sx={{ color: 'var(--green)', lineHeight: 1 }}>
-                      7
+                      {wirelessSensorCount}
                     </Typography>
                   </Box>
                 </Box>
@@ -323,7 +536,7 @@ export default function SystemDiagnostics() {
                     [ MAC ADDR:
                   </Box>{' '}
                   <Box component="span" sx={{ color: 'var(--green)', textShadow: '0 1px 9px #1a75e0c9' }}>
-                    E3:45:2C:89:B6
+                    {macAddress}
                   </Box>{' '}
                   <Box component="span" sx={{ color: 'var(--blue)' }}>
                     ]
@@ -360,7 +573,7 @@ export default function SystemDiagnostics() {
                     <Box component="img" src={phenodeDiagram} alt="Phenode system diagram" sx={diagramLayerSx} />
                     {/* Always-active control box — no state toggle, drawn over the base art. */}
                     <Box component="img" src={controlBoxActive} alt="" aria-hidden="true" sx={diagramLayerSx} />
-                    {sensorStatusCards.map((card) => (
+                    {sensorCards.map((card) => (
                       <Box
                         key={`${card.title}-layer`}
                         component="img"
@@ -381,7 +594,7 @@ export default function SystemDiagnostics() {
                     [ MAC ADDR:
                   </Box>{' '}
                   <Box component="span" sx={{ color: 'var(--green)', textShadow: '0 1px 9px #1a75e0c9' }}>
-                    E3:45:2C:89:B6
+                    {macAddress}
                   </Box>{' '}
                   <Box component="span" sx={{ color: 'var(--blue)' }}>
                     ]
@@ -416,18 +629,21 @@ export default function SystemDiagnostics() {
                     Cellular:
                   </Typography>
                   <Stack direction="row" spacing={0.75} sx={{ alignItems: 'flex-end' }}>
-                    {signalBarHeights.map((barHeight) => (
+                    {signalBarHeights.map((barHeight, i) => (
                       <Box
                         key={`cell-${barHeight}`}
                         sx={{
                           width: 10,
                           height: barHeight,
-                          backgroundColor: 'var(--green)',
+                          // Fill the first `cellularBars` (0–4) bars; the rest read empty.
+                          backgroundColor: i < cellularBars ? 'var(--green)' : 'transparent',
                           border: '1px solid var(--reflected-light)',
                           borderRadius: 0,
                           outlineOffset: '0px',
                           outline: '3px #e8e8e8',
-                          boxShadow: '0 0 10px 1px #1a75e0db'
+                          // Lit bars get the full glow; empty bars keep a subtle, low-alpha
+                          // glow so a 0-bar group is still visible instead of vanishing.
+                          boxShadow: i < cellularBars ? '0 0 10px 1px #1a75e0db' : '0 0 4px 0 #1a75e040'
                         }}
                       />
                     ))}
@@ -439,18 +655,22 @@ export default function SystemDiagnostics() {
                     WiFi:
                   </Typography>
                   <Stack direction="row" spacing={0.75} sx={{ alignItems: 'flex-end' }}>
-                    {signalBarHeights.map((barHeight) => (
+                    {signalBarHeights.map((barHeight, i) => (
                       <Box
                         key={`wifi-${barHeight}`}
                         sx={{
                           width: 10,
                           height: barHeight,
-                          backgroundColor: 'transparent',
+                          // Fill the first `wifiBars` (0–4) bars. Wi-Fi telemetry is
+                          // typically absent → 0 bars (all empty) until devices report it.
+                          backgroundColor: i < wifiBars ? 'var(--green)' : 'transparent',
                           border: '1px solid var(--reflected-light)',
                           borderRadius: 0,
                           outlineOffset: '0px',
                           outline: '3px #e8e8e8',
-                          boxShadow: '0 0 10px 1px #1a75e0db'
+                          // Lit bars get the full glow; empty bars keep a subtle, low-alpha
+                          // glow so an all-empty Wi-Fi group is still visible.
+                          boxShadow: i < wifiBars ? '0 0 10px 1px #1a75e0db' : '0 0 4px 0 #1a75e040'
                         }}
                       />
                     ))}
@@ -461,8 +681,8 @@ export default function SystemDiagnostics() {
                   <Typography variant="subtitle1" sx={{ color: 'var(--blue)', textAlign: 'center' }}>
                     Battery Charge:
                   </Typography>
-                  <Typography variant="subtitle1" sx={{ color: 'var(--green)', mt: 0.5, textAlign: 'center' }}>
-                    84.12%
+                  <Typography variant="subtitle1" sx={{ color: batteryColor, mt: 0.5, textAlign: 'center' }}>
+                    {batteryDisplay}
                   </Typography>
                 </Box>
 
@@ -470,8 +690,8 @@ export default function SystemDiagnostics() {
                   <Typography variant="subtitle1" sx={{ color: 'var(--blue)', textAlign: 'center' }}>
                     Internal Temperature:
                   </Typography>
-                  <Typography variant="subtitle1" sx={{ color: 'var(--orange)', mt: 0.5, textAlign: 'center' }}>
-                    113.63°F
+                  <Typography variant="subtitle1" sx={{ color: internalTempColor, mt: 0.5, textAlign: 'center' }}>
+                    {internalTempDisplay}
                   </Typography>
                 </Box>
               </Box>
@@ -491,7 +711,7 @@ export default function SystemDiagnostics() {
                   gap: 1.5
                 }}
               >
-                {sensorStatusCards.map((card) => (
+                {sensorCards.map((card) => (
                   <Box
                     key={card.title}
                     sx={{
@@ -552,11 +772,7 @@ export default function SystemDiagnostics() {
                 <Typography variant="h5" sx={{ color: 'var(--blue)' }}>
                   Diagnostics Over Time
                 </Typography>
-                <Tooltip
-                  title="Orientation"
-                  arrow={false}
-                  slotProps={tooltipSlotProps}
-                >
+                <Tooltip title="Orientation" arrow={false} slotProps={tooltipSlotProps}>
                   <IconButton
                     aria-label="toggle chart layout"
                     onClick={() => setChartLayout((prev) => (prev === 'column' ? 'row' : 'column'))}
@@ -595,7 +811,7 @@ export default function SystemDiagnostics() {
                       </Stack>
                     )}
                   >
-                    {timeRangeOptions.map((option) => (
+                    {CHART_TIME_RANGE_LABELS.map((option) => (
                       <MenuItem
                         key={option}
                         value={option}
@@ -610,29 +826,30 @@ export default function SystemDiagnostics() {
                     ))}
                   </Select>
                 </FormControl>
-                <Tooltip
-                  title="Refresh"
-                  arrow={false}
-                  slotProps={tooltipSlotProps}
-                >
-                  <IconButton
-                    aria-label="refresh diagnostics charts"
-                    sx={{
-                      border: '1px solid var(--reflected-light)',
-                      color: 'var(--purple)',
-                      backgroundColor: 'rgba(0, 20, 61, 0.72)',
-                      boxShadow: '0 11px 19px 1px #0000002e',
-                      '&:hover': {
-                        borderColor: 'var(--green)',
-                        boxShadow: '0 0 7px -5px var(--green)',
-                        color: 'var(--green)',
-                        textShadow: '0 1px 5px #007bff',
-                        backgroundColor: 'rgba(72, 247, 245, 0.08)'
-                      }
-                    }}
-                  >
-                    <AntIcon icon={ReloadOutlined} />
-                  </IconButton>
+                <Tooltip title="Download diagnostics CSV" arrow={false} slotProps={tooltipSlotProps}>
+                  <span>
+                    <IconButton
+                      aria-label="download diagnostics data"
+                      onClick={handleDownloadDiagnostics}
+                      disabled={downloading || !selectedPheNodeId}
+                      sx={{
+                        border: '1px solid var(--reflected-light)',
+                        color: 'var(--purple)',
+                        backgroundColor: 'rgba(0, 20, 61, 0.72)',
+                        boxShadow: '0 11px 19px 1px #0000002e',
+                        '&.Mui-disabled': { opacity: 0.5, color: 'var(--purple)' },
+                        '&:hover': {
+                          borderColor: 'var(--green)',
+                          boxShadow: '0 0 7px -5px var(--green)',
+                          color: 'var(--green)',
+                          textShadow: '0 1px 5px #007bff',
+                          backgroundColor: 'rgba(72, 247, 245, 0.08)'
+                        }
+                      }}
+                    >
+                      <AntIcon icon={DownloadOutlined} />
+                    </IconButton>
+                  </span>
                 </Tooltip>
               </Stack>
 
@@ -644,14 +861,27 @@ export default function SystemDiagnostics() {
                     chartLayout === 'row' ? { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' } : '1fr'
                 }}
               >
-                {graphCards.map((graph) => {
-                  const minVal = Math.min(...graph.data);
-                  const maxVal = Math.max(...graph.data);
+                {chartConfigs.map((cfg) => {
+                  // Each chart pulls from the feed named by its config: the
+                  // Notecard health series or the environmental series.
+                  const rows = cfg.source === 'health' ? healthRows : envRows;
+                  const { times, data } = buildChartSeries(rows, cfg.key, cfg.transform);
+                  const finite = data.filter((v) => v !== null && Number.isFinite(v));
+                  const hasData = finite.length > 0;
+                  const minVal = hasData ? Math.min(...finite) : 0;
+                  const maxVal = hasData ? Math.max(...finite) : 1;
                   const pad = Math.max(0.1, (maxVal - minVal) * 0.04);
+
+                  // Empty-state copy distinguishes "still loading" from "the
+                  // range has no rows" from the Wi-Fi-specific "telemetry not
+                  // reported" case, so an always-empty Wi-Fi chart reads as
+                  // expected rather than broken.
+                  const emptyMessage =
+                    rows === undefined ? 'Loading…' : cfg.key === 'wifi_rssi' ? 'Awaiting Wi-Fi telemetry' : 'No data for this range';
 
                   return (
                     <Box
-                      key={graph.title}
+                      key={cfg.key}
                       sx={{
                         borderRadius: 1,
                         p: { xs: 0.45, sm: 0.65 },
@@ -664,81 +894,107 @@ export default function SystemDiagnostics() {
                     >
                       <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 0.25 }}>
                         <Typography variant="subtitle1" sx={{ color: 'var(--blue)', ml: 1.25 }}>
-                          {graph.title}
+                          {cfg.title}
                         </Typography>
-                        <IconButton aria-label={`zoom ${graph.title}`} size="small" sx={{ color: 'var(--blue)' }}>
+                        <IconButton aria-label={`zoom ${cfg.title}`} size="small" sx={{ color: 'var(--blue)' }}>
                           <AntIcon icon={ZoomInOutlined} />
                         </IconButton>
                       </Stack>
 
-                      <LineChart
-                        xAxis={[
-                          {
-                            id: `${graph.title}-x`,
-                            scaleType: 'point',
-                            data: chartTimeLabels,
-                            tickLabelInterval: (_, index) => index === 0 || index === chartTimeLabels.length - 1 || index % 2 === 0,
-                            tickLabelStyle: { fontSize: 11, fill: 'var(--green)' }
-                          }
-                        ]}
-                        yAxis={[
-                          {
-                            id: `${graph.title}-y`,
-                            min: minVal - pad,
-                            max: maxVal + pad,
-                            width: 30,
-                            tickLabelStyle: { fill: 'var(--green)' },
-                            valueFormatter: (value) => `${Math.round(value)}`
-                          }
-                        ]}
-                        series={[
-                          {
-                            id: `${graph.title}-line`,
-                            data: graph.data,
-                            color: graph.lineColor,
-                            area: true,
-                            showMark: false,
-                            curve: 'linear'
-                          }
-                        ]}
-                        grid={{ horizontal: true, vertical: true }}
-                        height={chartHeight}
-                        margin={{ top: 2, right: 16, bottom: 10, left: 10 }}
-                        hideLegend
-                        sx={{
-                          width: '100%',
-                          overflow: 'visible',
-                          '& .MuiChartsSurface-root': {
-                            overflow: 'visible'
-                          },
-                          '& .MuiChartsGrid-line': {
-                            stroke: 'var(--blue)',
-                            strokeOpacity: 0.38,
-                            strokeWidth: 0.65
-                          },
-                          '& .MuiLineElement-root': {
-                            strokeWidth: 0.95,
-                            strokeLinecap: 'round',
-                            strokeLinejoin: 'round',
-                            filter: `drop-shadow(0 0 8px ${graph.lineColor})`
-                          },
-                          '& .MuiAreaElement-root': {
-                            fillOpacity: 0.16
-                          },
-                          '& .MuiChartsAxis-line, & .MuiChartsAxis-tick': {
-                            stroke: 'rgba(232, 232, 232, 0.45)'
-                          },
-                          '& .MuiChartsAxis-tickLabel': {
-                            fill: 'var(--green)',
-                            fontWeight: 600
-                          },
-                          '& .MuiChartsAxis-left .MuiChartsAxis-line, & .MuiChartsAxis-bottom .MuiChartsAxis-line': {
-                            stroke: 'rgba(232, 232, 232, 0.55)'
-                          },
-                          background: 'transparent',
-                          borderRadius: 1
-                        }}
-                      />
+                      {hasData ? (
+                        <LineChart
+                          xAxis={[
+                            {
+                              id: `${cfg.key}-x`,
+                              scaleType: 'time',
+                              data: times,
+                              tickNumber: axisTickNumberFor(axisFormat),
+                              tickInterval: xAxisTicks,
+                              tickLabelStyle: { fontSize: 11, fill: 'var(--green)' },
+                              valueFormatter: (value, context) =>
+                                context?.location === 'tooltip' ? formatTooltipDate(value) : formatAxisTick(value, axisFormat)
+                            }
+                          ]}
+                          yAxis={[
+                            {
+                              id: `${cfg.key}-y`,
+                              min: minVal - pad,
+                              max: maxVal + pad,
+                              width: 38,
+                              tickLabelStyle: { fill: 'var(--green)' },
+                              valueFormatter: makeYAxisFormatter(cfg.unit)
+                            }
+                          ]}
+                          series={[
+                            {
+                              id: `${cfg.key}-line`,
+                              data,
+                              color: cfg.color,
+                              area: true,
+                              showMark: false,
+                              curve: 'linear',
+                              connectNulls: true,
+                              valueFormatter: (value) =>
+                                value === null || value === undefined
+                                  ? 'No data'
+                                  : `${Number(value).toFixed(2)}${cfg.unit ? ` ${cfg.unit}` : ''}`
+                            }
+                          ]}
+                          grid={{ horizontal: true, vertical: true }}
+                          height={chartHeight}
+                          margin={{ top: 2, right: 16, bottom: 10, left: 10 }}
+                          hideLegend
+                          sx={{
+                            width: '100%',
+                            overflow: 'visible',
+                            '& .MuiChartsSurface-root': {
+                              overflow: 'visible'
+                            },
+                            '& .MuiChartsGrid-line': {
+                              stroke: 'var(--blue)',
+                              strokeOpacity: 0.38,
+                              strokeWidth: 0.65
+                            },
+                            '& .MuiLineElement-root': {
+                              strokeWidth: 0.95,
+                              strokeLinecap: 'round',
+                              strokeLinejoin: 'round',
+                              filter: `drop-shadow(0 0 8px ${cfg.color})`
+                            },
+                            '& .MuiAreaElement-root': {
+                              fillOpacity: 0.16
+                            },
+                            '& .MuiChartsAxis-line, & .MuiChartsAxis-tick': {
+                              stroke: 'rgba(232, 232, 232, 0.45)'
+                            },
+                            '& .MuiChartsAxis-tickLabel': {
+                              fill: 'var(--green)',
+                              fontWeight: 600
+                            },
+                            '& .MuiChartsAxis-left .MuiChartsAxis-line, & .MuiChartsAxis-bottom .MuiChartsAxis-line': {
+                              stroke: 'rgba(232, 232, 232, 0.55)'
+                            },
+                            background: 'transparent',
+                            borderRadius: 1
+                          }}
+                        />
+                      ) : (
+                        <Box
+                          sx={{
+                            flex: 1,
+                            minHeight: chartHeight,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            textAlign: 'center',
+                            px: 2
+                          }}
+                        >
+                          <Typography variant="body2" sx={{ color: 'var(--blue)', opacity: 0.85 }}>
+                            {emptyMessage}
+                          </Typography>
+                        </Box>
+                      )}
                     </Box>
                   );
                 })}

@@ -182,6 +182,27 @@ export const downloadDeviceSensorData = (externalDeviceId, fromIso, toIso, acces
   });
 
 /**
+ * Download a device's diagnostics/health CSV (Notecard telemetry: rssi, sinr,
+ * bars, voltage, temp, …) for a date range. Mirrors downloadDeviceSensorData —
+ * the backend applies the user's data_download_preferences before responding.
+ *
+ * Backend reference:
+ *   phenodeX/phenode_backend/api/devices/routes.py:989
+ *
+ * @param {string} externalDeviceId - immutable external_device_id
+ * @param {string} fromIso - ISO 8601 start timestamp
+ * @param {string} toIso - ISO 8601 end timestamp
+ * @param {string} accessToken - Bearer token from useAuth()
+ * @returns {Promise<{ blob: Blob, filename: string|null }>}
+ */
+export const downloadDeviceHealthData = (externalDeviceId, fromIso, toIso, accessToken) =>
+  mutationRequest(buildUrl(API.devices.healthDataDownload(externalDeviceId, fromIso, toIso)), {
+    method: 'POST',
+    token: accessToken,
+    parseAs: 'blob'
+  });
+
+/**
  * Download wireless-sensor data as a ZIP archive (one CSV per
  * requested sensor). Backend applies data_download_preferences before
  * sealing each CSV.
