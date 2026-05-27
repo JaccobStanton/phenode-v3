@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
-import Alert from '@mui/material/Alert';
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -14,7 +13,6 @@ import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
-import Snackbar from '@mui/material/Snackbar';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import ToggleButton from '@mui/material/ToggleButton';
@@ -1212,7 +1210,11 @@ export default function SensorNetwork() {
   // selected sensor changes so the input doesn't carry stale text from
   // a different sensor's rename attempt.
   const [renameInput, setRenameInput] = useState('');
-  const [renameToast, setRenameToast] = useState(null); // { severity: 'success' | 'error', message }
+  // Toast hook — used by both rename and download handlers below.
+  // Routes through providers/ToastProvider so rename feedback uses the
+  // same themed surface as every other toast in the app (no more
+  // bespoke MUI Snackbar+Alert).
+  const toast = useToast();
 
   // `renameDraft` is the same {externalId, oldName, newName} payload
   // FleetOverviewView uses to drive its ConfirmRenameModal — kept as a
@@ -1281,16 +1283,16 @@ export default function SensorNetwork() {
       await mutateSensors();
       setRenameInput('');
       setRenameDraft(null);
-      setRenameToast({ severity: 'success', message: `Renamed sensor to "${newName}".` });
+      toast.success(`Renamed sensor to "${newName}".`);
     } catch (err) {
       // ApiError carries `.detail` from the backend; fall back to a
       // generic message for non-API errors (network blip etc.).
       const detail = err?.detail || err?.message || 'Failed to rename sensor';
-      setRenameToast({ severity: 'error', message: detail });
+      toast.error(detail);
       // Intentionally do NOT clear renameDraft — modal stays open for
       // retry.
     }
-  }, [accessToken, mutateSensors, renameDraft]);
+  }, [accessToken, mutateSensors, renameDraft, toast]);
 
   // Note: the Rename button is intentionally NOT disabled — the
   // open-modal handler already guards against the no-sensor and
@@ -1322,7 +1324,8 @@ export default function SensorNetwork() {
   // the dedicated Data Downloads page will support multi-sensor
   // exports by passing a comma-separated list to the same endpoint.
   // ---------------------------------------------------------------------------
-  const toast = useToast();
+  // `toast` is declared earlier (alongside the rename handlers) so both
+  // surfaces share the same themed ToastProvider hook.
   const [downloading, setDownloading] = useState(false);
 
   const handleDownload = useCallback(async () => {
@@ -2368,25 +2371,12 @@ export default function SensorNetwork() {
         </Box>
 
         {/*
-        Rename feedback toast — surfaces success and ApiError-derived
-        validation messages from the rename mutation. Auto-hides after
-        4s for success, 6s for errors so the user has more time to read
-        the failure detail. Uses MUI Snackbar+Alert (not a custom popup)
-        so it inherits the global accessibility behavior (announces to
-        screen readers via the Alert role).
+        Rename feedback is surfaced via the app-wide ToastProvider
+        (toast.success / toast.error in handleConfirmRename above) so it
+        uses the same themed surface as downloads and every other toast
+        in the app. The previous bespoke MUI Snackbar+Alert was removed
+        for visual consistency.
       */}
-        <Snackbar
-          open={Boolean(renameToast)}
-          autoHideDuration={renameToast?.severity === 'error' ? 6000 : 4000}
-          onClose={() => setRenameToast(null)}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        >
-          {renameToast ? (
-            <Alert onClose={() => setRenameToast(null)} severity={renameToast.severity} variant="filled" sx={{ width: '100%' }}>
-              {renameToast.message}
-            </Alert>
-          ) : null}
-        </Snackbar>
 
         {/*
         Confirmation modal for the Rename action. Single mounted
