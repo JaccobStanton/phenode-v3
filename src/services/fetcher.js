@@ -255,6 +255,32 @@ export const fetcher = async (url) => {
 };
 
 /**
+ * Pull the filename out of a Content-Disposition header. Returns
+ * `null` if the header is missing or doesn't carry a filename. Used by
+ * file-download mutations so the browser's "Save As" dialog gets the
+ * name the backend chose (e.g. "phenode_sensor_data.csv" instead of a
+ * blob UUID).
+ *
+ * Supports both the legacy `filename="..."` form and the RFC 5987
+ * `filename*=UTF-8''...` form (which FastAPI emits for non-ASCII
+ * names).
+ */
+const filenameFromContentDisposition = (header) => {
+  if (!header || typeof header !== 'string') return null;
+  // RFC 5987 form first — preferred when present.
+  const star = /filename\*\s*=\s*[^']*'[^']*'([^;]+)/i.exec(header);
+  if (star) {
+    try {
+      return decodeURIComponent(star[1].trim().replace(/^"|"$/g, ''));
+    } catch {
+      // ignore, fall through to legacy
+    }
+  }
+  const legacy = /filename\s*=\s*"?([^";]+)"?/i.exec(header);
+  return legacy ? legacy[1].trim() : null;
+};
+
+/**
  * Mutation request — sibling to `fetcher` for non-GET calls (PUT, POST,
  * PATCH, DELETE) that carry a JSON body.
  *
@@ -282,10 +308,16 @@ export const fetcher = async (url) => {
  *                                   current token from useAuth(); the
  *                                   refresh path swaps it transparently
  *                                   on 401.
- * @returns {Promise<*>} Parsed JSON response (or null for 204).
+ * @param {'json'|'blob'} [options.parseAs='json'] - How to read the
+ *   response body. 'json' (default) returns parsed JSON (or null on
+ *   204). 'blob' returns `{ blob, filename }` for file downloads —
+ *   filename comes from the response's Content-Disposition header,
+ *   `null` when the server didn't send one.
+ *
+ * @returns {Promise<*>} See `parseAs` for the return shape.
  * @throws {ApiError} On any non-2xx after the refresh-and-retry attempt.
  */
-export const mutationRequest = async (url, { method, body, token } = {}) => {
+export const mutationRequest = async (url, { method, body, token, parseAs = 'json' } = {}) => {
   const buildHeaders = (currentToken) => {
     const headers = { 'Content-Type': 'application/json' };
     if (currentToken) headers.Authorization = `Bearer ${currentToken}`;
@@ -311,5 +343,11 @@ export const mutationRequest = async (url, { method, body, token } = {}) => {
     throw new ApiError(response.status, detail);
   }
   if (response.status === 204) return null;
+
+  if (parseAs === 'blob') {
+    const blob = await response.blob();
+    const filename = filenameFromContentDisposition(response.headers.get('Content-Disposition'));
+    return { blob, filename };
+  }
   return response.json();
 };

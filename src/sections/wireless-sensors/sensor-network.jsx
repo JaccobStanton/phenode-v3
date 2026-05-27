@@ -31,12 +31,15 @@ import ConfirmRenameModal from 'components/ConfirmRenameModal';
 import MainCard from 'components/MainCard';
 import WirelessSensorFleetMap from 'sections/wireless-sensors/wireless-sensor-fleet-map';
 import useAuth from 'hooks/useAuth';
+import useDisplayPreferences from 'hooks/useDisplayPreferences';
 import useInfoCard from 'hooks/useInfoCard';
 import useMyDevices from 'hooks/data/useMyDevices';
 import useMyWirelessSensors from 'hooks/data/useMyWirelessSensors';
 import useWirelessSensorDetail from 'hooks/data/useWirelessSensorDetail';
 import useWirelessSensorMeasurements from 'hooks/data/useWirelessSensorMeasurements';
-import { renameSensor } from 'services/mutations';
+import { useToast } from 'providers/ToastProvider';
+import { downloadWirelessSensorData, renameSensor } from 'services/mutations';
+import triggerBlobDownload from 'utils/triggerBlobDownload';
 import {
   formatBatteryPercent,
   formatLastMeasurement,
@@ -103,21 +106,44 @@ const diagramWidthSx = { xs: '92%', sm: '88%', md: '90%', lg: '92%' };
 // from/to memo + the dropdown menu can't drift.
 const CUSTOM_RANGE_LABEL = 'Custom range…';
 
-// Conversion ratios for the chart transforms below.
+// Conversion helpers used by the chart-config factory below.
 const FAHRENHEIT_RATIO = 9 / 5;
 const cToF = (celsius) => celsius * FAHRENHEIT_RATIO + 32;
+const identity = (v) => v;
 const mvToV = (mv) => mv / 1000;
 // Backend `electricalConductivity_N` ships raw values; the detail
 // endpoint normalizes via `_normalize_conductivity` (`/1000 if > 10`)
 // because some firmwares emit µS/m while others emit dS/m directly.
 // Apply the same normalization here so chart units stay consistent
-// with the diagram-mode soil-data card.
+// with the diagram-mode soil-data card. The result is in dS/m, which
+// numerically equals mS/cm — only the label changes between the two
+// user-preference choices.
 const normalizeEc = (raw) => (raw > 10 ? raw / 1000 : raw);
 
-// 6-chart config for the wireless-sensor measurement panel. Three
-// dual-probe soil charts (Soil Temp / Moisture / Conductivity) +
-// three single-line system charts (Battery / Lux / RSSI). Each
-// chart's `series` entries describe one rendered line:
+// Backend field projection — the *fieldKey* set never changes with
+// user preferences (we always need the same raw columns from the API;
+// only the display conversion + label vary). So this stays a module
+// constant, derived from a default factory call.
+const WIRELESS_SENSOR_CHART_FIELDS = [
+  'temperatureTeros12_1',
+  'temperatureTeros12_2',
+  'vwcPercent_1',
+  'vwcPercent_2',
+  'electricalConductivity_1',
+  'electricalConductivity_2',
+  'mVbat',
+  'lux',
+  'rssi'
+];
+
+// 6-chart config factory for the wireless-sensor measurement panel.
+// Returns the same shape the old `WIRELESS_SENSOR_CHART_CONFIGS`
+// constant did — three dual-probe soil charts (Soil Temp / Moisture /
+// Conductivity) + three single-line system charts (Battery / Lux /
+// RSSI) — but with `unit` labels and `transform` functions chosen
+// based on the user's saved Display preferences.
+//
+// Each chart's `series` entries describe one rendered line:
 //
 //   id        — stable id for MUI x-charts and the series-targeted
 //               sx selectors below
@@ -129,65 +155,83 @@ const normalizeEc = (raw) => (raw > 10 ? raw / 1000 : raw);
 //   probe     — 1 or 2 for per-probe series; omitted for single-line
 //               charts. Drives the probe-highlight toggle's opacity
 //               dimming.
-//   transform — optional value transform (units conversion).
+//   transform — value transform applied per point: unit conversion +
+//               (for conductivity) the firmware-emit normalization.
 //
 // Color palette: probe 1 uses the primary teal (#48f7f5) the rest of
 // the dashboard uses for "current value" emphasis; probe 2 uses the
 // purple accent (#c96cfc) — chosen for high luminance contrast at
 // the chart's typical small size and for matching the project's
 // existing accent vocabulary.
-const WIRELESS_SENSOR_CHART_CONFIGS = [
-  {
-    key: 'soil_temperature',
-    title: 'Soil Temperature',
-    unit: '°F',
-    series: [
-      { id: 'p1', fieldKey: 'temperatureTeros12_1', label: 'Probe 1', color: '#48f7f5', probe: 1, transform: cToF },
-      { id: 'p2', fieldKey: 'temperatureTeros12_2', label: 'Probe 2', color: '#c96cfc', probe: 2, transform: cToF }
-    ]
-  },
-  {
-    key: 'soil_moisture',
-    title: 'Soil Moisture',
-    unit: '%',
-    series: [
-      { id: 'p1', fieldKey: 'vwcPercent_1', label: 'Probe 1', color: '#48f7f5', probe: 1 },
-      { id: 'p2', fieldKey: 'vwcPercent_2', label: 'Probe 2', color: '#c96cfc', probe: 2 }
-    ]
-  },
-  {
-    key: 'conductivity',
-    title: 'Conductivity',
-    unit: 'dS/m',
-    series: [
-      { id: 'p1', fieldKey: 'electricalConductivity_1', label: 'Probe 1', color: '#48f7f5', probe: 1, transform: normalizeEc },
-      { id: 'p2', fieldKey: 'electricalConductivity_2', label: 'Probe 2', color: '#c96cfc', probe: 2, transform: normalizeEc }
-    ]
-  },
-  {
-    key: 'battery_voltage',
-    title: 'Battery Voltage',
-    unit: 'V',
-    series: [{ id: 'battery', fieldKey: 'mVbat', label: 'Battery', color: '#8539e0', transform: mvToV }]
-  },
-  {
-    key: 'lux',
-    title: 'Lux',
-    unit: 'lx',
-    series: [{ id: 'lux', fieldKey: 'lux', label: 'Lux', color: '#f4d04b' }]
-  },
-  {
-    key: 'rssi',
-    title: 'RSSI',
-    unit: 'dBm',
-    series: [{ id: 'rssi', fieldKey: 'rssi', label: 'RSSI', color: '#f47568' }]
-  }
-];
+//
+// Unit-pref mapping (all defaults match the legacy hardcoded behavior
+// when no preferences are loaded):
+//
+//   tempUnit         'F' → cToF + label '°F'   (default)
+//                    'C' → identity + '°C'
+//   conductivityUnit 'dsm'  → normalizeEc + 'dS/m'  (default)
+//                    'mscm' → normalizeEc + 'mS/cm' (numerically equal)
+//   voltageUnit      'v'  → mvToV + 'V'   (default)
+//                    'mv' → identity + 'mV'
+function buildWirelessSensorChartConfigs(displayPrefs) {
+  const tempUnit = displayPrefs?.tempUnit ?? 'F';
+  const conductivityUnit = displayPrefs?.conductivityUnit ?? 'dsm';
+  const voltageUnit = displayPrefs?.voltageUnit ?? 'v';
 
-// Backend `fields` projection — sent to the hook so the payload only
-// carries the columns the panel actually renders. Derived from the
-// chart configs so adding a chart automatically adds its fields.
-const WIRELESS_SENSOR_CHART_FIELDS = Array.from(new Set(WIRELESS_SENSOR_CHART_CONFIGS.flatMap((c) => c.series.map((s) => s.fieldKey))));
+  const tempTransform = tempUnit === 'C' ? identity : cToF;
+  const tempLabel = tempUnit === 'C' ? '°C' : '°F';
+  const conductivityLabel = conductivityUnit === 'mscm' ? 'mS/cm' : 'dS/m';
+  const voltageTransform = voltageUnit === 'mv' ? identity : mvToV;
+  const voltageLabel = voltageUnit === 'mv' ? 'mV' : 'V';
+
+  return [
+    {
+      key: 'soil_temperature',
+      title: 'Soil Temperature',
+      unit: tempLabel,
+      series: [
+        { id: 'p1', fieldKey: 'temperatureTeros12_1', label: 'Probe 1', color: '#48f7f5', probe: 1, transform: tempTransform },
+        { id: 'p2', fieldKey: 'temperatureTeros12_2', label: 'Probe 2', color: '#c96cfc', probe: 2, transform: tempTransform }
+      ]
+    },
+    {
+      key: 'soil_moisture',
+      title: 'Soil Moisture',
+      unit: '%',
+      series: [
+        { id: 'p1', fieldKey: 'vwcPercent_1', label: 'Probe 1', color: '#48f7f5', probe: 1 },
+        { id: 'p2', fieldKey: 'vwcPercent_2', label: 'Probe 2', color: '#c96cfc', probe: 2 }
+      ]
+    },
+    {
+      key: 'conductivity',
+      title: 'Conductivity',
+      unit: conductivityLabel,
+      series: [
+        { id: 'p1', fieldKey: 'electricalConductivity_1', label: 'Probe 1', color: '#48f7f5', probe: 1, transform: normalizeEc },
+        { id: 'p2', fieldKey: 'electricalConductivity_2', label: 'Probe 2', color: '#c96cfc', probe: 2, transform: normalizeEc }
+      ]
+    },
+    {
+      key: 'battery_voltage',
+      title: 'Battery Voltage',
+      unit: voltageLabel,
+      series: [{ id: 'battery', fieldKey: 'mVbat', label: 'Battery', color: '#8539e0', transform: voltageTransform }]
+    },
+    {
+      key: 'lux',
+      title: 'Lux',
+      unit: 'lx',
+      series: [{ id: 'lux', fieldKey: 'lux', label: 'Lux', color: '#f4d04b' }]
+    },
+    {
+      key: 'rssi',
+      title: 'RSSI',
+      unit: 'dBm',
+      series: [{ id: 'rssi', fieldKey: 'rssi', label: 'RSSI', color: '#f47568' }]
+    }
+  ];
+}
 
 // Probe-highlight toggle values. 'all' = both probes equal weight;
 // 1 / 2 = highlight that probe (the other dims to PROBE_DIM_OPACITY).
@@ -471,10 +515,22 @@ const dateTimePickerTextFieldSx = {
 };
 
 // =============================================================================
-// CSV download helpers — same shape as the helpers in sensor-measurements.jsx
-// but adapted for the wireless-sensor field set and multi-series chart
-// configs.
+// Download helpers — backend-generated archive.
 // =============================================================================
+//
+// The Download button on this page calls the backend's
+// `POST /wireless-sensors/sensor-data/{sensor_list}/{from}/{to}` endpoint
+// (services/mutations.js → downloadWirelessSensorData). The backend
+// pulls the user's saved data_download_preferences (decimal places,
+// timezone, blank/zero handling) from the DB and applies them to each
+// CSV before zipping the archive. Always returns application/zip even
+// for a single sensor — there's no single-CSV variant of this route.
+//
+// History: an earlier version of this file built the CSV client-side
+// from the chart configs (which derive from `ui_preferences.units`).
+// That mixed the two preference scopes and missed the formatting
+// features the backend handles. Replaced so the export is consistent
+// with the future Data Downloads page and any scripted API consumer.
 
 const dateToFilenameSlug = (d) => {
   if (!(d instanceof Date) || Number.isNaN(d.getTime())) return 'unknown';
@@ -487,56 +543,14 @@ const sensorLabelToFilenameSlug = (label) => {
   return trimmed.replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'sensor';
 };
 
-/**
- * Build a CSV string from the normalized measurement rows. Columns:
- * `time`, then one column per chart config's series (so dual-probe
- * charts produce two columns — e.g., `soil_temperature_p1 (°F)` and
- * `soil_temperature_p2 (°F)`). Values pass through each series'
- * transform so the exported numbers match what's on screen.
- */
-function buildSensorMeasurementsCsv(rows) {
-  const headerCells = ['time'];
-  for (const chart of WIRELESS_SENSOR_CHART_CONFIGS) {
-    for (const series of chart.series) {
-      const isMultiProbe = chart.series.length > 1;
-      const suffix = isMultiProbe ? `_${series.id}` : '';
-      const label = `${chart.key}${suffix}`;
-      headerCells.push(chart.unit ? `${label} (${chart.unit})` : label);
-    }
-  }
-  const lines = [headerCells.join(',')];
-  for (const row of rows) {
-    const cells = [row.time];
-    for (const chart of WIRELESS_SENSOR_CHART_CONFIGS) {
-      for (const series of chart.series) {
-        const field = row.fields[series.fieldKey];
-        const raw = field?.avg;
-        if (raw === null || raw === undefined) {
-          cells.push('');
-        } else {
-          const value = series.transform ? series.transform(raw) : raw;
-          cells.push(Number.isFinite(value) ? value.toFixed(4).replace(/\.?0+$/, '') : '');
-        }
-      }
-    }
-    lines.push(cells.join(','));
-  }
-  return lines.join('\n');
-}
-
-function downloadSensorMeasurementsCsv({ rows, sensorLabel, from, to }) {
-  if (!rows?.length) return;
-  const csv = buildSensorMeasurementsCsv(rows);
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${sensorLabelToFilenameSlug(sensorLabel)}_${dateToFilenameSlug(from)}_${dateToFilenameSlug(to)}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
+// Extension from the backend's Content-Disposition filename. For the
+// wireless endpoint this is always .zip — but reading it from the
+// header (rather than hardcoding) keeps the code resilient if the
+// backend ever adds a single-CSV variant of the route.
+const extensionFromBackendFilename = (filename) => {
+  const m = filename ? /\.([a-z0-9]+)$/i.exec(filename) : null;
+  return m ? m[1].toLowerCase() : 'zip';
+};
 
 // Search-param name for deep-linking from the wireless-sensor fleet
 // overview. The fleet card click writes
@@ -622,11 +636,15 @@ const formatConductivity = (value) => {
 // the detail hook hasn't resolved or the sensor doesn't have a probe
 // wired to that port — same shape as the mock so the .map() in the
 // render branch doesn't have to special-case loading.
-const buildSoilReadings = (sensorDetail, selectedSoilProbe) => {
+// `tempUnit` from useDisplayPreferences flows in so the Soil
+// Temperature row matches the user's preferred display unit. The
+// caller's useMemo includes tempUnit in its deps so a unit change
+// re-derives the rows.
+const buildSoilReadings = (sensorDetail, selectedSoilProbe, tempUnit = 'F') => {
   const port = selectedSoilProbe === 'probe-2' ? 1 : 0;
   const soil = sensorDetail?.soilSensors?.[port];
   return [
-    { label: 'Soil Temperature', value: formatSoilTemperature(soil?.soilTemperature) },
+    { label: 'Soil Temperature', value: formatSoilTemperature(soil?.soilTemperature, tempUnit) },
     { label: 'Soil Moisture', value: formatSoilMoisture(soil?.soilMoisture) },
     // Renamed from "Soil Salinity / kPa" (mock) → "Conductivity / dS/m"
     // because the backend value is electrical conductivity, not salinity.
@@ -642,6 +660,24 @@ export default function SensorNetwork() {
   // the chart time range). Pulled up to the top of the component so
   // every URL-derived value below can reference the same instance.
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Display preferences. Drives:
+  //   - the soil-readings card (Soil Temperature row → tempUnit)
+  //   - the WIRELESS_SENSOR chart configs (soil temperature transform/
+  //     label → tempUnit; conductivity label → conductivityUnit;
+  //     battery voltage transform/label → voltageUnit)
+  //   - the CSV export (column headers reflect the user's units)
+  // useDisplayPreferences memoizes the returned object so referencing
+  // it in the chartConfigs useMemo deps below is stable.
+  const displayPrefs = useDisplayPreferences();
+  const { tempUnit } = displayPrefs;
+
+  // Chart configs derived from preferences. A unit change in Account
+  // Settings → Display flips displayPrefs, this useMemo recomputes,
+  // and every downstream consumer (chartSeriesByField, the chart
+  // renderer, the enlarged-chart lookup, the CSV export) sees the new
+  // transforms + unit labels.
+  const chartConfigs = useMemo(() => buildWirelessSensorChartConfigs(displayPrefs), [displayPrefs]);
 
   // Time range derived from `?range=`. Three resolution paths:
   //   - `?range=Last 24 hours` → match against the preset table → use it
@@ -695,7 +731,7 @@ export default function SensorNetwork() {
   // Currently-enlarged chart key. null = closed; otherwise the
   // config.key of the chart being displayed in the Dialog.
   const [enlargedChartKey, setEnlargedChartKey] = useState(null);
-  const enlargedChartConfig = enlargedChartKey ? (WIRELESS_SENSOR_CHART_CONFIGS.find((c) => c.key === enlargedChartKey) ?? null) : null;
+  const enlargedChartConfig = enlargedChartKey ? (chartConfigs.find((c) => c.key === enlargedChartKey) ?? null) : null;
 
   // Map view derived from `?view=map`. Same URL-as-source-of-truth
   // pattern the chart range uses above — auditable + shareable + the
@@ -862,7 +898,7 @@ export default function SensorNetwork() {
   const chartSeriesByField = useMemo(() => {
     if (!measurementRows) return {};
     const result = {};
-    for (const chartConfig of WIRELESS_SENSOR_CHART_CONFIGS) {
+    for (const chartConfig of chartConfigs) {
       result[chartConfig.key] = chartConfig.series.map((seriesConfig) => {
         const transform = seriesConfig.transform;
         const values = measurementRows.map((row) => {
@@ -876,7 +912,9 @@ export default function SensorNetwork() {
       });
     }
     return result;
-  }, [measurementRows]);
+    // `chartConfigs` is included so a unit-preference change re-derives
+    // the values arrays through the new transforms.
+  }, [measurementRows, chartConfigs]);
 
   const infoCardTitle = isSoilDataMode ? 'Soil Data' : 'Sensor Information';
   const infoCardTooltipTitle = isSoilDataMode ? 'Sensor Info.' : 'Soil Data';
@@ -1164,7 +1202,10 @@ export default function SensorNetwork() {
   // Soil-data rows for the active probe. Built once per detail/probe
   // change so the .map() in the render branch doesn't recompute on
   // every parent render.
-  const activeSoilReadings = useMemo(() => buildSoilReadings(sensorDetail, selectedSoilProbe), [sensorDetail, selectedSoilProbe]);
+  const activeSoilReadings = useMemo(
+    () => buildSoilReadings(sensorDetail, selectedSoilProbe, tempUnit),
+    [sensorDetail, selectedSoilProbe, tempUnit]
+  );
 
   // ---- Rename card -------------------------------------------------------
   // Local controlled state for the Rename TextField. Reset whenever the
@@ -1271,6 +1312,50 @@ export default function SensorNetwork() {
     },
     [accessToken, mutateSensors]
   );
+
+  // ---------------------------------------------------------------------------
+  // Archive download — backend POST → Blob → browser save.
+  //
+  // The backend reads data_download_preferences from the DB and applies
+  // them to each per-sensor CSV before zipping. We only request ONE
+  // sensor (the currently-selected one) from the inline button here;
+  // the dedicated Data Downloads page will support multi-sensor
+  // exports by passing a comma-separated list to the same endpoint.
+  // ---------------------------------------------------------------------------
+  const toast = useToast();
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = useCallback(async () => {
+    if (!activeSensor?.externalSensorId || downloading) return;
+    setDownloading(true);
+    try {
+      const fromIso = from.toISOString();
+      const toIso = to.toISOString();
+      const { blob, filename } = await downloadWirelessSensorData(
+        activeSensor.externalSensorId,
+        fromIso,
+        toIso,
+        accessToken
+      );
+      const ext = extensionFromBackendFilename(filename);
+      const label = sensorLabelToFilenameSlug(activeSensor.label || activeSensor.externalSensorId);
+      const saveAs = `${label}_${dateToFilenameSlug(from)}_${dateToFilenameSlug(to)}.${ext}`;
+      triggerBlobDownload(blob, saveAs);
+      toast.success('Download started.');
+    } catch (err) {
+      // 404 means no rows in the requested range — friendlier copy
+      // than the generic catch-all so the user knows to widen the
+      // window rather than think the export is broken.
+      if (err?.status === 404) {
+        toast.error('No data found in this date range.');
+      } else {
+        const detail = err?.detail;
+        toast.error(detail ? `Couldn't download: ${detail}` : "Couldn't generate the download. Please try again.");
+      }
+    } finally {
+      setDownloading(false);
+    }
+  }, [activeSensor, from, to, accessToken, downloading, toast]);
 
   // Clear the `?sensor` URL param. Called by the dropdown change
   // handlers below — once the user picks something different from the
@@ -2030,15 +2115,8 @@ export default function SensorNetwork() {
                         <Button
                           variant="outlined"
                           startIcon={<AntIcon icon={DownloadOutlined} />}
-                          disabled={!measurementRows?.length}
-                          onClick={() =>
-                            downloadSensorMeasurementsCsv({
-                              rows: measurementRows,
-                              sensorLabel: activeSensor?.label || activeSensor?.externalSensorId,
-                              from,
-                              to
-                            })
-                          }
+                          disabled={!measurementRows?.length || downloading || !activeSensor?.externalSensorId}
+                          onClick={handleDownload}
                           sx={{
                             textTransform: 'none',
                             borderColor: 'var(--orange)',
@@ -2070,7 +2148,7 @@ export default function SensorNetwork() {
                             }
                           }}
                         >
-                          Download CSV
+                          {downloading ? 'Downloading…' : 'Download CSV'}
                         </Button>
                       </Box>
                     </Tooltip>
@@ -2094,7 +2172,7 @@ export default function SensorNetwork() {
                       chartLayout === 'row' ? { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' } : '1fr'
                   }}
                 >
-                  {WIRELESS_SENSOR_CHART_CONFIGS.map((config) => {
+                  {chartConfigs.map((config) => {
                     const seriesList = chartSeriesByField[config.key] ?? [];
                     // Aggregate non-null values across all series in the
                     // chart so the Y-axis padding scales correctly even

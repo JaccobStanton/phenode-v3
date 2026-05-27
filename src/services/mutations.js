@@ -98,3 +98,109 @@ export const deleteDeviceImage = (externalDeviceId, filename, accessToken) =>
     method: 'DELETE',
     token: accessToken
   });
+
+/**
+ * Update the current user's preferences — timezone + units (and any
+ * data-download fields the caller passes through).
+ *
+ * Backend reference:
+ *   phenodeX/phenode_backend/api/preferences/routes.py — PUT /user-preferences
+ *   Body: UserPreferencesUpdate {
+ *           dataDownloadPreferences?: {...},
+ *           uiPreferences?: { timezone?: string|null, units?: {...} }
+ *         }
+ *   Response: UserPreferencesRead { dataDownloadPreferences, uiPreferences }
+ *
+ * The backend MERGES uiPreferences into the existing row (not a wholesale
+ * replace) — so a partial payload like `{ uiPreferences: { units: { temperature: 'C' } } }`
+ * only touches the temperature field. We still send the full uiPreferences
+ * object from the Account Settings form for simplicity, but the merge
+ * behavior means future partial-update consumers can also use this same
+ * mutation.
+ *
+ * @param {Object} payload - UserPreferencesUpdate shape.
+ * @param {string} accessToken - Bearer token from useAuth().
+ * @returns {Promise<Object>} UserPreferencesRead — the full updated record.
+ */
+export const updateUserPreferences = (payload, accessToken) =>
+  mutationRequest(buildUrl(API.userPreferences.base), {
+    method: 'PUT',
+    body: payload,
+    token: accessToken
+  });
+
+/**
+ * Push environment variables to a device — primarily used to set the
+ * WiFi SSID and password. The backend forwards the payload to Notehub
+ * and the device picks up the new variables on its next sync, then
+ * reboots and reconnects with the new credentials.
+ *
+ * Backend reference:
+ *   phenodeX/phenode_backend/api/devices/routes.py:388 —
+ *   POST /devices/{external_id}/environment-variables
+ *   Body: arbitrary key/value pairs (DeviceEnvironmentVariablesPayload
+ *         has `extra: allow`). For wifi: { wifi_ssid, wifi_password }.
+ *
+ * @param {string} externalDeviceId - The device's immutable external_device_id.
+ * @param {Object} variables - Key/value env vars to push (e.g. { wifi_ssid, wifi_password }).
+ * @param {string} accessToken - Bearer token from useAuth().
+ * @returns {Promise<Object>} Backend response.
+ */
+export const setDeviceEnvironmentVariables = (externalDeviceId, variables, accessToken) =>
+  mutationRequest(buildUrl(API.devices.environmentVariables(externalDeviceId)), {
+    method: 'POST',
+    body: variables,
+    token: accessToken
+  });
+
+/**
+ * Download a device's sensor-data CSV. Backend applies the user's
+ * saved data_download_preferences (decimal places, timezone, blank/
+ * zero handling, etc.) server-side before responding.
+ *
+ * Response shape varies:
+ *   - No linked wireless sensors → `text/csv` ("phenode_sensor_data.csv")
+ *   - Has linked wireless sensors → `application/zip` containing the
+ *     device CSV plus one CSV per sensor ("phenode_sensor_data.zip")
+ * The browser's Save As dialog gets the right filename either way
+ * because mutationRequest reads Content-Disposition for us.
+ *
+ * Backend reference:
+ *   phenodeX/phenode_backend/api/devices/routes.py:909
+ *
+ * @param {string} externalDeviceId - immutable external_device_id
+ * @param {string} fromIso - ISO 8601 start timestamp
+ * @param {string} toIso - ISO 8601 end timestamp
+ * @param {string} accessToken - Bearer token from useAuth()
+ * @returns {Promise<{ blob: Blob, filename: string|null }>}
+ */
+export const downloadDeviceSensorData = (externalDeviceId, fromIso, toIso, accessToken) =>
+  mutationRequest(buildUrl(API.devices.sensorDataDownload(externalDeviceId, fromIso, toIso)), {
+    method: 'POST',
+    token: accessToken,
+    parseAs: 'blob'
+  });
+
+/**
+ * Download wireless-sensor data as a ZIP archive (one CSV per
+ * requested sensor). Backend applies data_download_preferences before
+ * sealing each CSV.
+ *
+ * For a single-sensor download, pass the one external_sensor_id as
+ * `sensorList`. The archive will contain a single `{id}.csv` inside.
+ *
+ * Backend reference:
+ *   phenodeX/phenode_backend/api/wireless_sensors/routes.py:498
+ *
+ * @param {string} sensorList - comma-separated external_sensor_ids
+ * @param {string} fromIso - ISO 8601 start timestamp
+ * @param {string} toIso - ISO 8601 end timestamp
+ * @param {string} accessToken - Bearer token from useAuth()
+ * @returns {Promise<{ blob: Blob, filename: string|null }>}
+ */
+export const downloadWirelessSensorData = (sensorList, fromIso, toIso, accessToken) =>
+  mutationRequest(buildUrl(API.wirelessSensors.sensorDataDownload(sensorList, fromIso, toIso)), {
+    method: 'POST',
+    token: accessToken,
+    parseAs: 'blob'
+  });

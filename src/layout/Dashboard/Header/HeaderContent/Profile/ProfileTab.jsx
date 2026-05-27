@@ -8,18 +8,19 @@ import ListItemText from '@mui/material/ListItemText';
 
 // assets
 import AntIcon from 'components/AntIcon';
-import EditOutlined from '@ant-design/icons-svg/lib/asn/EditOutlined';
 import LogoutOutlined from '@ant-design/icons-svg/lib/asn/LogoutOutlined';
-import ProfileOutlined from '@ant-design/icons-svg/lib/asn/ProfileOutlined';
 import UserOutlined from '@ant-design/icons-svg/lib/asn/UserOutlined';
-import WalletOutlined from '@ant-design/icons-svg/lib/asn/WalletOutlined';
 
 // ==============================|| HEADER PROFILE - PROFILE TAB ||============================== //
 //
-// All items here are template-stub navigation entries except Logout
-// (which is wired through the onLogout prop passed from the parent
-// Profile/index.jsx). Wire individual onClicks as the corresponding
-// pages get built.
+// Two items: Profile (navigates to /dashboard/profile) and Logout. Both
+// are wired through callbacks passed from the parent Profile/index.jsx
+// so the popper can close BEFORE the action fires — same pattern the
+// SettingTab uses for Support / Privacy. Earlier versions of this file
+// also rendered Edit Profile / Social Profile / Billing stub entries;
+// they were removed once the dedicated Profile page landed, because
+// the destination they would have linked to doesn't exist (and
+// shouldn't be invented here).
 
 // Project-themed list-item recipe — text + icon both var(--blue) at rest,
 // transitioning to var(--green) with the standard neon hover treatment.
@@ -48,32 +49,14 @@ const themedListItemSx = {
   }
 };
 
-export default function ProfileTab({ onLogout }) {
+export default function ProfileTab({ onLogout, onOpenProfile }) {
   return (
     <List component="nav" sx={{ p: 0.75 }}>
-      <ListItemButton sx={themedListItemSx}>
-        <ListItemIcon>
-          <AntIcon icon={EditOutlined} />
-        </ListItemIcon>
-        <ListItemText primary="Edit Profile" />
-      </ListItemButton>
-      <ListItemButton sx={themedListItemSx}>
+      <ListItemButton sx={themedListItemSx} onClick={onOpenProfile}>
         <ListItemIcon>
           <AntIcon icon={UserOutlined} />
         </ListItemIcon>
         <ListItemText primary="View Profile" />
-      </ListItemButton>
-      <ListItemButton sx={themedListItemSx}>
-        <ListItemIcon>
-          <AntIcon icon={ProfileOutlined} />
-        </ListItemIcon>
-        <ListItemText primary="Social Profile" />
-      </ListItemButton>
-      <ListItemButton sx={themedListItemSx}>
-        <ListItemIcon>
-          <AntIcon icon={WalletOutlined} />
-        </ListItemIcon>
-        <ListItemText primary="Billing" />
       </ListItemButton>
       <ListItemButton sx={themedListItemSx} onClick={onLogout}>
         <ListItemIcon>
@@ -85,4 +68,4 @@ export default function ProfileTab({ onLogout }) {
   );
 }
 
-ProfileTab.propTypes = { onLogout: PropTypes.func };
+ProfileTab.propTypes = { onLogout: PropTypes.func, onOpenProfile: PropTypes.func };

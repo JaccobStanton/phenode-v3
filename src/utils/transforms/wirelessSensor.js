@@ -21,8 +21,7 @@
 //      cutoff as devices)
 
 import { batteryColor, healthStatusColor } from './metricColors';
-
-const FAHRENHEIT_RATIO = 9 / 5;
+import { formatTemperature as formatTemperatureWithUnit } from 'utils/displayUnits';
 
 /**
  * Format an ISO 8601 datetime into a localized "M/D/YYYY, h:mm:ss A"
@@ -45,15 +44,18 @@ export function formatLastMeasurement(iso) {
 }
 
 /**
- * Backend returns Celsius (`soilTemperatureC`). Display in Fahrenheit
- * to match the device fleet card's temperature convention so the two
- * fleet views read consistently. If a unit-preference toggle ships,
- * this is the single place to flip it.
+ * Backend returns Celsius (`soilTemperatureC`). Renders in the user's
+ * preferred unit when one is supplied; defaults to Fahrenheit for
+ * back-compat with callers that haven't been migrated to read
+ * `useDisplayPreferences().tempUnit`. Shares the conversion logic in
+ * utils/displayUnits.js with the device transformer so both fleet
+ * views read consistently.
+ *
+ * @param {number|null|undefined} celsius - canonical Celsius value
+ * @param {'F'|'C'} tempUnit - target unit; defaults to 'F'
  */
-export function formatSoilTemperature(celsius) {
-  if (celsius == null || Number.isNaN(celsius)) return 'N/A';
-  const fahrenheit = celsius * FAHRENHEIT_RATIO + 32;
-  return `${fahrenheit.toFixed(2)}°F`;
+export function formatSoilTemperature(celsius, tempUnit = 'F') {
+  return formatTemperatureWithUnit(celsius, tempUnit, 2);
 }
 
 /**
@@ -137,7 +139,15 @@ const translateHealthStatus = (raw) => {
   return raw ?? 'Unknown';
 };
 
-export function wirelessSensorToFleetRow(sensor) {
+/**
+ * @param {Object} sensor - WirelessSensorListItem from the API
+ * @param {Object} [displayPrefs] - optional display-preferences object
+ *   from useDisplayPreferences(). When omitted, falls back to the
+ *   legacy defaults (Fahrenheit for soil temperature) so callers that
+ *   haven't been migrated produce the same output as before.
+ */
+export function wirelessSensorToFleetRow(sensor, displayPrefs) {
+  const tempUnit = displayPrefs?.tempUnit ?? 'F';
   return {
     siteName: sensor?.label || sensor?.externalSensorId || 'Unnamed sensor',
     // Raw immutable identifier (the externalSensorId — the WS- prefixed
@@ -163,7 +173,7 @@ export function wirelessSensorToFleetRow(sensor) {
       return [
         { label: 'Health Status:', value: health, color: healthStatusColor(health) },
         { label: 'Soil Moisture:', value: formatSoilMoisture(sensor?.soilMoisture) },
-        { label: 'Soil Temp:', value: formatSoilTemperature(sensor?.soilTemperatureC) },
+        { label: 'Soil Temp:', value: formatSoilTemperature(sensor?.soilTemperatureC, tempUnit) },
         { label: 'RSSI:', value: formatRssi(sensor?.rssi) },
         { label: 'Battery:', value: formatBatteryPercent(batteryPct), color: batteryColor(batteryPct) }
       ];

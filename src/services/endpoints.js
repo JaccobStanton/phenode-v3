@@ -74,7 +74,23 @@ const API = {
     // containing reserved characters survive the path segment.
     // Source: phenodeX/phenode_backend/api/devices/routes.py:795
     imageDeleteByFilename: (externalDeviceId, filename) =>
-      `/devices/${externalDeviceId}/images/delete-by-filename/${encodeURIComponent(filename)}`
+      `/devices/${externalDeviceId}/images/delete-by-filename/${encodeURIComponent(filename)}`,
+    // POST — push environment variables (Notehub vars) to a device.
+    // Accepts arbitrary key/value pairs (DeviceEnvironmentVariablesPayload
+    // has `extra: allow`). PheNode uses this to set wifi_ssid /
+    // wifi_password — the device reboots and reconnects with the new
+    // credentials. Source: phenodeX/phenode_backend/api/devices/routes.py:388
+    environmentVariables: (externalDeviceId) => `/devices/${externalDeviceId}/environment-variables`,
+    // POST — server-generated CSV download. The backend pulls the
+    // user's saved `data_download_preferences` (decimal places,
+    // timezone, blank/zero/hyphen handling) and applies them to the
+    // file before responding. Response is text/csv when the device has
+    // no linked wireless sensors, or application/zip when it does.
+    // ISO timestamps are URL-encoded because path segments are sent
+    // as-is by the browser and ':' / '+' chars can confuse some proxies.
+    // Source: phenodeX/phenode_backend/api/devices/routes.py:909
+    sensorDataDownload: (externalDeviceId, fromIso, toIso) =>
+      `/devices/${externalDeviceId}/sensor-data/${encodeURIComponent(fromIso)}/${encodeURIComponent(toIso)}`
   },
   wirelessSensors: {
     // GET — { success, sensors: WirelessSensorListItem[] } visible to current user.
@@ -98,12 +114,30 @@ const API = {
     //   { sensorExternalId, from, to, rows: [...] }
     //
     // Source: phenodeX/phenode_backend/api/wireless_sensors/routes.py:342
-    sensorData: (externalSensorId) => `/wireless-sensors/${externalSensorId}/sensor-data`
+    sensorData: (externalSensorId) => `/wireless-sensors/${externalSensorId}/sensor-data`,
+    // POST — server-generated ZIP download containing one CSV per
+    // requested sensor. `sensorList` is a comma-separated string of
+    // external_sensor_id values (the backend splits on ',', see
+    // wireless_sensors/routes.py:522). User's saved
+    // data_download_preferences are applied to each CSV before the
+    // archive is sealed. Always responds with application/zip
+    // (even for a single sensor — there's no single-CSV variant of
+    // this endpoint). Source: phenodeX/phenode_backend/api/wireless_sensors/routes.py:498
+    sensorDataDownload: (sensorList, fromIso, toIso) =>
+      `/wireless-sensors/sensor-data/${encodeURIComponent(sensorList)}/${encodeURIComponent(fromIso)}/${encodeURIComponent(toIso)}`
   },
   user: {
     // GET — used by AuthApprovalPending to detect approval.
     // 200 once approved, 403 while pending.
     devices: '/user/devices'
+  },
+  userPreferences: {
+    // GET — UserPreferencesRead for the current user. Auto-creates a
+    // preferences row with defaults if one doesn't exist yet.
+    // PUT — accepts UserPreferencesUpdate; merges uiPreferences with the
+    // existing row instead of replacing wholesale.
+    // Source: phenodeX/phenode_backend/api/preferences/routes.py
+    base: '/user-preferences'
   }
 };
 

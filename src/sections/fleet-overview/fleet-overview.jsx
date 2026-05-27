@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import FleetOverviewView from 'sections/fleet-overview/FleetOverviewView';
 import useAuth from 'hooks/useAuth';
 import useMyDevices from 'hooks/data/useMyDevices';
+import useDisplayPreferences from 'hooks/useDisplayPreferences';
 import { renameDevice } from 'services/mutations';
 import { deviceReadToFleetRow } from 'utils/transforms/device';
 
@@ -29,11 +30,23 @@ export default function FleetOverview() {
   const { devices, isLoading, error, mutate } = useMyDevices();
   const { accessToken } = useAuth();
   const navigate = useNavigate();
+  // Display preferences from the Account Settings → Display tab. The
+  // pilot consumer for this hook — temperature on the fleet cards
+  // re-renders in °C or °F based on what the user has saved.
+  // useDisplayPreferences returns a memoized object, so referencing it
+  // in the rows useMemo deps below doesn't churn unless the user
+  // actually changed a preference.
+  const displayPrefs = useDisplayPreferences();
 
   // useMemo so the transformed array reference is stable across renders
-  // when `devices` hasn't changed — that keeps FleetOverviewView's
-  // useMemo (filter + sort) from re-running on every parent render.
-  const rows = useMemo(() => (devices ?? []).map(deviceReadToFleetRow), [devices]);
+  // when neither `devices` nor `displayPrefs` has changed — that keeps
+  // FleetOverviewView's useMemo (filter + sort) from re-running on
+  // every parent render. The transformer is pure, so identical inputs
+  // produce identical output and the memo holds.
+  const rows = useMemo(
+    () => (devices ?? []).map((d) => deviceReadToFleetRow(d, displayPrefs)),
+    [devices, displayPrefs]
+  );
 
   // Card click → deep-link into the sensor-measurements page scoped to
   // the clicked PheNode.

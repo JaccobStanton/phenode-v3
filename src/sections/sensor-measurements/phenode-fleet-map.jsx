@@ -16,6 +16,7 @@ import AntIcon from 'components/AntIcon';
 import AimOutlined from '@ant-design/icons-svg/lib/asn/AimOutlined';
 
 import ConfirmRenameModal from 'components/ConfirmRenameModal';
+import useDisplayPreferences from 'hooks/useDisplayPreferences';
 import { useToast } from 'providers/ToastProvider';
 import { glassSurfaceSx, reflectedCardChromeSx } from 'themes/sx-tokens';
 import {
@@ -662,6 +663,10 @@ export default function PheNodeFleetMap({ devices, selectedDeviceId, onSelectDev
   const [renameInput, setRenameInput] = useState('');
   const [pendingRename, setPendingRename] = useState(null);
   const toast = useToast();
+  // Display preferences — drives the hover-tooltip's Temperature /
+  // Rainfall / Wind formatting so the map info card honors the user's
+  // saved units the same way the fleet cards do.
+  const { tempUnit, speedUnit, rainUnit } = useDisplayPreferences();
 
   // ID of the device currently under the user's mouse, or null. Drives
   // the themed hover tooltip (InfoWindow) — set from each core marker's
@@ -1282,9 +1287,9 @@ export default function PheNodeFleetMap({ devices, selectedDeviceId, onSelectDev
                         }}
                       >
                         {[
-                          ['Temperature:', formatTemperature(hoveredDevice.temperature_c)],
-                          ['Rainfall:', formatTodaysRainfall(hoveredDevice.rainfall_today_mm)],
-                          ['Wind:', formatWindSpeed(hoveredDevice.wind_speed)],
+                          ['Temperature:', formatTemperature(hoveredDevice.temperature_c, tempUnit)],
+                          ['Rainfall:', formatTodaysRainfall(hoveredDevice.rainfall_today_mm, rainUnit)],
+                          ['Wind:', formatWindSpeed(hoveredDevice.wind_speed, speedUnit)],
                           ['Battery:', formatBatteryPercent(hoveredDevice.battery_percent)]
                         ].map(([label, value]) => (
                           <Fragment key={label}>

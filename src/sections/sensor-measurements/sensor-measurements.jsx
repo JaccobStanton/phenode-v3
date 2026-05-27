@@ -37,7 +37,10 @@ const PheNodeFleetMap = lazy(() => import('sections/sensor-measurements/phenode-
 import useAuth from 'hooks/useAuth';
 import useMyDevices from 'hooks/data/useMyDevices';
 import useDeviceMeasurements from 'hooks/data/useDeviceMeasurements';
-import { renameDevice } from 'services/mutations';
+import useDisplayPreferences from 'hooks/useDisplayPreferences';
+import { useToast } from 'providers/ToastProvider';
+import { downloadDeviceSensorData, renameDevice } from 'services/mutations';
+import triggerBlobDownload from 'utils/triggerBlobDownload';
 import { formatLastMeasurement, formatTemperature, formatTodaysRainfall, formatWindSpeed } from 'utils/transforms/device';
 import {
   CHART_TIME_RANGE_LABELS,
@@ -369,20 +372,35 @@ const dateTimePickerTextFieldSx = {
 };
 
 // =============================================================================
-// CSV download — builds a CSV from the currently-loaded measurement rows
-// and triggers a browser download. One row per timestamp, one column per
-// chart-configured metric (transformed with each metric's display unit
-// so the file matches what the user sees on screen).
+// CSV download — backend-generated.
 // =============================================================================
 //
-// Why this lives at module scope, not as a hook: the function only reads
-// its arguments, has no React-state dependencies, and is invoked exactly
-// once per user click. A hook would add ceremony without buying anything.
+// The Download button on this page calls the backend's
+// `POST /devices/{id}/sensor-data/{from}/{to}` endpoint
+// (services/mutations.js → downloadDeviceSensorData). The backend pulls
+// the user's saved data_download_preferences (decimal places, timezone,
+// blank/zero handling, etc.) from the DB and applies them to the CSV
+// before responding — so the file the user gets matches the formatting
+// they configured, NOT the on-screen unit conversion done by the chart
+// configs. Those are intentionally separate prefs buckets:
+//
+//   ui_preferences            → drives chart + card display (frontend)
+//   data_download_preferences → drives export formatting (backend)
+//
+// History: an earlier version of this file built the CSV client-side
+// from the chart configs. That mixed the two preference scopes and
+// skipped server-side features (error/blank/zero handling, decimal-
+// places). Replaced with the backend call so the export is consistent
+// with the dedicated Data Downloads page and any API consumer.
 
 /**
  * Convert one date to a slug like "2026-03-15" — safe for filenames on
  * every OS. ISO `toISOString()` produces "2026-03-15T14:23:00.000Z" so
  * we lift the YYYY-MM-DD prefix.
+ *
+ * Still used client-side to construct the suggested Save As name —
+ * the backend's `phenode_sensor_data.csv` is generic, and a user with
+ * three devices ends up with three same-named downloads otherwise.
  */
 function dateToFilenameSlug(d) {
   if (!(d instanceof Date) || Number.isNaN(d.getTime())) return 'unknown';
@@ -401,70 +419,38 @@ function deviceLabelToFilenameSlug(label) {
 }
 
 /**
- * Build a CSV string from the normalized measurement rows. Columns:
- * `time`, then one column per DEVICE_CHART_CONFIGS entry. Values pass
- * through each entry's `transform` (so e.g. temperature exports as °F
- * to match the on-screen chart), and the header carries the metric's
- * display unit in parentheses so the file is self-documenting.
- *
- * Empty cells for rows where that field has no reading.
+ * Pull the extension off whatever filename the backend suggested
+ * (Content-Disposition). The device endpoint returns
+ * `phenode_sensor_data.csv` when the device has no linked wireless
+ * sensors and `phenode_sensor_data.zip` when it does — we preserve
+ * that distinction in the Save As name so the file opens with the
+ * right app.
  */
-function buildMeasurementsCsv(rows) {
-  const headerCells = ['time'];
-  for (const config of DEVICE_CHART_CONFIGS) {
-    headerCells.push(config.unit ? `${config.key} (${config.unit})` : config.key);
-  }
-  const lines = [headerCells.join(',')];
-  for (const row of rows) {
-    const cells = [row.time];
-    for (const config of DEVICE_CHART_CONFIGS) {
-      const field = row.fields[config.key];
-      const raw = field?.avg;
-      if (raw === null || raw === undefined) {
-        cells.push('');
-      } else {
-        const value = config.transform ? config.transform(raw) : raw;
-        // Round to 4 decimals to keep file size sane; raw numbers can
-        // be 15+ significant digits (JS doubles) which is more
-        // precision than a sensor actually delivers.
-        cells.push(Number.isFinite(value) ? value.toFixed(4).replace(/\.?0+$/, '') : '');
-      }
-    }
-    lines.push(cells.join(','));
-  }
-  return lines.join('\n');
+function extensionFromBackendFilename(filename) {
+  const m = filename ? /\.([a-z0-9]+)$/i.exec(filename) : null;
+  return m ? m[1].toLowerCase() : 'csv';
 }
 
-/**
- * Trigger a CSV download in the browser. Builds an anchor element with
- * an object URL, clicks it, then revokes the URL. The anchor is
- * appended to + removed from the DOM so Firefox honors the click
- * (Firefox is stricter about detached anchors than Chrome/Safari).
- */
-function downloadMeasurementsCsv({ rows, deviceLabel, from, to }) {
-  if (!rows?.length) return;
-  const csv = buildMeasurementsCsv(rows);
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${deviceLabelToFilenameSlug(deviceLabel)}_${dateToFilenameSlug(from)}_${dateToFilenameSlug(to)}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-// Conversion ratio for °C → °F. Local consts (not magic numbers in the
-// transform) make the intent obvious at the call site.
+// Conversion helpers used by the chart-config factory below.
 const FAHRENHEIT_RATIO = 9 / 5;
+const identity = (v) => v;
+const cToF = (celsius) => celsius * FAHRENHEIT_RATIO + 32;
+const msToMph = (ms) => ms * 2.2369362921;
+const msToKmh = (ms) => ms * 3.6;
+const mmToIn = (mm) => mm * 0.0393700787;
+const kpaToHpa = (kpa) => kpa * 10;
+const mvToV = (mv) => mv / 1000;
 
-// Per-chart configuration for the device-level chart panel. One entry =
-// one rendered chart card. Hoisted to module scope so the array isn't
-// rebuilt on every render — without this hoist the .map() below would
-// allocate a new array (and therefore new chart configs) on every
-// parent re-render, which prevents MUI's internal memoization from
-// short-circuiting the chart-render work.
+// Field key list passed to the SWR hook as the `fields` projection.
+// The fieldKey set never changes with user preferences (we always need
+// the same raw columns from the API; only the display conversion + unit
+// label vary), so this stays a module constant.
+const DEVICE_CHART_FIELDS = ['temperature', 'humidity', 'pressure', 'wind_speed', 'rainfall', 'battery_voltage'];
+
+// Per-chart configuration factory for the device-level chart panel.
+// One entry in the returned array = one rendered chart card. The
+// factory takes the current display-preferences object so each chart's
+// `unit` label and `transform` track the user's saved units.
 //
 // Schema:
 //   key:    Field name on the response row (matches the canonical
@@ -473,67 +459,94 @@ const FAHRENHEIT_RATIO = 9 / 5;
 //   color:  Stroke + area-fill color, picked from the existing
 //           sensor-measurements palette for visual continuity.
 //   unit:   Unit suffix appended to Y-axis tick labels and tooltip
-//           values.
-//   transform: Optional value transform (e.g., °C → °F). Kept at the
-//              chart-config layer rather than the hook so the hook
-//              stays display-agnostic — a future "show °C" toggle
-//              would only need to flip this function.
-//   yAxisFormat: Optional override for the Y-axis number formatter.
+//           values — comes from displayPrefs.
+//   transform: Value transform applied per point — also from
+//              displayPrefs.
 //
 // Why six charts (not the seven the original mock had):
 //   The dropped mock charts (Soil Temperature, Electrical Conductivity,
 //   Soil Moisture, LUX) are all wireless-sensor metrics, not device-
-//   level metrics. They'll come back when the wireless-sensor variant
-//   of this page exists — at which point they'll feed off the
-//   parallel /api/wireless-sensors/{id}/sensor-data endpoint and the
-//   wireless-sensor field vocabulary (vwcPercent_1,
-//   electricalConductivity_1, lux, etc.).
-const DEVICE_CHART_CONFIGS = [
-  {
-    key: 'temperature',
-    title: 'Temperature',
-    color: '#48f7f5',
-    unit: '°F',
-    // Backend emits °C; existing fleet card convention is °F.
-    transform: (celsius) => celsius * FAHRENHEIT_RATIO + 32
-  },
-  {
-    key: 'humidity',
-    title: 'Humidity',
-    color: '#c96cfc',
-    unit: '%'
-  },
-  {
-    key: 'pressure',
-    title: 'Atmospheric Pressure',
-    color: '#f47568',
-    unit: 'kPa'
-  },
-  {
-    key: 'wind_speed',
-    title: 'Wind Speed',
-    color: '#f4d04b',
-    unit: 'm/s'
-  },
-  {
-    key: 'rainfall',
-    title: 'Rainfall',
-    color: '#0043c2',
-    unit: 'mm'
-  },
-  {
-    key: 'battery_voltage',
-    title: 'Battery Voltage',
-    color: '#8539e0',
-    unit: 'mV'
-  }
-];
+//   level metrics. They live on the wireless-sensor page now.
+//
+// Canonical backend units (per services/downloads.py and the chart
+// endpoint comments):
+//   temperature        → °C
+//   pressure           → kPa
+//   wind_speed         → m/s
+//   rainfall           → mm
+//   battery_voltage    → mV
+//   humidity           → % (no unit pref applies)
+function buildDeviceChartConfigs(displayPrefs) {
+  const tempUnit = displayPrefs?.tempUnit ?? 'F';
+  const speedUnit = displayPrefs?.speedUnit ?? 'ms';
+  const pressureUnit = displayPrefs?.pressureUnit ?? 'kpa';
+  const rainUnit = displayPrefs?.rainUnit ?? 'mm';
+  const voltageUnit = displayPrefs?.voltageUnit ?? 'mv';
 
-// Field key list passed to the SWR hook as the `fields` projection.
-// Pre-extracted from DEVICE_CHART_CONFIGS so the hook only ships back
-// the columns we actually render — bandwidth saving that compounds at
-// long time ranges.
-const DEVICE_CHART_FIELDS = DEVICE_CHART_CONFIGS.map((c) => c.key);
+  // Temperature: backend ships °C. Default 'F' converts; 'C' is identity.
+  const tempTransform = tempUnit === 'C' ? identity : cToF;
+  const tempLabel = tempUnit === 'C' ? '°C' : '°F';
+
+  // Wind: backend ships m/s. 'mph' / 'kmh' / 'ms'.
+  const speedTransform = speedUnit === 'mph' ? msToMph : speedUnit === 'kmh' ? msToKmh : identity;
+  const speedLabel = speedUnit === 'mph' ? 'mph' : speedUnit === 'kmh' ? 'km/h' : 'm/s';
+
+  // Pressure: backend ships kPa. 'kpa' identity; 'hpa' x10.
+  const pressureTransform = pressureUnit === 'hpa' ? kpaToHpa : identity;
+  const pressureLabel = pressureUnit === 'hpa' ? 'hPa' : 'kPa';
+
+  // Rainfall: backend ships mm. 'mm' identity; 'in' converts.
+  const rainTransform = rainUnit === 'in' ? mmToIn : identity;
+  const rainLabel = rainUnit === 'in' ? 'in' : 'mm';
+
+  // Battery voltage: backend ships mV. 'mv' identity; 'v' / 1000.
+  const voltageTransform = voltageUnit === 'v' ? mvToV : identity;
+  const voltageLabel = voltageUnit === 'v' ? 'V' : 'mV';
+
+  return [
+    {
+      key: 'temperature',
+      title: 'Temperature',
+      color: '#48f7f5',
+      unit: tempLabel,
+      transform: tempTransform
+    },
+    {
+      key: 'humidity',
+      title: 'Humidity',
+      color: '#c96cfc',
+      unit: '%'
+    },
+    {
+      key: 'pressure',
+      title: 'Atmospheric Pressure',
+      color: '#f47568',
+      unit: pressureLabel,
+      transform: pressureTransform
+    },
+    {
+      key: 'wind_speed',
+      title: 'Wind Speed',
+      color: '#f4d04b',
+      unit: speedLabel,
+      transform: speedTransform
+    },
+    {
+      key: 'rainfall',
+      title: 'Rainfall',
+      color: '#0043c2',
+      unit: rainLabel,
+      transform: rainTransform
+    },
+    {
+      key: 'battery_voltage',
+      title: 'Battery Voltage',
+      color: '#8539e0',
+      unit: voltageLabel,
+      transform: voltageTransform
+    }
+  ];
+}
 
 // Hoisted chart sx — was being recreated 7 times per render at the
 // previous call site (every chart re-created the whole object literal).
@@ -639,7 +652,8 @@ const makeYAxisFormatter = (unit) => (value) => {
 // All props are designed to be stable across renders unless the data
 // actually changed:
 //
-//   - config: comes from the module-level DEVICE_CHART_CONFIGS array,
+//   - config: comes from chartConfigs (computed in this component via
+//             buildDeviceChartConfigs(displayPrefs)),
 //     same reference every render.
 //   - seriesTimes / seriesData: from useMemo(chartSeriesByField), same
 //     reference until measurementRows changes.
@@ -754,13 +768,20 @@ const MeasurementChart = memo(function MeasurementChart({
 // `device` may be null/undefined while the hook is still loading or the
 // fleet is empty — each formatter returns "N/A" for missing inputs,
 // so we don't need additional guards here.
-function buildCircleMetrics(device) {
+// `displayPrefs` is the memoized object from useDisplayPreferences().
+// The function is pure — same inputs, same output — so it stays at
+// module scope. The component-side useMemo includes displayPrefs in
+// its deps so a unit change re-derives this array.
+function buildCircleMetrics(device, displayPrefs) {
+  const tempUnit = displayPrefs?.tempUnit ?? 'F';
+  const speedUnit = displayPrefs?.speedUnit ?? 'ms';
+  const rainUnit = displayPrefs?.rainUnit ?? 'mm';
   return [
     {
       id: 'metric-1',
       icon: tempSensorIcon,
       iconAlt: 'Temperature sensor icon',
-      value: formatTemperature(device?.temperature_c),
+      value: formatTemperature(device?.temperature_c, tempUnit),
       label: 'Current Air Temperature',
       gustLabel: 'Humidity:',
       // Humidity isn't on the DeviceRead schema (see services/schemas/
@@ -771,7 +792,7 @@ function buildCircleMetrics(device) {
       id: 'metric-2',
       icon: rainSensorIcon,
       iconAlt: 'Rain sensor icon',
-      value: formatTodaysRainfall(device?.rainfall_today_mm),
+      value: formatTodaysRainfall(device?.rainfall_today_mm, rainUnit),
       label: "Today's Rainfall"
     },
     {
@@ -782,7 +803,7 @@ function buildCircleMetrics(device) {
       // reads as "value unavailable" without implying a specific
       // direction. Same forward-compat plan as humidity above.
       direction: '—',
-      value: formatWindSpeed(device?.wind_speed),
+      value: formatWindSpeed(device?.wind_speed, speedUnit),
       label: 'Current Windspeed',
       gustLabel: 'Gust:',
       gustValue: 'N/A'
@@ -980,6 +1001,13 @@ export default function SensorMeasurements() {
     [accessToken, mutateDevices]
   );
 
+  // Toast hook is used by handleDownload below; declared up here next
+  // to the other hooks so React's hook-order invariant is obvious at
+  // a glance. The download handler itself has to live further down,
+  // after `activeDevice` is declared — see the comment by handleDownload.
+  const toast = useToast();
+  const [downloading, setDownloading] = useState(false);
+
   // Most-recently-reporting PheNode — used as the fallback selection
   // when the URL doesn't carry a device id (e.g. the user navigated
   // here directly via the sidebar rather than clicking a fleet card).
@@ -1093,16 +1121,82 @@ export default function SensorMeasurements() {
   );
 
   // The three circles' content is fully derived from the active
-  // device. useMemo so the array reference is stable across renders
-  // when activeDevice hasn't changed — prevents the .map() below from
-  // remounting <Box> children unnecessarily.
-  const circleMetrics = useMemo(() => buildCircleMetrics(activeDevice), [activeDevice]);
+  // device + the user's display-unit preferences. useMemo so the array
+  // reference is stable across renders when neither input has changed
+  // — prevents the .map() below from remounting <Box> children
+  // unnecessarily. `displayPrefs` is memoized inside the hook so a
+  // re-render of this parent without a preference change doesn't
+  // bust the memo.
+  const displayPrefs = useDisplayPreferences();
+
+  // Device chart configs derived from preferences. A unit-pref change
+  // flips displayPrefs, this useMemo recomputes, and every consumer
+  // (the chart renderer, the enlarged-chart lookup, the CSV export)
+  // sees the new transforms + unit labels in lockstep.
+  const chartConfigs = useMemo(() => buildDeviceChartConfigs(displayPrefs), [displayPrefs]);
+
+  const circleMetrics = useMemo(
+    () => buildCircleMetrics(activeDevice, displayPrefs),
+    [activeDevice, displayPrefs]
+  );
 
   // Formatted "Last Measurements Taken" string for the page header.
   // Uses the shared transform (returns "Never" for null,
   // "Unknown" for an unparseable string) so this page surfaces the
   // same vocabulary as the fleet cards.
   const lastMeasurementsDisplay = activeDevice ? formatLastMeasurement(activeDevice.last_measurement_at) : '—';
+
+  // ---------------------------------------------------------------------------
+  // CSV download — backend POST → Blob → browser save.
+  //
+  // Has to live below `activeDevice` (declared via useMemo above)
+  // because its deps array references it — declaring the useCallback
+  // earlier would hit a temporal-dead-zone ReferenceError on first
+  // mount. `from`/`to` (declared at the top of the component) and
+  // `accessToken` / `toast` / `downloading` (declared above) are all
+  // already in scope.
+  //
+  // The backend reads the user's data_download_preferences from the DB
+  // and applies them (decimal places, timezone, blank/zero/hyphen
+  // handling) before responding. Response is text/csv when the device
+  // has no linked wireless sensors, application/zip when it does — the
+  // browser saves the suggested filename for either case (we override
+  // it client-side with a per-device-and-range name).
+  // ---------------------------------------------------------------------------
+  const handleDownload = useCallback(async () => {
+    if (!activeDevice || downloading) return;
+    setDownloading(true);
+    try {
+      const fromIso = from.toISOString();
+      const toIso = to.toISOString();
+      const { blob, filename } = await downloadDeviceSensorData(
+        activeDevice.external_device_id,
+        fromIso,
+        toIso,
+        accessToken
+      );
+      // Construct a per-device + date-range name, but use whatever
+      // extension the backend chose (.csv vs .zip varies).
+      const ext = extensionFromBackendFilename(filename);
+      const label = deviceLabelToFilenameSlug(activeDevice.label || activeDevice.external_device_id);
+      const saveAs = `${label}_${dateToFilenameSlug(from)}_${dateToFilenameSlug(to)}.${ext}`;
+      triggerBlobDownload(blob, saveAs);
+      toast.success('Download started.');
+    } catch (err) {
+      // 404 from this endpoint means "no rows in this range" — that
+      // happens routinely (user picks a range before any data was
+      // captured) and isn't really an error worth scaring the user
+      // over. Surface it as a friendlier line.
+      if (err?.status === 404) {
+        toast.error('No data found in this date range.');
+      } else {
+        const detail = err?.detail;
+        toast.error(detail ? `Couldn't download: ${detail}` : "Couldn't generate the download. Please try again.");
+      }
+    } finally {
+      setDownloading(false);
+    }
+  }, [activeDevice, from, to, accessToken, downloading, toast]);
 
   // Live time-series data for the chart panel. `bucket: 'auto'` lets
   // the backend pick the right aggregation level based on the
@@ -1178,9 +1272,9 @@ export default function SensorMeasurements() {
   // Chart-key of the chart currently displayed in the "Enlarge" Dialog,
   // or null when no enlarged view is open. Single piece of state instead
   // of a separate open/closed flag — `null` IS closed, anything else is
-  // the enlarged target's config.key from DEVICE_CHART_CONFIGS.
+  // the enlarged target's config.key from chartConfigs.
   const [enlargedChartKey, setEnlargedChartKey] = useState(null);
-  const enlargedChartConfig = enlargedChartKey ? (DEVICE_CHART_CONFIGS.find((c) => c.key === enlargedChartKey) ?? null) : null;
+  const enlargedChartConfig = enlargedChartKey ? (chartConfigs.find((c) => c.key === enlargedChartKey) ?? null) : null;
 
   // Pre-compute the X-axis timestamp array once per data refresh.
   // Every chart shares this exact array (same X for every metric of
@@ -1242,7 +1336,7 @@ export default function SensorMeasurements() {
   const chartSeriesByField = useMemo(() => {
     if (!measurementRows) return {};
     const seriesMap = {};
-    for (const config of DEVICE_CHART_CONFIGS) {
+    for (const config of chartConfigs) {
       const transform = config.transform;
       const times = [];
       const values = [];
@@ -1257,7 +1351,9 @@ export default function SensorMeasurements() {
       seriesMap[config.key] = { times, values };
     }
     return seriesMap;
-  }, [measurementRows]);
+    // `chartConfigs` in the deps so a unit-pref change re-derives the
+    // values array through the new transforms.
+  }, [measurementRows, chartConfigs]);
 
   return (
     <>
@@ -1812,15 +1908,8 @@ export default function SensorMeasurements() {
                     <Button
                       variant="outlined"
                       startIcon={<AntIcon icon={DownloadOutlined} />}
-                      disabled={!measurementRows?.length}
-                      onClick={() =>
-                        downloadMeasurementsCsv({
-                          rows: measurementRows,
-                          deviceLabel: activeDevice?.label || activeDevice?.external_device_id,
-                          from,
-                          to
-                        })
-                      }
+                      disabled={!measurementRows?.length || downloading || !activeDevice}
+                      onClick={handleDownload}
                       sx={{
                         textTransform: 'none',
                         borderColor: 'var(--orange)',
@@ -1852,7 +1941,7 @@ export default function SensorMeasurements() {
                         }
                       }}
                     >
-                      Download CSV
+                      {downloading ? 'Downloading…' : 'Download CSV'}
                     </Button>
                   </Box>
                 </Tooltip>
@@ -1921,7 +2010,7 @@ export default function SensorMeasurements() {
                   chartLayout === 'row' ? { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' } : '1fr'
               }}
             >
-              {DEVICE_CHART_CONFIGS.map((config) => {
+              {chartConfigs.map((config) => {
                 // Per-chart series shape is now `{ times, values }` —
                 // both arrays are null-filtered so the chart only
                 // plots positions where this field actually has a

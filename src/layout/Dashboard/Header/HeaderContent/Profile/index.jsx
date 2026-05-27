@@ -1,5 +1,6 @@
 import PropTypes from 'prop-types';
 import { useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 // material-ui
 import { useTheme } from '@mui/material/styles';
@@ -155,6 +156,7 @@ export default function Profile({ embedded = false, onOpenSupport, onOpenPrivacy
   // Reading from the context (instead of decoding the JWT here) means this
   // component re-renders on login/logout without us having to wire it up.
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const displayName = user?.email || 'Signed out';
   const displayRole = user ? formatRoleLabel(user.role) : '';
 
@@ -174,6 +176,24 @@ export default function Profile({ embedded = false, onOpenSupport, onOpenPrivacy
   const handleLogout = () => {
     setOpen(false);
     logout();
+  };
+
+  // Profile → /dashboard/profile. Closes the popper first so it isn't
+  // sitting open over the destination page after the route change —
+  // same close-then-act pattern used by handleLogout above and by
+  // SettingTab's onOpenSupport / onOpenPrivacy wrappers below.
+  const handleOpenProfile = () => {
+    setOpen(false);
+    navigate('/dashboard/profile');
+  };
+
+  // Account Settings → /dashboard/account-settings. Same close-then-act
+  // pattern. This is the destination wired into the SettingTab row AND
+  // into DrawerUserMenu's handleAccountSettings — both entry points
+  // land on the same page.
+  const handleOpenAccountSettings = () => {
+    setOpen(false);
+    navigate('/dashboard/account-settings');
   };
 
   const [value, setValue] = useState(0);
@@ -270,7 +290,7 @@ export default function Profile({ embedded = false, onOpenSupport, onOpenPrivacy
         </Tabs>
       </Box>
       <TabPanel value={value} index={0} dir={theme.direction}>
-        <ProfileTab onLogout={handleLogout} />
+        <ProfileTab onLogout={handleLogout} onOpenProfile={handleOpenProfile} />
       </TabPanel>
       <TabPanel value={value} index={1} dir={theme.direction}>
         {/* Both modal callbacks flow from HeaderContent. We also close the
@@ -285,6 +305,7 @@ export default function Profile({ embedded = false, onOpenSupport, onOpenPrivacy
             setOpen(false);
             if (onOpenPrivacy) onOpenPrivacy();
           }}
+          onOpenAccountSettings={handleOpenAccountSettings}
         />
       </TabPanel>
     </>

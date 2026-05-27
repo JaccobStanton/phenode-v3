@@ -6,6 +6,7 @@ import PhenodeSelector from 'components/PhenodeSelector';
 import useAuth from 'hooks/useAuth';
 import useMyDevices from 'hooks/data/useMyDevices';
 import useMyWirelessSensors from 'hooks/data/useMyWirelessSensors';
+import useDisplayPreferences from 'hooks/useDisplayPreferences';
 import { renameSensor } from 'services/mutations';
 import { wirelessSensorToFleetRow } from 'utils/transforms/wirelessSensor';
 
@@ -50,6 +51,12 @@ export default function SensorFleetOverview() {
   const { devices, isLoading: devicesLoading, error: devicesError, mutate: mutateDevices } = useMyDevices();
   const { accessToken } = useAuth();
   const navigate = useNavigate();
+  // Display-unit preferences — flows into the sensor-row transformer
+  // so the Soil Temp card cell honors the user's tempUnit choice.
+  // useDisplayPreferences memoizes; the rows useMemo deps below pick
+  // it up so a Save Changes in Account Settings → Display triggers a
+  // re-derivation without a refetch.
+  const displayPrefs = useDisplayPreferences();
 
   // The user's selected PheNode (external_device_id). `undefined` is
   // the "uninitialized" sentinel — distinct from `null` (no PheNode
@@ -112,7 +119,10 @@ export default function SensorFleetOverview() {
     return sensors.filter((s) => connectedSensorIds.has(s.externalSensorId));
   }, [sensors, selectedPhenodeId, connectedSensorIds]);
 
-  const rows = useMemo(() => (filteredSensors ?? []).map(wirelessSensorToFleetRow), [filteredSensors]);
+  const rows = useMemo(
+    () => (filteredSensors ?? []).map((s) => wirelessSensorToFleetRow(s, displayPrefs)),
+    [filteredSensors, displayPrefs]
+  );
 
   // Mirror of fleet-overview.jsx's handleRename. PUT then mutate the
   // sensor list to revalidate. Errors propagate to the view (which

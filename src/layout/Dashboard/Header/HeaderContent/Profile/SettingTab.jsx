@@ -10,7 +10,7 @@ import ListItemText from '@mui/material/ListItemText';
 import AntIcon from 'components/AntIcon';
 import LockOutlined from '@ant-design/icons-svg/lib/asn/LockOutlined';
 import QuestionCircleOutlined from '@ant-design/icons-svg/lib/asn/QuestionCircleOutlined';
-import UserOutlined from '@ant-design/icons-svg/lib/asn/UserOutlined';
+import SettingOutlined from '@ant-design/icons-svg/lib/asn/SettingOutlined';
 
 // ==============================|| HEADER PROFILE - SETTING TAB ||============================== //
 //
@@ -44,7 +44,7 @@ const themedListItemSx = {
   }
 };
 
-export default function SettingTab({ onOpenSupport, onOpenPrivacy }) {
+export default function SettingTab({ onOpenSupport, onOpenPrivacy, onOpenAccountSettings }) {
   return (
     <List component="nav" sx={{ p: 0.75 }}>
       <ListItemButton sx={themedListItemSx} onClick={onOpenSupport}>
@@ -53,9 +53,14 @@ export default function SettingTab({ onOpenSupport, onOpenPrivacy }) {
         </ListItemIcon>
         <ListItemText primary="Support" />
       </ListItemButton>
-      <ListItemButton sx={themedListItemSx}>
+      <ListItemButton sx={themedListItemSx} onClick={onOpenAccountSettings}>
         <ListItemIcon>
-          <AntIcon icon={UserOutlined} />
+          {/* SettingOutlined to match the Account Settings entry in the
+              DrawerUserMenu (src/layout/Dashboard/Drawer/DrawerUserMenu/
+              index.jsx). Both entry points navigate to
+              /dashboard/account-settings — see Profile/index.jsx for
+              the close-then-navigate wrapper that calls this. */}
+          <AntIcon icon={SettingOutlined} />
         </ListItemIcon>
         <ListItemText primary="Account Settings" />
       </ListItemButton>
@@ -69,4 +74,8 @@ export default function SettingTab({ onOpenSupport, onOpenPrivacy }) {
   );
 }
 
-SettingTab.propTypes = { onOpenSupport: PropTypes.func, onOpenPrivacy: PropTypes.func };
+SettingTab.propTypes = {
+  onOpenSupport: PropTypes.func,
+  onOpenPrivacy: PropTypes.func,
+  onOpenAccountSettings: PropTypes.func
+};

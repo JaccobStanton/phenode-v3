@@ -19,8 +19,11 @@
 //     is computed server-side: "Live" if seen within 30 min, else "Offline")
 
 import { batteryColor, healthStatusColor } from './metricColors';
-
-const FAHRENHEIT_RATIO = 9 / 5;
+import {
+  formatTemperature as formatTemperatureWithUnit,
+  formatSpeed as formatSpeedWithUnit,
+  formatRainfall as formatRainfallWithUnit
+} from 'utils/displayUnits';
 
 /**
  * Format an ISO 8601 datetime into a localized "M/D/YYYY, h:mm:ss A"
@@ -39,46 +42,67 @@ export function formatLastMeasurement(iso) {
 }
 
 /**
- * Backend returns Celsius (`temperature_c`). The dashboard convention is
- * Fahrenheit (matching the existing mock data the user has been seeing).
- * If/when the app gets a unit-preference toggle, this is the single place
- * to flip on it.
+ * Backend returns Celsius (`temperature_c`). Renders in the user's
+ * preferred unit when one is supplied; defaults to Fahrenheit for
+ * backwards compatibility with callers that haven't yet been migrated
+ * to read `useDisplayPreferences().tempUnit`.
+ *
+ * The actual conversion + format lives in utils/displayUnits.js so the
+ * logic can be reused outside the transformer layer (charts, sensor-
+ * measurements page, exports). This wrapper preserves the legacy
+ * single-argument call shape so existing consumers compile unchanged.
+ *
+ * @param {number|null|undefined} celsius - canonical Celsius value
+ * @param {'F'|'C'} tempUnit - target unit; defaults to 'F'
+ * @returns {string} formatted "23.45°C" / "74.21°F" / "N/A"
  */
-export function formatTemperature(celsius) {
-  if (celsius == null || Number.isNaN(celsius)) return 'N/A';
-  const fahrenheit = celsius * FAHRENHEIT_RATIO + 32;
-  return `${fahrenheit.toFixed(2)}°F`;
+export function formatTemperature(celsius, tempUnit = 'F') {
+  return formatTemperatureWithUnit(celsius, tempUnit, 2);
 }
 
 /**
  * `rainfall_today_mm` is the cumulative-today total in millimeters, per
- * the schema field name. The previous mock data labelled this as "mm/hr"
- * — that was a copy-paste artifact from a different metric. Showing
- * "X mm" here is what the data actually represents.
+ * the schema field name. Renders in the user's preferred rain unit when
+ * one is supplied; defaults to millimeters for back-compat. Like
+ * formatTemperature, the actual conversion lives in utils/displayUnits.js
+ * so it's reusable outside this transformer (charts, exports).
+ *
+ * @param {number|null|undefined} mm - canonical millimeter value
+ * @param {'mm'|'in'} rainUnit - target unit; defaults to 'mm'
  */
-export function formatTodaysRainfall(mm) {
-  if (mm == null || Number.isNaN(mm)) return 'N/A';
-  return `${mm} mm`;
+export function formatTodaysRainfall(mm, rainUnit = 'mm') {
+  return formatRainfallWithUnit(mm, rainUnit, 2);
 }
 
 /**
- * Wind speed is m/s straight from the backend. We surface the raw
- * unit here rather than converting to mph — that decision was made
- * after confirming the chart endpoint emits m/s and choosing to
- * keep both displays (fleet cards + sensor-measurements page) on a
- * single unit so users never have to mentally swap between the two.
- * If a unit toggle later joins the dashboard, this is the single
- * place to flip it.
+ * Wind speed comes from the backend in m/s (verified against the chart
+ * endpoint). Renders in the user's preferred speed unit when one is
+ * supplied; defaults to m/s for back-compat with consumers that
+ * haven't migrated yet.
+ *
+ * @param {number|null|undefined} metersPerSecond - canonical m/s value
+ * @param {'ms'|'mph'|'kmh'} speedUnit - target unit; defaults to 'ms'
  */
-export function formatWindSpeed(value) {
-  if (value == null || Number.isNaN(value)) return 'N/A';
-  return `${value.toFixed(2)} m/s`;
+export function formatWindSpeed(metersPerSecond, speedUnit = 'ms') {
+  return formatSpeedWithUnit(metersPerSecond, speedUnit, 2);
 }
 
 export function formatBatteryPercent(percent) {
   if (percent == null || Number.isNaN(percent)) return 'N/A';
   return `${percent.toFixed(2)}%`;
 }
+
+// Backend computes health_status server-side ("Live" / "Offline" /
+// "Unknown") in the my-devices route. We translate "Live" → "Active"
+// at the boundary because product copy uses "Active" everywhere in the
+// UI (header counter, status filter button, the card cell itself).
+// Translating in the transformer means everything downstream —
+// display, search, filter, sort — operates on the UI vocabulary
+// instead of the API vocabulary.
+const translateHealthStatus = (raw) => {
+  if (raw === 'Live') return 'Active';
+  return raw ?? 'Unknown';
+};
 
 /**
  * Map a single `DeviceRead` to the row shape `FleetOverviewView` renders.
@@ -89,20 +113,21 @@ export function formatBatteryPercent(percent) {
  *     yet still has a stable identifier on screen.
  *   - metrics order: matches the existing mock so the visual layout
  *     doesn't shift during the migration.
- *   - health_status: backend computes this string ("Live"/"Offline"/
- *     "Unknown") in the my-devices route. We translate "Live" → "Active"
- *     here at the boundary because product copy uses "Active" everywhere
- *     in the UI (header counter, status filter button, the card cell
- *     itself). Translating in the transformer means everything downstream
- *     — display, search, filter, sort — operates on the UI vocabulary
- *     instead of the API vocabulary.
+ *
+ * @param {Object} device - backend DeviceRead
+ * @param {Object} [displayPrefs] - optional display-preferences object
+ *   from useDisplayPreferences(). When omitted, the row falls back to
+ *   the legacy defaults (Fahrenheit for temperature, m/s for wind, mm
+ *   for rainfall) so callers that haven't yet been migrated still
+ *   produce the same output as before. Only the unit identifiers we
+ *   actually convert here are read from the prefs — adding a new
+ *   converted column (e.g. wind speed) is a 1-line change inside the
+ *   metrics array, no signature change.
  */
-const translateHealthStatus = (raw) => {
-  if (raw === 'Live') return 'Active';
-  return raw ?? 'Unknown';
-};
-
-export function deviceReadToFleetRow(device) {
+export function deviceReadToFleetRow(device, displayPrefs) {
+  const tempUnit = displayPrefs?.tempUnit ?? 'F';
+  const speedUnit = displayPrefs?.speedUnit ?? 'ms';
+  const rainUnit = displayPrefs?.rainUnit ?? 'mm';
   return {
     siteName: device?.label || device?.external_device_id || 'Unnamed device',
     // Raw immutable identifier (the MAC-style external_device_id). Carried
@@ -129,9 +154,9 @@ export function deviceReadToFleetRow(device) {
       const batteryPct = device?.battery_percent;
       return [
         { label: 'Health Status:', value: health, color: healthStatusColor(health) },
-        { label: 'Temperature:', value: formatTemperature(device?.temperature_c) },
-        { label: "Today's Rainfall:", value: formatTodaysRainfall(device?.rainfall_today_mm) },
-        { label: 'Wind Speed:', value: formatWindSpeed(device?.wind_speed) },
+        { label: 'Temperature:', value: formatTemperature(device?.temperature_c, tempUnit) },
+        { label: "Today's Rainfall:", value: formatTodaysRainfall(device?.rainfall_today_mm, rainUnit) },
+        { label: 'Wind Speed:', value: formatWindSpeed(device?.wind_speed, speedUnit) },
         { label: 'Battery:', value: formatBatteryPercent(batteryPct), color: batteryColor(batteryPct) }
       ];
     })()

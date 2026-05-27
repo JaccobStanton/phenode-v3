@@ -19,6 +19,7 @@ import AimOutlined from '@ant-design/icons-svg/lib/asn/AimOutlined';
 import ApartmentOutlined from '@ant-design/icons-svg/lib/asn/ApartmentOutlined';
 
 import ConfirmRenameModal from 'components/ConfirmRenameModal';
+import useDisplayPreferences from 'hooks/useDisplayPreferences';
 import { useToast } from 'providers/ToastProvider';
 import { glassSurfaceSx, reflectedCardChromeSx, tooltipSlotProps } from 'themes/sx-tokens';
 import {
@@ -530,10 +531,6 @@ function MessageCard({ children, isError }) {
   );
 }
 
-// Convert °C → °F for the soil-temperature readings on the soil-data
-// card. Sensor backend stores °C; surface display matches the project's
-// fleet-overview convention (°F).
-const FAHRENHEIT_RATIO = 9 / 5;
 const formatConductivity = (value) => {
   if (value == null || Number.isNaN(value)) return 'N/A';
   return `${value.toFixed(2)} dS/m`;
@@ -542,11 +539,16 @@ const formatConductivity = (value) => {
 // Build the Soil Data rows for the active probe — mirror of the same
 // helper in sensor-network.jsx so the two surfaces show identical values
 // for the same sensor/probe pair.
-function buildSoilReadings(sensorDetail, selectedSoilProbe) {
+//
+// `tempUnit` comes from useDisplayPreferences().tempUnit — passing it
+// through the helper keeps the function pure (same inputs → same
+// output) so it can stay at module scope. The caller's useMemo includes
+// tempUnit in its deps.
+function buildSoilReadings(sensorDetail, selectedSoilProbe, tempUnit = 'F') {
   const port = selectedSoilProbe === 'probe-2' ? 1 : 0;
   const soil = sensorDetail?.soilSensors?.[port];
   return [
-    { label: 'Soil Temperature', value: formatSoilTemperature(soil?.soilTemperature) },
+    { label: 'Soil Temperature', value: formatSoilTemperature(soil?.soilTemperature, tempUnit) },
     { label: 'Soil Moisture', value: formatSoilMoisture(soil?.soilMoisture) },
     { label: 'Conductivity', value: formatConductivity(soil?.electricalConductivity) }
   ];
@@ -654,11 +656,22 @@ export default function WirelessSensorFleetMap({
   // controller depends on a stable reference for its count comparison.
   const plottable = useMemo(() => (sensors ?? []).filter(hasValidSensorLocation), [sensors]);
 
+  // Display preferences — flows into both the soil-readings card
+  // (soil temperature) and the parentDevice hover tooltip (temp /
+  // wind / rain). useDisplayPreferences memoizes the returned object
+  // so the per-field destructure here is stable across renders that
+  // don't actually change preferences.
+  const { tempUnit, speedUnit, rainUnit } = useDisplayPreferences();
+
   // Sensor & soil readings for the info-card branches. Memoized on the
   // upstream references so the .map() rendering doesn't iterate fresh
-  // arrays per pulse-driven re-render.
+  // arrays per pulse-driven re-render. `tempUnit` is in the deps so a
+  // unit change re-derives the soil rows.
   const sensorReadings = useMemo(() => buildSensorReadings(activeSensor, sensorDetail), [activeSensor, sensorDetail]);
-  const soilReadings = useMemo(() => buildSoilReadings(sensorDetail, selectedSoilProbe), [sensorDetail, selectedSoilProbe]);
+  const soilReadings = useMemo(
+    () => buildSoilReadings(sensorDetail, selectedSoilProbe, tempUnit),
+    [sensorDetail, selectedSoilProbe, tempUnit]
+  );
   const isSoilDataMode = infoCardMode === 'soil';
 
   // Info-card title + toggle button artwork — mirrors the diagram-mode
@@ -1169,18 +1182,10 @@ export default function WirelessSensorFleetMap({
                         }}
                       >
                         {[
-                          [
-                            'Soil Temp:',
-                            // Backend reports °C on the list-summary;
-                            // surface convention is °F. Convert inline
-                            // here rather than reusing
-                            // formatSoilTemperature so the same
-                            // hover-row pattern from the PheNode map
-                            // (label + value tuple) stays uniform.
-                            typeof hoveredSensor.soilTemperatureC === 'number'
-                              ? `${(hoveredSensor.soilTemperatureC * FAHRENHEIT_RATIO + 32).toFixed(2)}°F`
-                              : 'N/A'
-                          ],
+                          // formatSoilTemperature respects the user's
+                          // tempUnit and handles the typeof-number guard
+                          // internally (returns 'N/A' for non-numeric).
+                          ['Soil Temp:', formatSoilTemperature(hoveredSensor.soilTemperatureC, tempUnit)],
                           ['Soil Moisture:', formatSoilMoisture(hoveredSensor.soilMoisture)],
                           ['Battery:', formatBatteryPercent(hoveredSensor.batteryPercent)]
                         ].map(([label, value]) => (
@@ -1343,9 +1348,9 @@ export default function WirelessSensorFleetMap({
                       */}
                       <Box sx={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 1.5, rowGap: 0.4, mb: 0.75 }}>
                         {[
-                          ['Temperature:', formatDeviceTemperature(parentDevice.temperature_c)],
-                          ['Rainfall:', formatDeviceTodaysRainfall(parentDevice.rainfall_today_mm)],
-                          ['Wind:', formatDeviceWindSpeed(parentDevice.wind_speed)],
+                          ['Temperature:', formatDeviceTemperature(parentDevice.temperature_c, tempUnit)],
+                          ['Rainfall:', formatDeviceTodaysRainfall(parentDevice.rainfall_today_mm, rainUnit)],
+                          ['Wind:', formatDeviceWindSpeed(parentDevice.wind_speed, speedUnit)],
                           ['Battery:', formatDeviceBatteryPercent(parentDevice.battery_percent)],
                           ['Sensors:', String(parentDevice.wireless_sensors?.length ?? 0)]
                         ].map(([label, value]) => (

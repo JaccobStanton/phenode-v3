@@ -28,6 +28,15 @@ const ImagingDefault = Loadable(lazy(() => import('pages/imaging/default')));
 const SystemDiagnosticsPage = Loadable(lazy(() => import('pages/system-diagnostics/system-diagnostics')));
 const DataDownloadsPage = Loadable(lazy(() => import('pages/data-download/data-downloads')));
 const DownloadPreferencesPage = Loadable(lazy(() => import('pages/data-download/download-preferences')));
+// Profile page is only reached via the DrawerUserMenu / header Profile
+// dropdown — it isn't part of the main nav, so it stays out of
+// menu-items/* but still needs a route entry so the navigate() call
+// resolves to a real screen.
+const ProfilePage = Loadable(lazy(() => import('pages/profile/profile')));
+// Account Settings is reached the same way (DrawerUserMenu and header
+// Profile menu's "Account Settings" entry) — same rationale for keeping
+// it out of menu-items but registering a route.
+const AccountSettingsPage = Loadable(lazy(() => import('pages/account-settings/account-settings')));
 
 // Dev-only showcase pages. Lazy + gated so the chunks aren't shipped
 // to production builds — Vite dead-code-eliminates the conditional
@@ -104,6 +113,14 @@ const MainRoutes = {
         {
           path: 'download-preferences',
           element: <DownloadPreferencesPage />
+        },
+        {
+          path: 'profile',
+          element: <ProfilePage />
+        },
+        {
+          path: 'account-settings',
+          element: <AccountSettingsPage />
         },
         // Dev-only routes — appended conditionally so production builds
         // contain neither the route entries nor (after tree-shaking) the
