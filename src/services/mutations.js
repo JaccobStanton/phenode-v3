@@ -204,3 +204,44 @@ export const downloadWirelessSensorData = (sensorList, fromIso, toIso, accessTok
     token: accessToken,
     parseAs: 'blob'
   });
+
+/**
+ * Change (or set) the current user's password.
+ *
+ * Two flows the backend supports (per
+ * phenodeX/docs/frontend-backend-api.md:340-372):
+ *
+ *   - Existing-password users: must pass `currentPassword` AND
+ *     `newPassword`. The backend bcrypt-verifies the current value
+ *     before swapping the hash.
+ *   - Google-only / migrated users with no password hash yet: pass
+ *     just `newPassword`. `currentPassword` should be omitted (or
+ *     null) so the backend treats it as a first-time set.
+ *
+ * Response shape: `{ success: true, message: 'Password updated' }`.
+ * The fetcher already throws ApiError on non-2xx, so callers can
+ * branch on `err.status` for friendlier copy:
+ *   - 400: missing current password OR new password failed validation
+ *   - 401: current password incorrect
+ *   - 404: user not found (shouldn't happen for a signed-in caller)
+ *
+ * @param {Object} payload
+ * @param {string} [payload.currentPassword]
+ * @param {string} payload.newPassword
+ * @param {string} accessToken
+ * @returns {Promise<{ success: boolean, message: string }>}
+ */
+export const changePassword = ({ currentPassword, newPassword }, accessToken) =>
+  mutationRequest(buildUrl(API.auth.password), {
+    method: 'PUT',
+    body: {
+      // Only include `current_password` if it was supplied — the
+      // backend treats a missing key as the "no hash yet" path.
+      // Sending an empty string would fail bcrypt verification on
+      // existing-password accounts AND fail the no-hash branch's
+      // "not yet set" guard, so absence is the safer default.
+      ...(currentPassword ? { current_password: currentPassword } : {}),
+      new_password: newPassword
+    },
+    token: accessToken
+  });

@@ -223,7 +223,12 @@ export default function AuthLogin() {
         // login() persists both tokens AND updates the AuthContext so
         // every consumer (Profile menu, future fetch hooks, route guards)
         // sees the new session without re-reading localStorage.
-        login(data);
+        //
+        // Second arg records HOW we got here — 'password' for this
+        // form, 'google' from the OAuth callback. Used by
+        // ChangePasswordTab to decide whether to render the form or
+        // the "not available — OAuth account" lock card.
+        login(data, 'password');
         // Pre-warm the device list before navigating. SWR's `preload`
         // kicks off the fetch (it doesn't await) and populates the
         // cache against the same key useMyDevices() will use on mount,

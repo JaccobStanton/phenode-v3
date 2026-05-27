@@ -19,7 +19,13 @@ const API = {
     login: '/auth/login',
     refresh: '/auth/refresh',
     googleLogin: '/auth/google/login',
-    token: '/auth/token'
+    token: '/auth/token',
+    // PUT — current user changes (or sets) their own password.
+    // Body: { current_password?, new_password }. current_password is
+    // required if the user already has a password hash; optional for
+    // Google-only accounts setting one for the first time.
+    // Source: phenodeX/docs/frontend-backend-api.md:340-372
+    password: '/auth/password'
   },
   devices: {
     // GET — DeviceRead[] visible to current user.

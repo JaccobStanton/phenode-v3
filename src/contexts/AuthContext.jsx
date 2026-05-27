@@ -41,6 +41,24 @@ import { decodeJwtPayload } from 'utils/auth';
 
 const ACCESS_TOKEN_KEY = 'access_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
+// Frontend-only marker recording HOW the current session was authenticated.
+// Persisted alongside the tokens so it survives refresh / new tab.
+//
+// Why this exists (and why it's a localStorage shim, not a JWT claim):
+//   The access token doesn't carry an `auth_method` or `has_password`
+//   claim today, so the frontend has no way to know whether a session
+//   was minted via /auth/login (password) or /auth/token (Google).
+//   Some UI surfaces — notably ChangePasswordTab — need to branch on
+//   that signal to avoid showing a Change-Password form to a user
+//   who doesn't have a password.
+//
+// TODO(backend has_password): when the backend adds a `has_password`
+//   claim to the access token (see comment in change-password-tab.jsx),
+//   delete this key + the SIGN_IN_METHOD_* plumbing and read
+//   `payload.has_password` directly in userFromToken. The claim is
+//   signed so it can't be spoofed; this localStorage marker can.
+//   Acceptable for UX gating, NOT acceptable for authorization.
+const SIGN_IN_METHOD_KEY = 'sign_in_method';
 
 /**
  * Custom event fired immediately before logout clears tokens. Other
@@ -60,7 +78,7 @@ export const LOGOUT_EVENT = 'auth:logout';
  * `org_id`); the rest of the JS codebase is camelCase. Renaming here, once,
  * means component code never has to know about the backend's casing.
  */
-function userFromToken(accessToken) {
+function userFromToken(accessToken, signInMethod) {
   if (!accessToken) return null;
   const payload = decodeJwtPayload(accessToken);
   if (!payload) return null;
@@ -69,7 +87,12 @@ function userFromToken(accessToken) {
     role: payload.role || 'USER',
     isApproved: payload.is_approved !== false,
     orgId: payload.org_id ?? null,
-    exp: payload.exp ?? null
+    exp: payload.exp ?? null,
+    // 'password' | 'google' | null. Sourced from localStorage at this
+    // boundary so consumers don't have to read it directly. See the
+    // SIGN_IN_METHOD_KEY comment for the eventual JWT-claim path
+    // that replaces this.
+    signInMethod: signInMethod ?? null
   };
 }
 
@@ -99,15 +122,20 @@ function isTokenFresh(accessToken) {
  */
 function readStoredTokens() {
   if (typeof window === 'undefined') {
-    return { accessToken: null, refreshToken: null };
+    return { accessToken: null, refreshToken: null, signInMethod: null };
   }
   try {
     return {
       accessToken: window.localStorage.getItem(ACCESS_TOKEN_KEY),
-      refreshToken: window.localStorage.getItem(REFRESH_TOKEN_KEY)
+      refreshToken: window.localStorage.getItem(REFRESH_TOKEN_KEY),
+      // Read the sign-in method alongside the tokens so a refresh /
+      // new tab can still tell whether the current session came from
+      // password or Google. Null when no value was ever written
+      // (older sessions before this field existed).
+      signInMethod: window.localStorage.getItem(SIGN_IN_METHOD_KEY)
     };
   } catch {
-    return { accessToken: null, refreshToken: null };
+    return { accessToken: null, refreshToken: null, signInMethod: null };
   }
 }
 
@@ -143,21 +171,39 @@ export function AuthProvider({ children }) {
    *   { access_token, refresh_token, token_type }
    * (per phenodeX/phenode_backend/api/auth/routes.py:_create_token_pair).
    *
+   * Second arg — `signInMethod` — records HOW the user authenticated
+   * ('password' | 'google'). It's a frontend-only marker stored in
+   * localStorage so consumers (notably ChangePasswordTab) can branch
+   * their UI on it. Optional: callers that don't supply it leave the
+   * existing value in place — useful for proactive refreshes
+   * (AuthApprovalPending) that aren't re-authenticating, just
+   * minting a fresher token.
+   *
    * We don't navigate from inside login(): the caller knows where the user
    * should land (e.g., dashboard vs /approval-pending depending on the 403
    * detail), and the context shouldn't second-guess that.
    */
-  const login = useCallback(({ access_token: accessToken, refresh_token: refreshToken }) => {
+  const login = useCallback(({ access_token: accessToken, refresh_token: refreshToken }, signInMethod) => {
     if (typeof window !== 'undefined') {
       try {
         if (accessToken) window.localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
         if (refreshToken) window.localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+        // Only write the method when the caller actually supplied one —
+        // a refresh-style re-login that omits the arg leaves the
+        // previously-recorded method intact.
+        if (signInMethod) window.localStorage.setItem(SIGN_IN_METHOD_KEY, signInMethod);
       } catch {
         // Storage may be blocked. State below is still correct for this
         // tab — the user just won't survive a reload.
       }
     }
-    setTokens({ accessToken: accessToken ?? null, refreshToken: refreshToken ?? null });
+    setTokens((prev) => ({
+      accessToken: accessToken ?? null,
+      refreshToken: refreshToken ?? null,
+      // Same rule for in-memory state: preserve prior method when the
+      // caller didn't pass one, otherwise adopt the new value.
+      signInMethod: signInMethod ?? prev?.signInMethod ?? null
+    }));
   }, []);
 
   /**
@@ -179,11 +225,16 @@ export function AuthProvider({ children }) {
         try {
           window.localStorage.removeItem(ACCESS_TOKEN_KEY);
           window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+          // Clear the sign-in method too — the next login should
+          // re-record it explicitly, otherwise a Google user signing
+          // out then back in as a password user would carry over the
+          // stale 'google' marker.
+          window.localStorage.removeItem(SIGN_IN_METHOD_KEY);
         } catch {
           // ignore — the in-memory state below is still cleared
         }
       }
-      setTokens({ accessToken: null, refreshToken: null });
+      setTokens({ accessToken: null, refreshToken: null, signInMethod: null });
       if (hard && typeof window !== 'undefined') {
         window.location.assign('/login');
         return;
@@ -219,7 +270,12 @@ export function AuthProvider({ children }) {
 
     const handleStorageEvent = (event) => {
       // event.key === null means storage was cleared entirely — re-read.
-      if (event.key !== null && event.key !== ACCESS_TOKEN_KEY && event.key !== REFRESH_TOKEN_KEY) {
+      if (
+        event.key !== null &&
+        event.key !== ACCESS_TOKEN_KEY &&
+        event.key !== REFRESH_TOKEN_KEY &&
+        event.key !== SIGN_IN_METHOD_KEY
+      ) {
         return;
       }
       refreshFromStorage();
@@ -241,12 +297,16 @@ export function AuthProvider({ children }) {
     () => ({
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
-      user: userFromToken(tokens.accessToken),
+      // signInMethod is threaded into the user object so consumers
+      // only have to destructure `user` to get every per-session
+      // attribute. See userFromToken comment for the future
+      // has_password JWT-claim migration path.
+      user: userFromToken(tokens.accessToken, tokens.signInMethod),
       isAuthenticated: isTokenFresh(tokens.accessToken),
       login,
       logout
     }),
-    [tokens.accessToken, tokens.refreshToken, login, logout]
+    [tokens.accessToken, tokens.refreshToken, tokens.signInMethod, login, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
