@@ -96,6 +96,14 @@ const API = {
     // Source: phenodeX/phenode_backend/api/devices/routes.py:795
     imageDeleteByFilename: (externalDeviceId, filename) =>
       `/devices/${externalDeviceId}/images/delete-by-filename/${encodeURIComponent(filename)}`,
+    // POST — server-generated ZIP of all images captured by a device in
+    // the given date range (one file per image, plus S3_URLS.txt for any
+    // images stored externally rather than inline base64). Always responds
+    // with application/zip ("phenode_images.zip"). ISO timestamps are
+    // URL-encoded for the same reason as sensorDataDownload.
+    // Source: phenodeX/phenode_backend/api/devices/routes.py:1164
+    imagesDownload: (externalDeviceId, fromIso, toIso) =>
+      `/devices/${externalDeviceId}/images/download/${encodeURIComponent(fromIso)}/${encodeURIComponent(toIso)}`,
     // POST — push environment variables (Notehub vars) to a device.
     // Accepts arbitrary key/value pairs (DeviceEnvironmentVariablesPayload
     // has `extra: allow`). PheNode uses this to set wifi_ssid /
@@ -117,7 +125,17 @@ const API = {
     // sensorDataDownload, but pulls the Notecard health series.
     // Source: phenodeX/phenode_backend/api/devices/routes.py:989
     healthDataDownload: (externalDeviceId, fromIso, toIso) =>
-      `/devices/${externalDeviceId}/health-data/${encodeURIComponent(fromIso)}/${encodeURIComponent(toIso)}`
+      `/devices/${externalDeviceId}/health-data/${encodeURIComponent(fromIso)}/${encodeURIComponent(toIso)}`,
+    // POST — server-generated ZIP bundling EVERYTHING for one device over a
+    // date range: environmental CSV, health/diagnostics CSV, one CSV per
+    // wireless sensor, and the captured images. `sensorList` is a
+    // comma-separated string of external_sensor_ids; pass 'none' (or an
+    // empty list) to let the backend auto-include the sensors linked to the
+    // device. User's saved data_download_preferences are applied to each
+    // CSV before sealing. Always responds with application/zip ("all-data.zip").
+    // Source: phenodeX/phenode_backend/api/devices/routes.py:1206
+    allDataDownload: (externalDeviceId, sensorList, fromIso, toIso) =>
+      `/devices/${externalDeviceId}/${encodeURIComponent(sensorList)}/all-data/${encodeURIComponent(fromIso)}/${encodeURIComponent(toIso)}`
   },
   wirelessSensors: {
     // GET — { success, sensors: WirelessSensorListItem[] } visible to current user.
