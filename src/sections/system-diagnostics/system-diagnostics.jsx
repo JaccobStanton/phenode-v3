@@ -1,28 +1,18 @@
-import { useCallback, useMemo, useState } from 'react';
+import { Suspense, lazy, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
-import FormControl from '@mui/material/FormControl';
 import Grid from '@mui/material/Grid';
-import IconButton from '@mui/material/IconButton';
-import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
 import Stack from '@mui/material/Stack';
-import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { LineChart } from '@mui/x-charts/LineChart';
 
+import ChartGlowDefs from 'components/ChartGlowDefs';
 import MainCard from 'components/MainCard';
 import PhenodeSelector from 'components/PhenodeSelector';
 import { useSelection } from 'contexts/SelectionContext';
 import useMyDevices from 'hooks/data/useMyDevices';
-import useDeviceHealth from 'hooks/data/useDeviceHealth';
-import useDeviceMeasurements from 'hooks/data/useDeviceMeasurements';
 import useDisplayPreferences from 'hooks/useDisplayPreferences';
-import useAuth from 'hooks/useAuth';
-import { useToast } from 'providers/ToastProvider';
-import { downloadDeviceHealthData } from 'services/mutations';
-import triggerBlobDownload from 'utils/triggerBlobDownload';
 // Colorless wireframe base — the sensor pieces below carry all the color
 // (green = Active, purple = Inactive), so the base art stays neutral and only
 // the lit/unlit pieces communicate state. Shares the same 390.8 x 253.8
@@ -52,36 +42,15 @@ import airLightInactive from 'assets/diagnostics/WS_Inactive.svg';
 // status card, so it renders as a permanent lit layer over the base art.
 import controlBoxActive from 'assets/diagnostics/Control_Box_Active.svg';
 
-import AntIcon from 'components/AntIcon';
-import ClockCircleOutlined from '@ant-design/icons-svg/lib/asn/ClockCircleOutlined';
-import AppstoreOutlined from '@ant-design/icons-svg/lib/asn/AppstoreOutlined';
-import DownloadOutlined from '@ant-design/icons-svg/lib/asn/DownloadOutlined';
-import ZoomInOutlined from '@ant-design/icons-svg/lib/asn/ZoomInOutlined';
+import { glassSurfaceSx, reflectedCardChromeSx, drfSurfaceSx } from 'themes/sx-tokens';
+import { DEFAULT_CHART_TIME_RANGE, findChartTimeRange } from 'utils/chartTimeRanges';
 
-import {
-  glassSurfaceSx,
-  reflectedCardChromeSx,
-  drfSurfaceSx,
-  orientationButtonSx,
-  tooltipSlotProps,
-  neonSelectMenuPaperProps
-} from 'themes/sx-tokens';
-import {
-  CHART_TIME_RANGE_LABELS,
-  DEFAULT_CHART_TIME_RANGE,
-  axisTickNumberFor,
-  computeAxisTicks,
-  computeChartWindow,
-  formatAxisTick,
-  formatTooltipDate
-} from 'utils/chartTimeRanges';
-
-// System diagnostics uses a slightly different chart surface (gradient + custom border).
-const chartSurfaceSx = {
-  backgroundColor: '#07143f',
-  backgroundImage: 'linear-gradient(180deg, #06102a 0%, #07143f 100%)',
-  border: '1px solid #0e346a'
-};
+// Lazy chart panel — the "Diagnostics Over Time" subtree (MUI x-charts + the
+// useDeviceHealth / useDeviceMeasurements fetches) only mounts after the page
+// shell has painted. This pulls the chart bundle + the two SWR fetches off the
+// critical render path, so the SVG diagram + snapshot panel can paint sooner.
+// All chart-related code lives inside DiagnosticsChartsPanel.jsx now.
+const DiagnosticsChartsPanel = lazy(() => import('sections/system-diagnostics/DiagnosticsChartsPanel'));
 
 // Module-scope constants - hoisted to avoid being re-created every render.
 const signalBarHeights = [12, 18, 24, 30];
@@ -156,12 +125,11 @@ const diagramLayerSx = {
 };
 
 // ---------------------------------------------------------------------------
-// Live-data helpers.
+// Snapshot-panel helpers (live values that read off the selected device's
+// `health` dict, regardless of the chart time range).
 // ---------------------------------------------------------------------------
 
-// Coerce a backend value to a finite number or null. The health dict + rows
-// can carry strings, nulls, or absent keys; everything funnels through here so
-// downstream math + formatting only ever see `number | null`.
+// Coerce a backend value to a finite number or null.
 const toNumber = (value) => {
   if (value === null || value === undefined) return null;
   const n = typeof value === 'number' ? value : Number(value);
@@ -177,9 +145,6 @@ const clampBars = (value) => {
 };
 
 const cToF = (celsius) => (celsius * 9) / 5 + 32;
-const identity = (v) => v;
-const mvToV = (mv) => mv / 1000;
-const vToMv = (v) => v * 1000;
 
 // Internal temperature color thresholds are defined in °F (with °C
 // equivalents); the band is the same physical temperature regardless of the
@@ -206,85 +171,65 @@ const batteryColorFromPct = (pct) => {
   return 'var(--green)';
 };
 
-// Health fields fetched for the time-series charts (subset of the hook's
-// KNOWN_HEALTH_FIELDS). `bars`/`wifi_snr`/`wifi_bars` aren't plotted here, so
-// we don't request them — keeps the payload lean on long ranges.
-const HEALTH_CHART_FIELDS = ['notecard_temp', 'rssi', 'sinr', 'notecard_voltage', 'wifi_rssi'];
-// Battery voltage is an *environmental* metric (analog board measurement),
-// served by the sensor-data feed — not part of the Notecard health series.
-const ENV_CHART_FIELDS = ['battery_voltage'];
-
-// Per-chart configuration for the "Diagnostics Over Time" panel. `source`
-// selects which feed the series comes from; `field` is the normalized row key;
-// `transform` adapts the raw value to the displayed unit.
+// Chart time range lives in the URL (`?range=<label>`), mirroring the
+// sensor-measurements + sensor-network pattern. Two reasons to prefer URL
+// over local state: (1) the Lighthouse audit script deep-links into specific
+// ranges by URL — that's how the system-diagnostics-long-range audit captures
+// the worst-case SVG paint cost across the six health charts; (2) it makes
+// the selected range shareable + refresh-survivable.
 //
-// NOTE on the two voltages (flagged for confirmation):
-//   • "Voltage (mV)" = Notecard supply voltage (`notecard_voltage`). The
-//     Notecard reports this in volts, so we ×1000 to render mV as labeled.
-//   • "Battery Voltage (mV)" = the analog board battery measurement
-//     (`battery_voltage`), already in mV.
-// Wi-Fi RSSI renders empty until devices actually report Wi-Fi telemetry
-// (backend returns null otherwise).
-function buildDiagnosticsChartConfigs(displayPrefs) {
-  const tempUnit = displayPrefs?.tempUnit ?? 'F';
-  const voltageUnit = displayPrefs?.voltageUnit ?? 'mv';
+// The URL state lives in the page (not the lazy chart panel) so the URL is
+// consistent before the chart panel has had a chance to mount.
+const RANGE_PARAM = 'range';
 
-  const tempTransform = tempUnit === 'C' ? identity : cToF;
-  const tempLabel = tempUnit === 'C' ? '°C' : '°F';
-  const battVTransform = voltageUnit === 'v' ? mvToV : identity;
-  const battVLabel = voltageUnit === 'v' ? 'V' : 'mV';
-
-  return [
-    {
-      key: 'notecard_temp',
-      source: 'health',
-      title: `Internal Ambient Temperature (${tempLabel})`,
-      color: '#c96cfc',
-      unit: tempLabel,
-      transform: tempTransform
-    },
-    { key: 'rssi', source: 'health', title: 'Cellular RSSI', color: '#48f7f5', unit: 'dBm', transform: identity },
-    { key: 'sinr', source: 'health', title: 'Cellular SNIR', color: '#7bdff2', unit: 'dB', transform: identity },
-    { key: 'notecard_voltage', source: 'health', title: 'Voltage (mV)', color: '#f4d04b', unit: 'mV', transform: vToMv },
-    {
-      key: 'battery_voltage',
-      source: 'env',
-      title: `Battery Voltage (${battVLabel})`,
-      color: '#f47568',
-      unit: battVLabel,
-      transform: battVTransform
-    },
-    { key: 'wifi_rssi', source: 'health', title: 'Wi-Fi RSSI', color: '#8539e0', unit: 'dBm', transform: identity }
-  ];
-}
-
-// Build a {times, data} pair for one chart from a normalized rows array
-// (either feed). Reads the bucket-agnostic `.avg` the hooks produce, applies
-// the per-chart transform, and keeps nulls as gaps so an empty bucket reads as
-// a break in the line rather than a drop to zero.
-const buildChartSeries = (rows, field, transform) => {
-  if (!rows) return { times: [], data: [] };
-  const times = [];
-  const data = [];
-  for (const row of rows) {
-    const value = toNumber(row.fields?.[field]?.avg);
-    times.push(new Date(row.time));
-    data.push(value === null ? null : transform ? transform(value) : value);
-  }
-  return { times, data };
-};
-
-// Compact Y-axis tick formatter — thousands → "1.5k", with the unit appended.
-const makeYAxisFormatter = (unit) => (value) => {
-  if (value === null || value === undefined) return '';
-  const compact = Math.abs(value) >= 1000 ? `${(value / 1000).toFixed(1)}k` : `${Math.round(value)}`;
-  return unit ? `${compact} ${unit}` : compact;
-};
+// Suspense fallback for the lazy chart panel. Matches the height of the
+// chart panel surface to avoid a layout shift when the chunk arrives.
+const ChartsPanelFallback = () => (
+  <Box
+    sx={{
+      borderRadius: 1,
+      p: { xs: 1.5, sm: 2 },
+      minHeight: { xs: 360, sm: 420 },
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      ...drfSurfaceSx,
+      ...reflectedCardChromeSx,
+      boxShadow: '0 14px 26px rgba(1, 13, 50, 1)'
+    }}
+  >
+    <CircularProgress size={24} sx={{ color: 'var(--green)' }} />
+  </Box>
+);
 
 export default function SystemDiagnostics() {
-  const [timeRange, setTimeRange] = useState(DEFAULT_CHART_TIME_RANGE);
-  const [chartLayout, setChartLayout] = useState('row');
-  const chartHeight = chartLayout === 'row' ? 228 : 258;
+  const [searchParams, setSearchParams] = useSearchParams();
+  const rangeFromUrl = searchParams.get(RANGE_PARAM);
+
+  // Resolve `timeRange` from the URL with a defensive fallback: a stale or
+  // typo'd `?range=` shouldn't break the page, just open to the default.
+  const timeRange = useMemo(() => {
+    if (!rangeFromUrl) return DEFAULT_CHART_TIME_RANGE;
+    if (findChartTimeRange(rangeFromUrl)) return rangeFromUrl;
+    return DEFAULT_CHART_TIME_RANGE;
+  }, [rangeFromUrl]);
+
+  // Write the chosen range to the URL. Strip the param when the user picks
+  // the default — keeps URLs clean for the most common state.
+  const setTimeRange = useCallback(
+    (nextRange) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        if (nextRange && nextRange !== DEFAULT_CHART_TIME_RANGE) {
+          next.set(RANGE_PARAM, nextRange);
+        } else {
+          next.delete(RANGE_PARAM);
+        }
+        return next;
+      });
+    },
+    [setSearchParams]
+  );
 
   // PheNode selection is shared app-wide via SelectionContext, so the device
   // chosen here (or on any other page) stays put until the user changes it or
@@ -343,54 +288,17 @@ export default function SystemDiagnostics() {
   const lastMeasurement = selectedDevice?.last_measurement_at;
   const lastMeasurementDisplay = lastMeasurement ? new Date(lastMeasurement).toLocaleString() : '—';
 
-  // Chart time window. computeChartWindow maps the selected label to a
-  // [from, to] Date pair + an axis-format hint; the hooks floor from/to to the
-  // minute for their SWR keys, so a re-render within the same minute reuses the
-  // cache instead of refetching.
-  const { from, to, axisFormat } = useMemo(() => computeChartWindow(timeRange), [timeRange]);
-  const xAxisTicks = useMemo(() => computeAxisTicks(from, to, axisFormat), [from, to, axisFormat]);
-
-  // Two feeds back the six charts: the Notecard health series and the
-  // environmental series (battery voltage only). `bucket: 'auto'` lets the
-  // backend pick raw vs aggregated based on the window width.
-  const { rows: healthRows } = useDeviceHealth(selectedPheNodeId, { from, to, fields: HEALTH_CHART_FIELDS, bucket: 'auto' });
-  const { rows: envRows } = useDeviceMeasurements(selectedPheNodeId, { from, to, fields: ENV_CHART_FIELDS, bucket: 'auto' });
-
-  const chartConfigs = useMemo(() => buildDiagnosticsChartConfigs(displayPrefs), [displayPrefs]);
-  // Enable the Download button only once at least one feed has rows to export.
-  const hasChartData = Boolean(healthRows?.length || envRows?.length);
-
-  // Diagnostics CSV download — mirrors the sensor-measurements Download button.
-  // Pulls the Notecard health series for the active [from, to] window; the
-  // backend applies the user's saved data-download preferences before
-  // responding. (The charts auto-refresh on their own 60s SWR poll, so no
-  // manual refresh control is needed.)
-  const { accessToken } = useAuth();
-  const toast = useToast();
-  const [downloading, setDownloading] = useState(false);
-  const handleDownloadDiagnostics = useCallback(async () => {
-    if (!selectedPheNodeId || downloading) return;
-    setDownloading(true);
-    try {
-      const { blob, filename } = await downloadDeviceHealthData(selectedPheNodeId, from.toISOString(), to.toISOString(), accessToken);
-      const label = (selectedDevice?.label || selectedPheNodeId).replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'phenode';
-      const extMatch = filename ? /\.([a-z0-9]+)$/i.exec(filename) : null;
-      const ext = extMatch ? extMatch[1].toLowerCase() : 'csv';
-      triggerBlobDownload(blob, `${label}_diagnostics.${ext}`);
-      toast.success('Download started.');
-    } catch (err) {
-      if (err?.status === 404) {
-        toast.error('No diagnostics data found in this date range.');
-      } else {
-        toast.error("Couldn't generate the download. Please try again.");
-      }
-    } finally {
-      setDownloading(false);
-    }
-  }, [selectedPheNodeId, selectedDevice, from, to, accessToken, downloading, toast]);
-
   return (
     <MainCard content={false} sx={{ overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
+      {/*
+        ChartGlowDefs registers two shared SVG <filter>s (full + lite glow)
+        once at the page level. Every chart card in the lazy panel references
+        them via `filter: url(#chart-glow-full)` / `url(#chart-glow-lite)` —
+        compiled once by the browser and reused, instead of the previous
+        per-element drop-shadow which the renderer had to recompute per
+        segment per paint.
+      */}
+      <ChartGlowDefs />
       <Box sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 2.5 } }}>
         <Stack
           direction={{ xs: 'column', md: 'row' }}
@@ -409,6 +317,7 @@ export default function SystemDiagnostics() {
           </Typography>
           <Typography
             variant="subtitle1"
+            component="div"
             sx={{
               textAlign: { xs: 'left', md: 'right' },
               width: { xs: '100%', md: 'auto' },
@@ -416,6 +325,13 @@ export default function SystemDiagnostics() {
               alignItems: { xs: 'center', md: 'unset' }
             }}
           >
+            {/*
+              `component="div"` overrides MUI's default <h6> for subtitle1 so this
+              status line isn't a heading at all. The h4 → h6 skip used to flag
+              Lighthouse `heading-order`; rendering as a div keeps the styling
+              and fixes the cascade (h4 page title → h5 section titles → h6
+              labels, no skips).
+            */}
             <Box component="span" sx={{ color: 'var(--blue)' }}>
               Last Measurements Taken:
             </Box>
@@ -628,7 +544,13 @@ export default function SystemDiagnostics() {
                 }}
               >
                 <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-                  <Typography variant="subtitle1" sx={{ color: 'var(--blue)', mb: 1, textAlign: 'center' }}>
+                  {/*
+                    component="div" — these snapshot labels are not document
+                    headings (they're field captions on a status card), so
+                    rendering them as <div>s avoids extending the Lighthouse
+                    heading-order cascade past the page's h4 → h5 → h5 spine.
+                  */}
+                  <Typography variant="subtitle1" component="div" sx={{ color: 'var(--blue)', mb: 1, textAlign: 'center' }}>
                     Cellular:
                   </Typography>
                   <Stack direction="row" spacing={0.75} sx={{ alignItems: 'flex-end' }}>
@@ -654,7 +576,7 @@ export default function SystemDiagnostics() {
                 </Box>
 
                 <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-                  <Typography variant="subtitle1" sx={{ color: 'var(--blue)', mb: 1, textAlign: 'center' }}>
+                  <Typography variant="subtitle1" component="div" sx={{ color: 'var(--blue)', mb: 1, textAlign: 'center' }}>
                     WiFi:
                   </Typography>
                   <Stack direction="row" spacing={0.75} sx={{ alignItems: 'flex-end' }}>
@@ -681,19 +603,19 @@ export default function SystemDiagnostics() {
                 </Box>
 
                 <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-                  <Typography variant="subtitle1" sx={{ color: 'var(--blue)', textAlign: 'center' }}>
+                  <Typography variant="subtitle1" component="div" sx={{ color: 'var(--blue)', textAlign: 'center' }}>
                     Battery Charge:
                   </Typography>
-                  <Typography variant="subtitle1" sx={{ color: batteryColor, mt: 0.5, textAlign: 'center' }}>
+                  <Typography variant="subtitle1" component="div" sx={{ color: batteryColor, mt: 0.5, textAlign: 'center' }}>
                     {batteryDisplay}
                   </Typography>
                 </Box>
 
                 <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-                  <Typography variant="subtitle1" sx={{ color: 'var(--blue)', textAlign: 'center' }}>
+                  <Typography variant="subtitle1" component="div" sx={{ color: 'var(--blue)', textAlign: 'center' }}>
                     Internal Temperature:
                   </Typography>
-                  <Typography variant="subtitle1" sx={{ color: internalTempColor, mt: 0.5, textAlign: 'center' }}>
+                  <Typography variant="subtitle1" component="div" sx={{ color: internalTempColor, mt: 0.5, textAlign: 'center' }}>
                     {internalTempDisplay}
                   </Typography>
                 </Box>
@@ -762,251 +684,21 @@ export default function SystemDiagnostics() {
           </Grid>
 
           <Grid size={{ xs: 12 }}>
-            <Box
-              sx={{
-                borderRadius: 1,
-                p: { xs: 1.5, sm: 2 },
-                ...drfSurfaceSx,
-                ...reflectedCardChromeSx,
-                boxShadow: '0 14px 26px rgba(1, 13, 50, 1)'
-              }}
-            >
-              <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                <Typography variant="h5" sx={{ color: 'var(--blue)' }}>
-                  Diagnostics Over Time
-                </Typography>
-                <Tooltip title="Orientation" arrow={false} slotProps={tooltipSlotProps}>
-                  <IconButton
-                    aria-label="toggle chart layout"
-                    onClick={() => setChartLayout((prev) => (prev === 'column' ? 'row' : 'column'))}
-                    sx={orientationButtonSx}
-                  >
-                    <AntIcon icon={AppstoreOutlined} />
-                  </IconButton>
-                </Tooltip>
-              </Stack>
-              <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', mb: 2 }}>
-                <FormControl
-                  size="small"
-                  sx={{ minWidth: { xs: 0, sm: 220 }, width: { xs: '100%', sm: 220 }, flex: { xs: 1, sm: '0 0 auto' } }}
-                >
-                  <Select
-                    value={timeRange}
-                    onChange={(event) => setTimeRange(event.target.value)}
-                    sx={{
-                      color: 'var(--green)',
-                      border: '1px solid var(--reflected-light)',
-                      borderRadius: 1,
-                      backgroundColor: 'var(--drf)',
-                      boxShadow: '0 11px 19px 1px #0000002e',
-                      '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                      '& .MuiSelect-icon': { color: 'var(--blue)' }
-                    }}
-                    MenuProps={{
-                      PaperProps: neonSelectMenuPaperProps
-                    }}
-                    renderValue={(selected) => (
-                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                        <AntIcon icon={ClockCircleOutlined} style={{ color: 'var(--blue)' }} />
-                        <Box component="span" sx={{ color: 'var(--green)' }}>
-                          {selected}
-                        </Box>
-                      </Stack>
-                    )}
-                  >
-                    {CHART_TIME_RANGE_LABELS.map((option) => (
-                      <MenuItem
-                        key={option}
-                        value={option}
-                        sx={{
-                          color: 'var(--green)',
-                          '&:hover': { backgroundColor: 'rgba(72, 247, 245, 0.12)' },
-                          '&.Mui-selected': { backgroundColor: 'rgba(72, 247, 245, 0.18)' }
-                        }}
-                      >
-                        {option}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                {/*
-                  Download CSV — compact IconButton mirroring the one next to
-                  the chart category dropdown on the sensor-measurements page
-                  (sensor-measurements.jsx:1470-1494). Span wrapper keeps the
-                  tooltip working while the button is disabled.
-                */}
-                <Tooltip
-                  title={hasChartData ? 'Download data for this time period' : 'No data to download'}
-                  arrow={false}
-                  slotProps={tooltipSlotProps}
-                >
-                  <Box component="span" sx={{ display: 'inline-flex', flexShrink: 0 }}>
-                    <IconButton
-                      aria-label="download csv for this range"
-                      onClick={handleDownloadDiagnostics}
-                      disabled={!hasChartData || downloading || !selectedPheNodeId}
-                      sx={{
-                        color: 'var(--blue)',
-                        border: '1px solid var(--reflected-light)',
-                        borderRadius: 1,
-                        backgroundColor: 'var(--drf)',
-                        boxShadow: '0 11px 19px 1px #0000002e',
-                        '&:hover': { color: 'var(--green)', borderColor: 'var(--green)', backgroundColor: 'var(--drf)' }
-                      }}
-                    >
-                      {downloading ? <CircularProgress size={16} sx={{ color: 'var(--green)' }} /> : <AntIcon icon={DownloadOutlined} />}
-                    </IconButton>
-                  </Box>
-                </Tooltip>
-              </Stack>
-
-              <Box
-                sx={{
-                  display: 'grid',
-                  gap: 1.5,
-                  gridTemplateColumns:
-                    chartLayout === 'row' ? { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' } : '1fr'
-                }}
-              >
-                {chartConfigs.map((cfg) => {
-                  // Each chart pulls from the feed named by its config: the
-                  // Notecard health series or the environmental series.
-                  const rows = cfg.source === 'health' ? healthRows : envRows;
-                  const { times, data } = buildChartSeries(rows, cfg.key, cfg.transform);
-                  const finite = data.filter((v) => v !== null && Number.isFinite(v));
-                  const hasData = finite.length > 0;
-                  const minVal = hasData ? Math.min(...finite) : 0;
-                  const maxVal = hasData ? Math.max(...finite) : 1;
-                  const pad = Math.max(0.1, (maxVal - minVal) * 0.04);
-
-                  // Empty-state copy distinguishes "still loading" from "the
-                  // range has no rows" from the Wi-Fi-specific "telemetry not
-                  // reported" case, so an always-empty Wi-Fi chart reads as
-                  // expected rather than broken.
-                  const emptyMessage =
-                    rows === undefined ? 'Loading…' : cfg.key === 'wifi_rssi' ? 'Awaiting Wi-Fi telemetry' : 'No data for this range';
-
-                  return (
-                    <Box
-                      key={cfg.key}
-                      sx={{
-                        borderRadius: 1,
-                        p: { xs: 0.45, sm: 0.65 },
-                        minHeight: { xs: 260, sm: 286 },
-                        display: 'flex',
-                        flexDirection: 'column',
-                        ...reflectedCardChromeSx,
-                        ...chartSurfaceSx
-                      }}
-                    >
-                      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 0.25 }}>
-                        <Typography variant="subtitle1" sx={{ color: 'var(--blue)', ml: 1.25 }}>
-                          {cfg.title}
-                        </Typography>
-                        <IconButton aria-label={`zoom ${cfg.title}`} size="small" sx={{ color: 'var(--blue)' }}>
-                          <AntIcon icon={ZoomInOutlined} />
-                        </IconButton>
-                      </Stack>
-
-                      {hasData ? (
-                        <LineChart
-                          xAxis={[
-                            {
-                              id: `${cfg.key}-x`,
-                              scaleType: 'time',
-                              data: times,
-                              tickNumber: axisTickNumberFor(axisFormat),
-                              tickInterval: xAxisTicks,
-                              tickLabelStyle: { fontSize: 11, fill: 'var(--green)' },
-                              valueFormatter: (value, context) =>
-                                context?.location === 'tooltip' ? formatTooltipDate(value) : formatAxisTick(value, axisFormat)
-                            }
-                          ]}
-                          yAxis={[
-                            {
-                              id: `${cfg.key}-y`,
-                              min: minVal - pad,
-                              max: maxVal + pad,
-                              width: 38,
-                              tickLabelStyle: { fill: 'var(--green)' },
-                              valueFormatter: makeYAxisFormatter(cfg.unit)
-                            }
-                          ]}
-                          series={[
-                            {
-                              id: `${cfg.key}-line`,
-                              data,
-                              color: cfg.color,
-                              area: true,
-                              showMark: false,
-                              curve: 'linear',
-                              connectNulls: true,
-                              valueFormatter: (value) =>
-                                value === null || value === undefined
-                                  ? 'No data'
-                                  : `${Number(value).toFixed(2)}${cfg.unit ? ` ${cfg.unit}` : ''}`
-                            }
-                          ]}
-                          grid={{ horizontal: true, vertical: true }}
-                          height={chartHeight}
-                          margin={{ top: 2, right: 16, bottom: 10, left: 10 }}
-                          hideLegend
-                          sx={{
-                            width: '100%',
-                            overflow: 'visible',
-                            '& .MuiChartsSurface-root': {
-                              overflow: 'visible'
-                            },
-                            '& .MuiChartsGrid-line': {
-                              stroke: 'var(--blue)',
-                              strokeOpacity: 0.38,
-                              strokeWidth: 0.65
-                            },
-                            '& .MuiLineElement-root': {
-                              strokeWidth: 0.95,
-                              strokeLinecap: 'round',
-                              strokeLinejoin: 'round',
-                              filter: `drop-shadow(0 0 8px ${cfg.color})`
-                            },
-                            '& .MuiAreaElement-root': {
-                              fillOpacity: 0.16
-                            },
-                            '& .MuiChartsAxis-line, & .MuiChartsAxis-tick': {
-                              stroke: 'rgba(232, 232, 232, 0.45)'
-                            },
-                            '& .MuiChartsAxis-tickLabel': {
-                              fill: 'var(--green)',
-                              fontWeight: 600
-                            },
-                            '& .MuiChartsAxis-left .MuiChartsAxis-line, & .MuiChartsAxis-bottom .MuiChartsAxis-line': {
-                              stroke: 'rgba(232, 232, 232, 0.55)'
-                            },
-                            background: 'transparent',
-                            borderRadius: 1
-                          }}
-                        />
-                      ) : (
-                        <Box
-                          sx={{
-                            flex: 1,
-                            minHeight: chartHeight,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            textAlign: 'center',
-                            px: 2
-                          }}
-                        >
-                          <Typography variant="body2" sx={{ color: 'var(--blue)', opacity: 0.85 }}>
-                            {emptyMessage}
-                          </Typography>
-                        </Box>
-                      )}
-                    </Box>
-                  );
-                })}
-              </Box>
-            </Box>
+            {/*
+              Chart panel lives in a separate, lazy-loaded module so MUI x-charts
+              and the two SWR fetches (health + environmental) don't load until
+              the page shell has painted. The Suspense fallback above keeps the
+              layout reserved at the panel's typical height so the page doesn't
+              shift when the chunk arrives.
+            */}
+            <Suspense fallback={<ChartsPanelFallback />}>
+              <DiagnosticsChartsPanel
+                selectedPheNodeId={selectedPheNodeId}
+                selectedDevice={selectedDevice}
+                timeRange={timeRange}
+                setTimeRange={setTimeRange}
+              />
+            </Suspense>
           </Grid>
         </Grid>
       </Box>

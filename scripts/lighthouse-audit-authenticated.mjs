@@ -53,6 +53,17 @@
 //
 // Add a route: append to ROUTES below. The npm script + shell hook
 // don't change.
+//
+// Run a subset: set LIGHTHOUSE_ROUTES to a comma-separated list of route
+// `name`s (the same names the report files are saved under). Useful when
+// iterating on one page — skips the rest of the table and the time their
+// audits take. Example:
+//
+//   LIGHTHOUSE_ROUTES=system-diagnostics,system-diagnostics-long-range \
+//     npm run audit:authenticated
+//
+// Unknown names are ignored with a warning. Omit the env var to run all
+// ROUTES (the default and what `make audit` does).
 
 import puppeteer from 'puppeteer-core';
 import * as chromeLauncher from 'chrome-launcher';
@@ -150,7 +161,32 @@ const ROUTES = [
   //                                  handling are scaling.
   { path: '/dashboard/wireless-sensors', name: 'sensor-network' },
   { path: '/dashboard/wireless-sensors?view=map', name: 'sensor-network-map' },
-  { path: '/dashboard/wireless-sensors?range=Last%205%20years', name: 'sensor-network-long-range' }
+  { path: '/dashboard/wireless-sensors?range=Last%205%20years', name: 'sensor-network-long-range' },
+  // ─────────────────────────────────────────────────────────────────
+  // system-diagnostics — two variants (no map analog: this page has no
+  // map view).
+  //
+  //   1. system-diagnostics            — Default state. Layered SVG
+  //                                      diagram + snapshot panel (bars
+  //                                      + temp/battery readouts) + six
+  //                                      live health charts at "Last 24
+  //                                      hours" (raw rows). The most
+  //                                      common user-visible state.
+  //   2. system-diagnostics-long-range — Chart panel with "Last 5 years"
+  //                                      (bucketed 1d) across the six
+  //                                      Notecard health charts. Stresses
+  //                                      the longest-range SVG paint path
+  //                                      on this page in the same way the
+  //                                      sensor-measurements long-range
+  //                                      audit does — watching this tells
+  //                                      us whether the chart layer is
+  //                                      scaling as health-series data
+  //                                      grows.
+  //
+  // The `range` URL param landed on this page alongside this audit entry
+  // (replaces a local useState so the audit can deep-link to a range).
+  { path: '/dashboard/system-diagnostics', name: 'system-diagnostics' },
+  { path: '/dashboard/system-diagnostics?range=Last%205%20years', name: 'system-diagnostics-long-range' }
 ];
 
 // localStorage keys the V3 frontend uses for the JWT pair. Mirror of
@@ -315,7 +351,31 @@ async function main() {
     await injectTokens(chrome.port, tokens);
     console.log('  ✓ localStorage primed.');
 
-    for (const route of ROUTES) {
+    // LIGHTHOUSE_ROUTES env filter — see header comment. Comma-separated list
+    // of route names; the script audits only matching routes. Unknown names
+    // produce a warning so a typo doesn't silently audit nothing.
+    let routesToRun = ROUTES;
+    const filterEnv = (process.env.LIGHTHOUSE_ROUTES || '').trim();
+    if (filterEnv) {
+      const wanted = filterEnv
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const knownNames = new Set(ROUTES.map((r) => r.name));
+      const unknown = wanted.filter((n) => !knownNames.has(n));
+      if (unknown.length > 0) {
+        console.warn(`⚠ LIGHTHOUSE_ROUTES has unknown name(s): ${unknown.join(', ')}. Known: ${[...knownNames].join(', ')}`);
+      }
+      routesToRun = ROUTES.filter((r) => wanted.includes(r.name));
+      if (routesToRun.length === 0) {
+        fail(`LIGHTHOUSE_ROUTES matched no known routes (got "${filterEnv}").`);
+      }
+      console.log(
+        `→ Filter active — auditing ${routesToRun.length}/${ROUTES.length} route(s): ${routesToRun.map((r) => r.name).join(', ')}`
+      );
+    }
+
+    for (const route of routesToRun) {
       await auditRoute(chrome.port, route);
     }
   } finally {
