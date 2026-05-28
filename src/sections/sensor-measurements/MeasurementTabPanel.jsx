@@ -70,41 +70,81 @@ function buildSingleSeries(rows, field, transform) {
   return { times, values };
 }
 
-// Multi-series / step: all series share ONE timestamp array (the source rows)
-// with `null` gaps where a field has no reading — required because MUI shares
-// one xAxis.data across series. connectNulls bridges sparse series (GDD's
-// one-per-day value, less-frequent probes) into a continuous line.
+// Multi-series / step: all series share ONE timestamp array (required because
+// MUI x-charts series within a chart share one xAxis.data). To make tooltips
+// reliably resolve, we build `times` as the UNION of all series' non-null
+// timestamps — NOT every row in the response. Without this, sparse fields
+// (e.g. soil probes reporting 23 of 144 rows) leave most snapped tooltip
+// indices all-null, the null formatter then filters every row, and the user
+// gets no tooltip card and no marker.
+//
+// With the union, every snapped index has at least one series with a real
+// value; the other series gets `null` where its cadence doesn't line up with
+// the first, `connectNulls: true` bridges that gap visually, and the null
+// formatter in renderChartBody hides the missing series cleanly from the
+// tooltip row list.
 function buildAlignedSeries(rows, chart) {
-  const times = (rows ?? []).map((r) => new Date(r.time));
   const fields =
     Array.isArray(chart.series) && chart.series.length
       ? chart.series
       : [{ field: chart.primaryField, label: chart.title, color: chart.color, transform: chart.transform }];
-  const lines = fields
+
+  // Per-series: collect Map<isoTime, transformedValue> of NON-null readings.
+  // Filter out series with zero readings up front so the chart never plots a
+  // legend entry for a probe that has no data on this device.
+  const seriesData = fields
     .map((f) => {
       const tf = f.transform ?? chart.transform ?? ((v) => v);
-      let hasAny = false;
-      const values = (rows ?? []).map((r) => {
+      const map = new Map();
+      for (const r of rows ?? []) {
         const v = r.fields?.[f.field]?.avg;
-        if (v === null || v === undefined) return null;
-        hasAny = true;
-        return tf(v);
-      });
-      return { label: f.label, color: f.color ?? chart.color, values, hasAny };
+        if (v === null || v === undefined) continue;
+        map.set(r.time, tf(v));
+      }
+      return { label: f.label, color: f.color ?? chart.color, map };
     })
-    .filter((l) => l.hasAny);
+    .filter((s) => s.map.size > 0);
+
+  // Union of non-null timestamps across all series, ascending.
+  const unionIsoTimes = new Set();
+  for (const s of seriesData) {
+    for (const t of s.map.keys()) unionIsoTimes.add(t);
+  }
+  const sortedIsoTimes = [...unionIsoTimes].sort();
+  const times = sortedIsoTimes.map((t) => new Date(t));
+
+  // Each series' values aligned to the union; null where that series has no
+  // reading at a given union timestamp (only happens when series report on
+  // different cadences). connectNulls bridges those gaps visually.
+  const lines = seriesData.map((s) => ({
+    label: s.label,
+    color: s.color,
+    values: sortedIsoTimes.map((t) => s.map.get(t) ?? null)
+  }));
+
   return { times, lines };
 }
 
-function buildScatterPoints(rows, chart) {
-  const tf = chart.transform ?? ((v) => v);
-  const pts = [];
-  (rows ?? []).forEach((r, i) => {
-    const v = r.fields?.[chart.primaryField]?.avg;
-    if (v === null || v === undefined) return;
-    pts.push({ x: new Date(r.time), y: tf(v), id: i });
-  });
-  return pts;
+// Scatter points per series — supports both single-source (chart.primaryField)
+// and multi-source (chart.series) configs. Returns one {label, color, points}
+// entry per series with non-null points only; empty series are filtered.
+function buildScatterSeries(rows, chart) {
+  const seriesDefs =
+    Array.isArray(chart.series) && chart.series.length
+      ? chart.series
+      : [{ field: chart.primaryField, label: chart.title, color: chart.color, transform: chart.transform }];
+  return seriesDefs
+    .map((f, sIdx) => {
+      const tf = f.transform ?? chart.transform ?? ((v) => v);
+      const points = [];
+      (rows ?? []).forEach((r, rIdx) => {
+        const v = r.fields?.[f.field]?.avg;
+        if (v === null || v === undefined) return;
+        points.push({ x: new Date(r.time), y: tf(v), id: `${sIdx}-${rIdx}` });
+      });
+      return { label: f.label, color: f.color ?? chart.color, points };
+    })
+    .filter((s) => s.points.length > 0);
 }
 
 const emptyBodySx = {
@@ -140,8 +180,9 @@ function renderChartBody(chart, rows, { from, to, xAxisTicks, axisFormat, height
   };
 
   if (chart.chartType === 'scatter') {
-    const pts = buildScatterPoints(rows, chart);
-    if (!pts.length) return <Box sx={emptyBodySx}>No data for this time range</Box>;
+    const scatterLines = buildScatterSeries(rows, chart);
+    if (!scatterLines.length) return <Box sx={emptyBodySx}>No data for this time range</Box>;
+    const isMultiScatter = scatterLines.length > 1;
     return (
       <ScatterChart
         xAxis={[{ ...baseX, min: from, max: to }]}
@@ -154,19 +195,19 @@ function renderChartBody(chart, rows, { from, to, xAxisTicks, axisFormat, height
             valueFormatter: makeYAxisFormatter(chart.unit)
           }
         ]}
-        series={[
-          {
-            id: `${chart.key}-scatter${idSuffix}`,
-            data: pts,
-            color: chart.color,
-            markerSize: 3,
-            valueFormatter: (p) => (p == null ? 'No data' : `${Number(p.y).toFixed(0)}${chart.unit ? ` ${chart.unit}` : ''}`)
-          }
-        ]}
+        series={scatterLines.map((s, i) => ({
+          id: `${chart.key}-scatter-${i}${idSuffix}`,
+          data: s.points,
+          label: isMultiScatter ? s.label : undefined,
+          color: s.color,
+          markerSize: 3,
+          valueFormatter: (p) => (p == null ? null : `${Number(p.y).toFixed(0)}${chart.unit ? ` ${chart.unit}` : ''}`)
+        }))}
         grid={{ horizontal: true, vertical: true }}
         height={height}
         margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
-        hideLegend
+        hideLegend={!isMultiScatter}
+        slotProps={isMultiScatter ? { legend: { labelStyle: { fontSize: 11, fill: 'var(--green)' } } } : undefined}
         sx={chartSx}
       />
     );
@@ -233,8 +274,15 @@ function renderChartBody(chart, rows, { from, to, xAxisTicks, axisFormat, height
         showMark: chart.chartType === 'step',
         curve,
         connectNulls: true,
+        // Return `null` (not "No data") for null values so MUI's default
+        // tooltip skips the entry entirely — see
+        // node_modules/@mui/x-charts/esm/ChartsTooltip/ChartsAxisTooltipContent.js
+        // line 41 (`if (formattedValue == null) return null`). Otherwise the
+        // chart's connectNulls=true visually bridges gaps but the tooltip
+        // still says "No data" at every hovered position with no underlying
+        // sample, which is misleading.
         valueFormatter: (value) =>
-          value === null || value === undefined ? 'No data' : `${Number(value).toFixed(2)}${chart.unit ? ` ${chart.unit}` : ''}`
+          value === null || value === undefined ? null : `${Number(value).toFixed(2)}${chart.unit ? ` ${chart.unit}` : ''}`
       }))}
       grid={{ horizontal: true, vertical: true }}
       height={height}

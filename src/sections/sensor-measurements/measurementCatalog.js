@@ -81,6 +81,9 @@ const COLORS = {
   windSpeedSecondary: '#9a812b',
   windDirection: '#f4a04b',
   windGust: '#f7e06b',
+  // Calypso line color — single shared cool-tone that contrasts the warm
+  // atmos palette across all three wind charts.
+  windCalypso: '#60a5fa',
   rainfall: '#0043c2',
   rainfallSecondary: '#3b6fd6',
   gdd: '#56d364',
@@ -89,9 +92,13 @@ const COLORS = {
   par: '#a3e635',
   solarRadiation: '#f59e0b',
   soilMoisture: '#38bdf8',
+  soilMoistureSecondary: '#a78bfa',
   soilTemp: '#fb7185',
+  soilTempSecondary: '#fbbf24',
   soilEc: '#c084fc',
+  soilEcSecondary: '#34d399',
   soilMatric: '#22d3ee',
+  soilMatricSecondary: '#fb923c',
   altitude: '#94a3b8',
   accel: '#f87171',
   batteryCharge: '#34d399',
@@ -246,41 +253,51 @@ export function buildMeasurementCatalog(displayPrefs) {
       availability: 'live'
     },
     {
-      // Wind speed: use the backend's coalesced `wind_speed` extractor
-      // (downloads.py:1004) which falls back through bus2_wind_speed →
-      // calypso_wind_speed → wind_speed → windSpeed. That way the chart
-      // populates regardless of which wind sensor the device has. A future
-      // pass can add an atmos22-explicit key to render two distinct lines.
+      // Wind speed: two distinct sources rendered as two lines (matches the
+      // old GUI's "atmos22 + calypso" overlay). `atmos_wind_speed` scans
+      // bus1..bus8 only (downloads.py:1125-1135); `calypso_wind_speed` is
+      // Calypso-only (downloads.py:1136). Devices with only one source show
+      // a single line because buildAlignedSeries filters out empty series.
       key: 'wind_speed',
       title: 'Wind Speed',
       source: 'device',
-      chartType: 'line',
-      primaryField: 'wind_speed',
+      chartType: 'multiline',
       unit: speed.label,
       transform: speed.transform,
-      color: COLORS.windSpeed,
+      series: [
+        { field: 'atmos_wind_speed', label: 'Atmos', color: COLORS.windSpeed, transform: speed.transform },
+        { field: 'calypso_wind_speed', label: 'Calypso', color: COLORS.windCalypso, transform: speed.transform }
+      ],
       availability: 'live'
     },
     {
+      // Wind direction: scatter (line wraps badly across the 0°/360° seam).
+      // Two series so atmos vs Calypso are visually distinct dots; the panel's
+      // scatter branch iterates chart.series the same way the line/multiline
+      // branch does.
       key: 'wind_direction',
       title: 'Wind Direction',
       source: 'device',
-      chartType: 'scatter', // a continuous line wraps badly across the 0°/360° seam
-      primaryField: 'wind_direction',
+      chartType: 'scatter',
       unit: '°',
       transform: identity,
-      color: COLORS.windDirection,
+      series: [
+        { field: 'atmos_wind_direction', label: 'Atmos', color: COLORS.windDirection },
+        { field: 'calypso_wind_direction', label: 'Calypso', color: COLORS.windCalypso }
+      ],
       availability: 'live'
     },
     {
       key: 'wind_gust',
       title: 'Wind Gust',
       source: 'device',
-      chartType: 'line',
-      primaryField: 'wind_gust',
+      chartType: 'multiline',
       unit: speed.label,
       transform: speed.transform,
-      color: COLORS.windGust,
+      series: [
+        { field: 'atmos_wind_gust', label: 'Atmos', color: COLORS.windGust, transform: speed.transform },
+        { field: 'calypso_wind_gust', label: 'Calypso', color: COLORS.windCalypso, transform: speed.transform }
+      ],
       availability: 'live'
     },
     {
@@ -370,47 +387,58 @@ export function buildMeasurementCatalog(displayPrefs) {
   // can be layered as a second line later if a device has two probes.
   const soil = [
     {
+      // Two-probe layout (Probe 1 + Probe 2) — matches the old GUI's "Soil
+      // Probe 1&2" panels. Devices with only one probe render a single line
+      // because the empty probe's series gets filtered out in buildAlignedSeries.
       key: 'soil_moisture',
       title: 'Soil Moisture (VWC)',
       source: 'device',
-      chartType: 'line',
-      primaryField: 'soil_moisture_1',
+      chartType: 'multiline',
       unit: '%',
       transform: identity,
-      color: COLORS.soilMoisture,
+      series: [
+        { field: 'soil_moisture_1', label: 'Probe 1', color: COLORS.soilMoisture },
+        { field: 'soil_moisture_2', label: 'Probe 2', color: COLORS.soilMoistureSecondary }
+      ],
       availability: 'live'
     },
     {
       key: 'soil_temperature',
       title: 'Soil Temperature',
       source: 'device',
-      chartType: 'line',
-      primaryField: 'soil_temperature_1',
+      chartType: 'multiline',
       unit: temp.label,
       transform: temp.transform,
-      color: COLORS.soilTemp,
+      series: [
+        { field: 'soil_temperature_1', label: 'Probe 1', color: COLORS.soilTemp, transform: temp.transform },
+        { field: 'soil_temperature_2', label: 'Probe 2', color: COLORS.soilTempSecondary, transform: temp.transform }
+      ],
       availability: 'live'
     },
     {
       key: 'soil_ec',
       title: 'Soil Electrical Conductivity',
       source: 'device',
-      chartType: 'line',
-      primaryField: 'soil_ec_1',
+      chartType: 'multiline',
       unit: conductivity.label,
       transform: conductivity.transform,
-      color: COLORS.soilEc,
+      series: [
+        { field: 'soil_ec_1', label: 'Probe 1', color: COLORS.soilEc, transform: conductivity.transform },
+        { field: 'soil_ec_2', label: 'Probe 2', color: COLORS.soilEcSecondary, transform: conductivity.transform }
+      ],
       availability: 'live'
     },
     {
       key: 'soil_matric',
       title: 'Soil Matric Potential',
       source: 'device',
-      chartType: 'line',
-      primaryField: 'soil_matric_1',
+      chartType: 'multiline',
       unit: 'kPa',
       transform: identity,
-      color: COLORS.soilMatric,
+      series: [
+        { field: 'soil_matric_1', label: 'Probe 1', color: COLORS.soilMatric },
+        { field: 'soil_matric_2', label: 'Probe 2', color: COLORS.soilMatricSecondary }
+      ],
       availability: 'live'
     },
     {
