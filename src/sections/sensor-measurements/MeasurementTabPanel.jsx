@@ -265,30 +265,39 @@ function renderChartBody(chart, rows, { from, to, xAxisTicks, axisFormat, height
           valueFormatter: makeYAxisFormatter(chart.unit)
         }
       ]}
-      series={lines.map((l, i) => ({
-        id: `${chart.key}-l${i}${idSuffix}`,
-        data: l.values,
-        label: isMulti ? l.label : undefined,
-        color: l.color,
-        area: !isMulti,
-        showMark: chart.chartType === 'step',
-        curve,
-        connectNulls: true,
-        // Return `null` (not "No data") for null values so MUI's default
-        // tooltip skips the entry entirely — see
-        // node_modules/@mui/x-charts/esm/ChartsTooltip/ChartsAxisTooltipContent.js
-        // line 41 (`if (formattedValue == null) return null`). Otherwise the
-        // chart's connectNulls=true visually bridges gaps but the tooltip
-        // still says "No data" at every hovered position with no underlying
-        // sample, which is misleading.
-        valueFormatter: (value) =>
-          value === null || value === undefined ? null : `${Number(value).toFixed(2)}${chart.unit ? ` ${chart.unit}` : ''}`
-      }))}
+      // `renderedAsMulti` keys off the actual rendered series count, NOT the
+      // catalog declaration. If a chart declares two probes but only one has
+      // data on this device, lines.length === 1 → render it like a single-
+      // series chart (area glow on, no legend) for visual parity with the
+      // other charts. With both lines, drop the area fill so overlapping
+      // translucent bands don't muddy the chart.
+      series={lines.map((l, i) => {
+        const renderedAsMulti = lines.length > 1;
+        return {
+          id: `${chart.key}-l${i}${idSuffix}`,
+          data: l.values,
+          label: renderedAsMulti ? l.label : undefined,
+          color: l.color,
+          area: !renderedAsMulti,
+          showMark: chart.chartType === 'step',
+          curve,
+          connectNulls: true,
+          // Return `null` (not "No data") for null values so MUI's default
+          // tooltip skips the entry entirely — see
+          // node_modules/@mui/x-charts/esm/ChartsTooltip/ChartsAxisTooltipContent.js
+          // line 41 (`if (formattedValue == null) return null`). Otherwise the
+          // chart's connectNulls=true visually bridges gaps but the tooltip
+          // still says "No data" at every hovered position with no underlying
+          // sample, which is misleading.
+          valueFormatter: (value) =>
+            value === null || value === undefined ? null : `${Number(value).toFixed(2)}${chart.unit ? ` ${chart.unit}` : ''}`
+        };
+      })}
       grid={{ horizontal: true, vertical: true }}
       height={height}
       margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
-      hideLegend={!isMulti}
-      slotProps={isMulti ? { legend: { labelStyle: { fontSize: 11, fill: 'var(--green)' } } } : undefined}
+      hideLegend={lines.length < 2}
+      slotProps={lines.length > 1 ? { legend: { labelStyle: { fontSize: 11, fill: 'var(--green)' } } } : undefined}
       sx={chartSx}
     />
   );

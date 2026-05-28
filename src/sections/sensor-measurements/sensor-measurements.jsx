@@ -486,13 +486,40 @@ const DEVICE_CHART_FIELDS = [
   'battery_voltage'
 ];
 
-// 16-point compass labels for wind direction circles. Index = round(deg/22.5)%16.
+// 16-point compass abbreviations + full names for the wind direction circle.
+// Index = round(deg/22.5) % 16. Two parallel arrays kept in lockstep so the
+// circle can render the short label and a themed tooltip can show the long.
 const COMPASS_POINTS_16 = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
-function formatWindDirection(degrees) {
-  if (degrees === null || degrees === undefined || !Number.isFinite(Number(degrees))) return '—';
+const COMPASS_LABELS_16 = [
+  'North',
+  'North-Northeast',
+  'Northeast',
+  'East-Northeast',
+  'East',
+  'East-Southeast',
+  'Southeast',
+  'South-Southeast',
+  'South',
+  'South-Southwest',
+  'Southwest',
+  'West-Southwest',
+  'West',
+  'West-Northwest',
+  'Northwest',
+  'North-Northwest'
+];
+function compassIndex(degrees) {
+  if (degrees === null || degrees === undefined || !Number.isFinite(Number(degrees))) return null;
   const normalized = ((Number(degrees) % 360) + 360) % 360;
-  const idx = Math.round(normalized / 22.5) % 16;
-  return COMPASS_POINTS_16[idx];
+  return Math.round(normalized / 22.5) % 16;
+}
+function formatWindDirection(degrees) {
+  const idx = compassIndex(degrees);
+  return idx === null ? '—' : COMPASS_POINTS_16[idx];
+}
+function formatWindDirectionFull(degrees) {
+  const idx = compassIndex(degrees);
+  return idx === null ? null : COMPASS_LABELS_16[idx];
 }
 // Build the three "current value" circles from a single DeviceRead. The
 // values use the same formatters the fleet-overview cards use, so the
@@ -545,6 +572,9 @@ function buildCircleMetrics(device, displayPrefs, latest) {
       icon: windSensorIcon,
       iconAlt: 'Wind sensor icon',
       direction: formatWindDirection(windDirDeg),
+      // Full compass name for the hover tooltip (e.g., "West-Northwest" for
+      // "WNW"). Null when degrees are unknown — tooltip suppressed in that case.
+      directionFull: formatWindDirectionFull(windDirDeg),
       value: formatWindSpeed(windSpeedMs, speedUnit),
       label: 'Current Windspeed',
       gustLabel: 'Gust:',
@@ -1244,12 +1274,33 @@ export default function SensorMeasurements() {
                         }}
                       />
                       {metric.direction && (
-                        <Typography
-                          variant="caption"
-                          sx={{ color: 'var(--blue)', fontWeight: 600, letterSpacing: '0.04em', lineHeight: 1 }}
+                        <Tooltip
+                          // Themed tooltip — uses the same slotProps shape every
+                          // other affordance on this page (map toggle, enlarge,
+                          // info icons) so the compass-name hover reads as part
+                          // of the same control family.
+                          title={metric.directionFull || ''}
+                          disableHoverListener={!metric.directionFull}
+                          arrow={false}
+                          slotProps={tooltipSlotProps}
                         >
-                          {metric.direction}
-                        </Typography>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: 'var(--blue)',
+                              fontWeight: 600,
+                              letterSpacing: '0.04em',
+                              lineHeight: 1,
+                              // Belt-and-braces: the formatter already returns
+                              // uppercase, but the CSS guarantees the abbreviation
+                              // never renders lowercase if the source ever changes.
+                              textTransform: 'uppercase',
+                              cursor: metric.directionFull ? 'help' : 'default'
+                            }}
+                          >
+                            {metric.direction}
+                          </Typography>
+                        </Tooltip>
                       )}
                       <Typography
                         variant="h1"
