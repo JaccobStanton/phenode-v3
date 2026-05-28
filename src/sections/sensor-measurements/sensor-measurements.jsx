@@ -471,38 +471,67 @@ function extensionFromBackendFilename(filename) {
 // The fieldKey set never changes with user preferences (we always need
 // the same raw columns from the API; only the display conversion + unit
 // label vary), so this stays a module constant.
-const DEVICE_CHART_FIELDS = ['temperature', 'humidity', 'pressure', 'wind_speed', 'rainfall', 'battery_voltage'];
+// Field projection for the top-level device fetch. Feeds the Download button's
+// enable check, the selection-loading indicator, AND the snapshot-circle KPIs
+// (humidity / gust / wind direction values come from here, not DeviceRead — see
+// buildCircleMetrics + the `latestValues` memo below).
+const DEVICE_CHART_FIELDS = [
+  'temperature',
+  'humidity',
+  'pressure',
+  'wind_speed',
+  'wind_direction',
+  'wind_gust',
+  'rainfall',
+  'battery_voltage'
+];
+
+// 16-point compass labels for wind direction circles. Index = round(deg/22.5)%16.
+const COMPASS_POINTS_16 = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+function formatWindDirection(degrees) {
+  if (degrees === null || degrees === undefined || !Number.isFinite(Number(degrees))) return '—';
+  const normalized = ((Number(degrees) % 360) + 360) % 360;
+  const idx = Math.round(normalized / 22.5) % 16;
+  return COMPASS_POINTS_16[idx];
+}
 // Build the three "current value" circles from a single DeviceRead. The
 // values use the same formatters the fleet-overview cards use, so the
 // number the user clicked on the fleet card visually matches the number
-// they land on here. Humidity (circle 1 sub-label), Gust (circle 3
-// sub-label) and Wind direction (circle 3 caption) aren't on the
-// DeviceRead schema yet — they render as "N/A" / "—" placeholders for
-// now; the moment those land in the backend the read-throughs below
-// flip to live values without any other change.
+// they land on here. Humidity (circle 1 sub-label), Gust (circle 3 sub-label)
+// and Wind direction (circle 3 caption) aren't surfaced by the DeviceRead
+// summary, and even fields that ARE on DeviceRead (temperature_c, wind_speed)
+// are stale or null on some devices. So the circles prefer the latest non-null
+// reading from the time-series fetch (`latest`), falling back to DeviceRead
+// where available. That way the snapshot matches what the chart line ends on.
 //
-// `device` may be null/undefined while the hook is still loading or the
-// fleet is empty — each formatter returns "N/A" for missing inputs,
-// so we don't need additional guards here.
-// `displayPrefs` is the memoized object from useDisplayPreferences().
-// The function is pure — same inputs, same output — so it stays at
-// module scope. The component-side useMemo includes displayPrefs in
-// its deps so a unit change re-derives this array.
-function buildCircleMetrics(device, displayPrefs) {
+// `device` may be null/undefined while the hook is still loading or the fleet
+// is empty — each formatter returns "N/A" for missing inputs, so we don't
+// need additional guards here. `displayPrefs` is the memoized object from
+// useDisplayPreferences(). `latest` is the per-field latest-value object
+// computed in the component from measurementRows (empty when no data).
+function buildCircleMetrics(device, displayPrefs, latest) {
   const tempUnit = displayPrefs?.tempUnit ?? 'F';
   const speedUnit = displayPrefs?.speedUnit ?? 'ms';
   const rainUnit = displayPrefs?.rainUnit ?? 'mm';
+
+  // Latest > DeviceRead fallback. Backend ships temperature in °C and wind
+  // speed in m/s; the format helpers take the raw unit and the user's display
+  // pref so this stays a pure pass-through.
+  const tempC = latest?.temperature ?? device?.temperature_c;
+  const humidity = latest?.humidity;
+  const windSpeedMs = latest?.wind_speed ?? device?.wind_speed;
+  const windGustMs = latest?.wind_gust;
+  const windDirDeg = latest?.wind_direction;
+
   return [
     {
       id: 'metric-1',
       icon: tempSensorIcon,
       iconAlt: 'Temperature sensor icon',
-      value: formatTemperature(device?.temperature_c, tempUnit),
+      value: formatTemperature(tempC, tempUnit),
       label: 'Current Air Temperature',
       gustLabel: 'Humidity:',
-      // Humidity isn't on the DeviceRead schema (see services/schemas/
-      // device.js); placeholder until backend lands the field.
-      gustValue: 'N/A'
+      gustValue: humidity == null ? 'N/A' : `${Math.round(humidity)}%`
     },
     {
       id: 'metric-2',
@@ -515,14 +544,11 @@ function buildCircleMetrics(device, displayPrefs) {
       id: 'metric-3',
       icon: windSensorIcon,
       iconAlt: 'Wind sensor icon',
-      // Wind direction isn't on DeviceRead yet — em-dash placeholder
-      // reads as "value unavailable" without implying a specific
-      // direction. Same forward-compat plan as humidity above.
-      direction: '—',
-      value: formatWindSpeed(device?.wind_speed, speedUnit),
+      direction: formatWindDirection(windDirDeg),
+      value: formatWindSpeed(windSpeedMs, speedUnit),
       label: 'Current Windspeed',
       gustLabel: 'Gust:',
-      gustValue: 'N/A'
+      gustValue: windGustMs == null ? 'N/A' : formatWindSpeed(windGustMs, speedUnit)
     }
   ];
 }
@@ -852,8 +878,6 @@ export default function SensorMeasurements() {
   // whole page uses one renderer + one grid per tab.
   const activeTabCharts = useMemo(() => measurementCatalog.find((t) => t.id === activeTab)?.charts ?? [], [activeTab, measurementCatalog]);
 
-  const circleMetrics = useMemo(() => buildCircleMetrics(activeDevice, displayPrefs), [activeDevice, displayPrefs]);
-
   // Formatted "Last Measurements Taken" string for the page header.
   // Uses the shared transform (returns "Never" for null,
   // "Unknown" for an unparseable string) so this page surfaces the
@@ -937,6 +961,30 @@ export default function SensorMeasurements() {
     fields: DEVICE_CHART_FIELDS,
     bucket: 'auto'
   });
+
+  // Latest non-null value per field — feeds the snapshot KPI circles below so
+  // they reflect what the chart line ends on, not the (often stale or missing)
+  // DeviceRead summary. Walks rows in reverse and grabs the first non-null
+  // `avg` for each field name encountered. Memoized on measurementRows so a
+  // 60s background poll only re-derives when data actually changed.
+  const latestValues = useMemo(() => {
+    if (!measurementRows?.length) return {};
+    const result = {};
+    for (let i = measurementRows.length - 1; i >= 0; i--) {
+      const fields = measurementRows[i].fields ?? {};
+      for (const key of Object.keys(fields)) {
+        if (result[key] !== undefined) continue;
+        const v = fields[key]?.avg;
+        if (v !== null && v !== undefined) result[key] = v;
+      }
+    }
+    return result;
+  }, [measurementRows]);
+
+  const circleMetrics = useMemo(
+    () => buildCircleMetrics(activeDevice, displayPrefs, latestValues),
+    [activeDevice, displayPrefs, latestValues]
+  );
 
   // "User just changed the selection" tracker — feeds the toolbar
   // loading indicator without flickering on the 60s SWR background
