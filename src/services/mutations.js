@@ -203,6 +203,28 @@ export const downloadDeviceHealthData = (externalDeviceId, fromIso, toIso, acces
   });
 
 /**
+ * Download a device's images as a ZIP archive (one file per image
+ * captured in the date range; an S3_URLS.txt is included for any images
+ * stored externally rather than inline). Always responds with
+ * application/zip ("phenode_images.zip").
+ *
+ * Backend reference:
+ *   phenodeX/phenode_backend/api/devices/routes.py:1164
+ *
+ * @param {string} externalDeviceId - immutable external_device_id
+ * @param {string} fromIso - ISO 8601 start timestamp
+ * @param {string} toIso - ISO 8601 end timestamp
+ * @param {string} accessToken - Bearer token from useAuth()
+ * @returns {Promise<{ blob: Blob, filename: string|null }>}
+ */
+export const downloadDeviceImages = (externalDeviceId, fromIso, toIso, accessToken) =>
+  mutationRequest(buildUrl(API.devices.imagesDownload(externalDeviceId, fromIso, toIso)), {
+    method: 'POST',
+    token: accessToken,
+    parseAs: 'blob'
+  });
+
+/**
  * Download wireless-sensor data as a ZIP archive (one CSV per
  * requested sensor). Backend applies data_download_preferences before
  * sealing each CSV.
@@ -221,6 +243,34 @@ export const downloadDeviceHealthData = (externalDeviceId, fromIso, toIso, acces
  */
 export const downloadWirelessSensorData = (sensorList, fromIso, toIso, accessToken) =>
   mutationRequest(buildUrl(API.wirelessSensors.sensorDataDownload(sensorList, fromIso, toIso)), {
+    method: 'POST',
+    token: accessToken,
+    parseAs: 'blob'
+  });
+
+/**
+ * Download EVERYTHING for one device as a single ZIP archive — the
+ * environmental CSV, the diagnostics/health CSV, one CSV per wireless
+ * sensor, and the captured images. The backend applies the user's saved
+ * data_download_preferences to each CSV before sealing the archive
+ * ("all-data.zip").
+ *
+ * `sensorList` is a comma-separated string of external_sensor_ids. Pass
+ * 'none' (or an empty selection mapped to 'none' by the caller) to let the
+ * backend auto-include the sensors already linked to the device.
+ *
+ * Backend reference:
+ *   phenodeX/phenode_backend/api/devices/routes.py:1206
+ *
+ * @param {string} externalDeviceId - immutable external_device_id
+ * @param {string} sensorList - comma-separated external_sensor_ids, or 'none'
+ * @param {string} fromIso - ISO 8601 start timestamp
+ * @param {string} toIso - ISO 8601 end timestamp
+ * @param {string} accessToken - Bearer token from useAuth()
+ * @returns {Promise<{ blob: Blob, filename: string|null }>}
+ */
+export const downloadAllDeviceData = (externalDeviceId, sensorList, fromIso, toIso, accessToken) =>
+  mutationRequest(buildUrl(API.devices.allDataDownload(externalDeviceId, sensorList, fromIso, toIso)), {
     method: 'POST',
     token: accessToken,
     parseAs: 'blob'
