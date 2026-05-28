@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 
 import Box from '@mui/material/Box';
+import CircularProgress from '@mui/material/CircularProgress';
 import FormControl from '@mui/material/FormControl';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
@@ -356,6 +357,8 @@ export default function SystemDiagnostics() {
   const { rows: envRows } = useDeviceMeasurements(selectedPheNodeId, { from, to, fields: ENV_CHART_FIELDS, bucket: 'auto' });
 
   const chartConfigs = useMemo(() => buildDiagnosticsChartConfigs(displayPrefs), [displayPrefs]);
+  // Enable the Download button only once at least one feed has rows to export.
+  const hasChartData = Boolean(healthRows?.length || envRows?.length);
 
   // Diagnostics CSV download — mirrors the sensor-measurements Download button.
   // Pulls the Notecard health series for the active [from, to] window; the
@@ -826,30 +829,34 @@ export default function SystemDiagnostics() {
                     ))}
                   </Select>
                 </FormControl>
-                <Tooltip title="Download diagnostics CSV" arrow={false} slotProps={tooltipSlotProps}>
-                  <span>
+                {/*
+                  Download CSV — compact IconButton mirroring the one next to
+                  the chart category dropdown on the sensor-measurements page
+                  (sensor-measurements.jsx:1470-1494). Span wrapper keeps the
+                  tooltip working while the button is disabled.
+                */}
+                <Tooltip
+                  title={hasChartData ? 'Download data for this time period' : 'No data to download'}
+                  arrow={false}
+                  slotProps={tooltipSlotProps}
+                >
+                  <Box component="span" sx={{ display: 'inline-flex', flexShrink: 0 }}>
                     <IconButton
-                      aria-label="download diagnostics data"
+                      aria-label="download csv for this range"
                       onClick={handleDownloadDiagnostics}
-                      disabled={downloading || !selectedPheNodeId}
+                      disabled={!hasChartData || downloading || !selectedPheNodeId}
                       sx={{
+                        color: 'var(--blue)',
                         border: '1px solid var(--reflected-light)',
-                        color: 'var(--purple)',
-                        backgroundColor: 'rgba(0, 20, 61, 0.72)',
+                        borderRadius: 1,
+                        backgroundColor: 'var(--drf)',
                         boxShadow: '0 11px 19px 1px #0000002e',
-                        '&.Mui-disabled': { opacity: 0.5, color: 'var(--purple)' },
-                        '&:hover': {
-                          borderColor: 'var(--green)',
-                          boxShadow: '0 0 7px -5px var(--green)',
-                          color: 'var(--green)',
-                          textShadow: '0 1px 5px #007bff',
-                          backgroundColor: 'rgba(72, 247, 245, 0.08)'
-                        }
+                        '&:hover': { color: 'var(--green)', borderColor: 'var(--green)', backgroundColor: 'var(--drf)' }
                       }}
                     >
-                      <AntIcon icon={DownloadOutlined} />
+                      {downloading ? <CircularProgress size={16} sx={{ color: 'var(--green)' }} /> : <AntIcon icon={DownloadOutlined} />}
                     </IconButton>
-                  </span>
+                  </Box>
                 </Tooltip>
               </Stack>
 
