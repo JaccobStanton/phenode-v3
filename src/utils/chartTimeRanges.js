@@ -181,37 +181,50 @@ export function pickAxisFormatForRange(from, to) {
  *
  * Example: "Mar 15, 2026, 02:23 PM".
  */
-export function formatTooltipDate(value) {
-  const date = value instanceof Date ? value : new Date(value);
-  if (!Number.isFinite(date.getTime())) return '';
-  return date.toLocaleString([], {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
+// `timezone` (IANA zone string, or null/undefined for browser-local) is
+// threaded through both formatters so the chart axes and tooltips render in
+// whatever zone the user picked in Account Settings → Display. Callers read
+// it via useDisplayPreferences().timezone and pass it down. Null falls back
+// to the browser's zone — see resolveTimezone for the details.
+import { formatDateTimeWith, formatDateWith, formatTimeWith } from 'utils/displayDateTime';
+
+export function formatTooltipDate(value, timezone) {
+  return formatDateTimeWith(
+    value,
+    {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    },
+    timezone
+  );
 }
 
-export function formatAxisTick(value, axisFormat) {
-  const date = value instanceof Date ? value : new Date(value);
-  if (!Number.isFinite(date.getTime())) return '';
+export function formatAxisTick(value, axisFormat, timezone) {
   switch (axisFormat) {
     case AXIS_FORMATS.TIME:
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return formatTimeWith(value, { hour: '2-digit', minute: '2-digit' }, timezone);
     case AXIS_FORMATS.DATETIME:
-      return date.toLocaleString([], {
-        month: 'numeric',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
+      return formatDateTimeWith(
+        value,
+        {
+          month: 'numeric',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        },
+        timezone
+      );
     case AXIS_FORMATS.DATE:
-      return date.toLocaleDateString([], { month: 'numeric', day: 'numeric' });
+      return formatDateWith(value, { month: 'numeric', day: 'numeric' }, timezone);
     case AXIS_FORMATS.MONTH:
-      return date.toLocaleDateString([], { month: 'short', year: '2-digit' });
-    default:
-      return date.toISOString();
+      return formatDateWith(value, { month: 'short', year: '2-digit' }, timezone);
+    default: {
+      const date = value instanceof Date ? value : new Date(value);
+      return Number.isFinite(date.getTime()) ? date.toISOString() : '';
+    }
   }
 }
 

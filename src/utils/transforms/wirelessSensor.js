@@ -16,31 +16,31 @@
 // wirelessSensor.js for why):
 //   phenodeX/phenode_backend/schemas/wireless_sensors.py:70-81
 //     (WirelessSensorListItem)
-//   phenodeX/phenode_backend/api/wireless_sensors/routes.py:138-190
-//     (route handler — health_status uses the same 30-min Live/Offline
-//      cutoff as devices)
+//   phenodeX/phenode_backend/api/wireless_sensors/routes.py:138-240
+//     (route handler — health_status uses the configurable
+//      DEVICE_LIVE_WINDOW_MINUTES window (default 120 min), the same
+//      setting PheNode devices use — see routes.py:206-214 and
+//      core/config.py:48. "Live" if seen within the window, else
+//      "Offline".)
 
 import { batteryColor, healthStatusColor } from './metricColors';
+import { formatDateTime } from 'utils/displayDateTime';
 import { formatTemperature as formatTemperatureWithUnit } from 'utils/displayUnits';
 
 /**
- * Format an ISO 8601 datetime into a localized "M/D/YYYY, h:mm:ss A"
- * string. Returns 'Never' when the sensor has never reported.
+ * Format an ISO 8601 datetime as a localized "M/D/YYYY, h:mm:ss A" string
+ * in the user's Display preference timezone. Returns 'Never' when the
+ * sensor has never reported, 'Unknown' when the value can't be parsed.
  *
- * Why localized: `lastMeasurementAt` is the kind of value users glance
- * at to ask "is this thing live?" — a localized representation is far
- * more readable than the raw ISO. If we ever need a user-timezone
- * preference, this is the single place to inject it. (Same rationale
- * as utils/transforms/device.js — duplicated rather than extracted to
- * a shared util because the device + sensor formatters have already
- * diverged on temperature and unit handling, and a shared module
- * would hide that.)
+ * The actual formatting lives in utils/displayDateTime.js so every visible
+ * timestamp in the app (cards, charts, tooltips) routes through the same
+ * timezone-aware helper.
+ *
+ * @param {string | null | undefined} iso
+ * @param {string | null | undefined} timezone - IANA zone or null for browser-local
  */
-export function formatLastMeasurement(iso) {
-  if (!iso) return 'Never';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return 'Unknown';
-  return date.toLocaleString();
+export function formatLastMeasurement(iso, timezone) {
+  return formatDateTime(iso, timezone);
 }
 
 /**
@@ -128,7 +128,9 @@ export function formatMacAddress(raw) {
  *     backend doesn't actually expose — those were misleading. The
  *     metrics now reflect what wireless soil sensors really measure.
  *   - healthStatus: backend computes the "Live"/"Offline" string using
- *     a 30-min cutoff (routes.py:161-167). We translate "Live" → "Active"
+ *     the configurable DEVICE_LIVE_WINDOW_MINUTES window (default 120 min,
+ *     routes.py:206-214) — the same setting PheNode devices use. We
+ *     translate "Live" → "Active"
  *     here at the boundary so product copy is consistent across the UI
  *     (header counter, status filter button, the card cell itself).
  *     Translating in the transformer means everything downstream — display,
@@ -157,8 +159,9 @@ export function wirelessSensorToFleetRow(sensor, displayPrefs) {
     // the toolbar forces the ID to be shown for every card regardless
     // of label.
     externalId: sensor?.externalSensorId || 'Unknown',
-    // Display string ("M/D/YYYY, h:mm:ss A" or "Never"). What the card renders.
-    lastMeasurements: formatLastMeasurement(sensor?.lastMeasurementAt),
+    // Display string ("M/D/YYYY, h:mm:ss A" or "Never") rendered in the
+    // user's Display preference timezone. What the card renders.
+    lastMeasurements: formatLastMeasurement(sensor?.lastMeasurementAt, displayPrefs?.timezone),
     // Raw ISO 8601 (or null) for sorting. See the matching comment in
     // utils/transforms/device.js — FleetOverviewView's default + status
     // sort comparators consume this; the formatted display string is lossy

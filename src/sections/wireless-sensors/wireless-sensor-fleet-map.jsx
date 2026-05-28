@@ -80,6 +80,11 @@ const FALLBACK_ZOOM = 4;
 // explicitly.
 const SINGLE_SENSOR_ZOOM = 14;
 
+// Closer zoom applied when the user double-clicks anywhere on the
+// map (including on a pin). Lets them shortcut past the default
+// fleet-wide zoom without using the +/- controls.
+const PIN_DBLCLICK_ZOOM = 17;
+
 // Map area responsive heights. Mirrors the PheNode map so the two views
 // have matching geometry.
 const MAP_HEIGHT_SX = { xs: 320, sm: 400, md: 460, lg: 510 };
@@ -637,6 +642,21 @@ export default function WirelessSensorFleetMap({
   const [hoveredSensorId, setHoveredSensorId] = useState(null);
   const [isHoveringPhenode, setIsHoveringPhenode] = useState(false);
 
+  // Map-level dblclick handler for double-click-to-zoom. Pans the
+  // camera to the click position and zooms in past the default
+  // fleet-fit zoom — fires for double-clicks anywhere on the map,
+  // including over a pin (Google's marker layer doesn't swallow the
+  // map's dblclick).
+  const handleMapDblclick = (event) => {
+    const latLng = event?.detail?.latLng ?? event?.latLng;
+    if (!latLng) return;
+    const map = event?.map;
+    if (!map) return;
+    map.panTo(latLng);
+    const z = map.getZoom() ?? 0;
+    if (z < PIN_DBLCLICK_ZOOM) map.setZoom(PIN_DBLCLICK_ZOOM);
+  };
+
   // Two independent toggles in the top-right control cluster.
   //
   //   proximityEnabled     — radius circle + dim faraway sensors + fit
@@ -976,6 +996,8 @@ export default function WirelessSensorFleetMap({
                 fullscreenControlOptions={{ position: RIGHT_BOTTOM_POSITION }}
                 zoomControlOptions={{ position: RIGHT_BOTTOM_POSITION }}
                 streetViewControl={false}
+                disableDoubleClickZoom
+                onDblclick={handleMapDblclick}
               >
                 <FitBoundsController selectedSensor={activeSensor} plottable={plottable} proximityActive={proximityEnabled} />
                 {/*
@@ -1520,24 +1542,44 @@ export default function WirelessSensorFleetMap({
               </ToggleButtonGroup>
             </Stack>
 
-            {/* Hidden-count badge — bottom-left so Google's attribution
-                (bottom-right, ToS-protected) stays unobstructed. */}
+            {/* Hidden-count badge — anchored bottom-left of the map.
+                Bumped above Google's "Google" wordmark (also bottom-
+                left, ToS-protected and unrestylable) so the badge and
+                the attribution don't collide.
+                Mode-conditional theming: neon wears the dashboard's
+                dark navy + reflected-light border; satellite adopts
+                the white-chip Google-default look so it sits naturally
+                alongside Google's own attribution chrome. */}
             {hiddenCount > 0 && (
               <Box
                 sx={{
                   position: 'absolute',
-                  bottom: 12,
+                  // Clear the "Google" wordmark in the bottom-left. 36
+                  // leaves a visible gap above the ~14px wordmark so the
+                  // badge reads as separate chrome rather than colliding.
+                  bottom: 36,
                   left: 12,
                   px: 1.25,
                   py: 0.5,
                   borderRadius: 1,
-                  backgroundColor: 'rgba(0, 17, 48, 0.86)',
-                  border: '1px solid var(--reflected-light)',
                   zIndex: 2,
-                  pointerEvents: 'none'
+                  pointerEvents: 'none',
+                  ...(mapStyleMode === 'neon'
+                    ? {
+                        backgroundColor: 'rgba(0, 17, 48, 0.86)',
+                        border: '1px solid var(--reflected-light)'
+                      }
+                    : {
+                        backgroundColor: '#ffffff',
+                        border: '1px solid rgba(0, 0, 0, 0.08)',
+                        boxShadow: '0 1px 4px rgba(0, 0, 0, 0.18)'
+                      })
                 }}
               >
-                <Typography variant="caption" sx={{ color: 'var(--blue)' }}>
+                <Typography
+                  variant="caption"
+                  sx={{ color: mapStyleMode === 'neon' ? 'var(--blue)' : '#444', fontWeight: mapStyleMode === 'neon' ? 400 : 500 }}
+                >
                   {hiddenCount} of {totalCount} sensor{totalCount === 1 ? '' : 's'} hidden — no location data
                 </Typography>
               </Box>
@@ -1586,7 +1628,8 @@ export default function WirelessSensorFleetMap({
                       color: 'var(--blue)',
                       backgroundColor: 'rgba(0, 17, 48, 0.03)',
                       backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))',
-                      boxShadow: '0 11px 19px 1px #0000002e'
+                      boxShadow: '0 11px 19px 1px #0000002e',
+                      '&:hover': { borderColor: 'var(--green)' }
                     }}
                   >
                     <Box component="img" src={infoCardToggleIcon} alt="" sx={{ width: 22, height: 22 }} />

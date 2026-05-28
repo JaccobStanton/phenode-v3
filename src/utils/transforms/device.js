@@ -15,10 +15,16 @@
 //
 // Backend field reference:
 //   phenodeX/phenode_backend/schemas/devices.py:31-49 (DeviceRead)
-//   phenodeX/phenode_backend/api/devices/routes.py:51-57 (health_status
-//     is computed server-side: "Live" if seen within 30 min, else "Offline")
+//   phenodeX/phenode_backend/api/devices/routes.py:94-101
+//     (_device_health_status_from_last_measurement — health_status is
+//     computed server-side: "Live" if the device was seen within a
+//     configurable live window, else "Offline"; "Unknown" if it has
+//     never reported. The window is the DEVICE_LIVE_WINDOW_MINUTES
+//     setting, default 120 min — see core/config.py:48. Applies to both
+//     /api/devices/my-devices and /api/devices/{id}.)
 
 import { batteryColor, healthStatusColor } from './metricColors';
+import { formatDateTime } from 'utils/displayDateTime';
 import {
   formatTemperature as formatTemperatureWithUnit,
   formatSpeed as formatSpeedWithUnit,
@@ -26,19 +32,19 @@ import {
 } from 'utils/displayUnits';
 
 /**
- * Format an ISO 8601 datetime into a localized "M/D/YYYY, h:mm:ss A"
- * string. Returns 'Never' when the device has never reported.
+ * Format an ISO 8601 datetime as a localized "M/D/YYYY, h:mm:ss A" string
+ * in the user's Display preference timezone. Returns 'Never' when the
+ * device has never reported, 'Unknown' when the value can't be parsed.
  *
- * Why localized: `last_measurement_at` is the kind of value users glance
- * at to ask "is this thing live?" — a localized representation is far
- * more readable than the raw ISO. If we ever need a user-timezone
- * preference, this is the single place to inject it.
+ * The actual formatting lives in utils/displayDateTime.js so every visible
+ * timestamp in the app (cards, charts, tooltips) routes through the same
+ * timezone-aware helper.
+ *
+ * @param {string | null | undefined} iso
+ * @param {string | null | undefined} timezone - IANA zone or null for browser-local
  */
-export function formatLastMeasurement(iso) {
-  if (!iso) return 'Never';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return 'Unknown';
-  return date.toLocaleString();
+export function formatLastMeasurement(iso, timezone) {
+  return formatDateTime(iso, timezone);
 }
 
 /**
@@ -136,8 +142,9 @@ export function deviceReadToFleetRow(device, displayPrefs) {
     // ID, while the MAC Address toggle in the toolbar forces the ID to
     // be shown for every card regardless of label.
     externalId: device?.external_device_id || 'Unknown',
-    // Display string ("M/D/YYYY, h:mm:ss A" or "Never"). What the card renders.
-    lastMeasurements: formatLastMeasurement(device?.last_measurement_at),
+    // Display string ("M/D/YYYY, h:mm:ss A" or "Never") rendered in the
+    // user's Display preference timezone. What the card renders.
+    lastMeasurements: formatLastMeasurement(device?.last_measurement_at, displayPrefs?.timezone),
     // Raw ISO 8601 (or null) for sorting. Kept separate from `lastMeasurements`
     // because the formatter is lossy — once it's a localized date string we
     // can't reliably parse it back, and naive lexicographic sort on the

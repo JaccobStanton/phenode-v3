@@ -110,6 +110,11 @@ const FALLBACK_ZOOM = 4;
 // explicitly.
 const SINGLE_DEVICE_ZOOM = 14;
 
+// Closer zoom applied when the user double-clicks anywhere on the
+// map (including on a pin). Lets them shortcut past the default
+// fleet-wide zoom without using the +/- controls.
+const PIN_DBLCLICK_ZOOM = 17;
+
 // Map area responsive heights. Bumped over the placeholder's values so the
 // map has more vertical real estate — users want to see geographic context,
 // not a sliver.
@@ -501,12 +506,15 @@ function ProximityFitController({ active, lat, lng, neighborCoords }) {
 //                          (DeviceRead.wireless_sensors is the array of
 //                          paired wireless devices, of which soil probes
 //                          are one category).
-function buildPheNodeReadings(device) {
+// `timezone` (IANA zone string or null/undefined for browser-local) is
+// passed through so the "Last Seen" row renders in the user's saved
+// Display preference timezone, matching the fleet cards.
+function buildPheNodeReadings(device, timezone) {
   return [
     { label: 'Device ID:', value: device?.external_device_id ?? '—' },
     { label: 'Latitude:', value: typeof device?.latitude === 'number' ? device.latitude.toFixed(5) : '—' },
     { label: 'Longitude:', value: typeof device?.longitude === 'number' ? device.longitude.toFixed(5) : '—' },
-    { label: 'Last Seen:', value: formatLastMeasurement(device?.last_measurement_at) },
+    { label: 'Last Seen:', value: formatLastMeasurement(device?.last_measurement_at, timezone) },
     { label: 'Battery:', value: formatBatteryPercent(device?.battery_percent) },
     { label: 'Wireless Sensors:', value: device?.wireless_sensors?.length ?? 0 }
   ];
@@ -666,7 +674,7 @@ export default function PheNodeFleetMap({ devices, selectedDeviceId, onSelectDev
   // Display preferences — drives the hover-tooltip's Temperature /
   // Rainfall / Wind formatting so the map info card honors the user's
   // saved units the same way the fleet cards do.
-  const { tempUnit, speedUnit, rainUnit } = useDisplayPreferences();
+  const { tempUnit, speedUnit, rainUnit, timezone } = useDisplayPreferences();
 
   // ID of the device currently under the user's mouse, or null. Drives
   // the themed hover tooltip (InfoWindow) — set from each core marker's
@@ -674,6 +682,21 @@ export default function PheNodeFleetMap({ devices, selectedDeviceId, onSelectDev
   // (not by index or by object reference) keeps the lookup stable across
   // SWR refreshes that produce new device-object references.
   const [hoveredDeviceId, setHoveredDeviceId] = useState(null);
+
+  // Map-level dblclick handler for double-click-to-zoom. Pans the
+  // camera to the click position and zooms in past the default
+  // fleet-fit zoom — fires for double-clicks anywhere on the map,
+  // including over a pin (Google's marker layer doesn't swallow the
+  // map's dblclick).
+  const handleMapDblclick = (event) => {
+    const latLng = event?.detail?.latLng ?? event?.latLng;
+    if (!latLng) return;
+    const map = event?.map;
+    if (!map) return;
+    map.panTo(latLng);
+    const z = map.getZoom() ?? 0;
+    if (z < PIN_DBLCLICK_ZOOM) map.setZoom(PIN_DBLCLICK_ZOOM);
+  };
 
   // Proximity feature toggle. When ON, the four-effect hybrid kicks in:
   // radius circle + dim faraway pins + one-shot camera fit + neighbor list.
@@ -690,7 +713,7 @@ export default function PheNodeFleetMap({ devices, selectedDeviceId, onSelectDev
   // Derive the info-card readings from the active device. Memoized on the
   // device reference so the .map() below doesn't iterate fresh objects on
   // every pulse-driven re-render (~20×/sec).
-  const pheNodeReadings = useMemo(() => buildPheNodeReadings(activeDevice), [activeDevice]);
+  const pheNodeReadings = useMemo(() => buildPheNodeReadings(activeDevice, timezone), [activeDevice, timezone]);
 
   // Resolve the hovered id back to the underlying DeviceRead. Null when
   // nothing is hovered or when the hovered id doesn't match a plottable
@@ -1058,6 +1081,8 @@ export default function PheNodeFleetMap({ devices, selectedDeviceId, onSelectDev
                 // (Google's defaults move zoom around on smaller screens).
                 zoomControlOptions={{ position: RIGHT_BOTTOM_POSITION }}
                 streetViewControl={false}
+                disableDoubleClickZoom
+                onDblclick={handleMapDblclick}
               >
                 <FitBoundsController plottable={plottable} />
                 <SelectionCameraController devices={devices} selectedDeviceId={selectedDeviceId} />
@@ -1463,24 +1488,46 @@ export default function PheNodeFleetMap({ devices, selectedDeviceId, onSelectDev
             </Stack>
 
             {/* "N of M hidden" badge — only renders when some devices lack
-              coordinates. Bottom-left so it doesn't cover Google's
-              attribution (bottom-right, ToS-protected). */}
+              coordinates. Anchored to the bottom-left of the map.
+              `bottom` is bumped above Google's "Google" wordmark (which
+              also sits bottom-left and is ToS-protected — we can't move
+              or restyle it) so the two don't overlap.
+              Theming follows the same neon/satellite split the rest of
+              the map chrome uses: neon mode wears the dashboard's dark
+              navy + reflected-light border; satellite mode adopts the
+              white-chip Google-default look so it sits naturally
+              alongside Google's own wordmark and attribution. */}
             {hiddenCount > 0 && (
               <Box
                 sx={{
                   position: 'absolute',
-                  bottom: 12,
+                  // Clear the "Google" wordmark in the bottom-left. The
+                  // wordmark is ~14px tall + a few px of padding; 36
+                  // leaves a visible gap so the badge reads as separate
+                  // chrome rather than colliding with the attribution.
+                  bottom: 36,
                   left: 12,
                   px: 1.25,
                   py: 0.5,
                   borderRadius: 1,
-                  backgroundColor: 'rgba(0, 17, 48, 0.86)',
-                  border: '1px solid var(--reflected-light)',
                   zIndex: 2,
-                  pointerEvents: 'none'
+                  pointerEvents: 'none',
+                  ...(mapStyleMode === 'neon'
+                    ? {
+                        backgroundColor: 'rgba(0, 17, 48, 0.86)',
+                        border: '1px solid var(--reflected-light)'
+                      }
+                    : {
+                        backgroundColor: '#ffffff',
+                        border: '1px solid rgba(0, 0, 0, 0.08)',
+                        boxShadow: '0 1px 4px rgba(0, 0, 0, 0.18)'
+                      })
                 }}
               >
-                <Typography variant="caption" sx={{ color: 'var(--blue)' }}>
+                <Typography
+                  variant="caption"
+                  sx={{ color: mapStyleMode === 'neon' ? 'var(--blue)' : '#444', fontWeight: mapStyleMode === 'neon' ? 400 : 500 }}
+                >
                   {hiddenCount} of {totalCount} PheNode{totalCount === 1 ? '' : 's'} hidden — no location data
                 </Typography>
               </Box>

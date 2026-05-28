@@ -669,7 +669,10 @@ export default function SensorNetwork() {
   // useDisplayPreferences memoizes the returned object so referencing
   // it in the chartConfigs useMemo deps below is stable.
   const displayPrefs = useDisplayPreferences();
-  const { tempUnit } = displayPrefs;
+  // tempUnit drives chart configs + CSV headers; timezone drives the chart
+  // axis + tooltip valueFormatters below so all time labels render in the
+  // user's saved Display timezone (null falls back to browser-local).
+  const { tempUnit, timezone } = displayPrefs;
 
   // Chart configs derived from preferences. A unit change in Account
   // Settings → Display flips displayPrefs, this useMemo recomputes,
@@ -1138,7 +1141,7 @@ export default function SensorNetwork() {
   // Header "Last Measurements Taken:" string — uses the same
   // formatLastMeasurement transform as the fleet view so the date
   // vocabulary ("Never" / "Unknown" / localized timestamp) is consistent.
-  const lastMeasurementsDisplay = activeSensor ? formatLastMeasurement(activeSensor.lastMeasurementAt) : '—';
+  const lastMeasurementsDisplay = activeSensor ? formatLastMeasurement(activeSensor.lastMeasurementAt, timezone) : '—';
 
   // Diagram-heading identifier — the real MAC address. Backend now
   // exposes `macAddress` (12-char lowercase hex, no separators) on
@@ -1295,12 +1298,7 @@ export default function SensorNetwork() {
     try {
       const fromIso = from.toISOString();
       const toIso = to.toISOString();
-      const { blob, filename } = await downloadWirelessSensorData(
-        activeSensor.externalSensorId,
-        fromIso,
-        toIso,
-        accessToken
-      );
+      const { blob, filename } = await downloadWirelessSensorData(activeSensor.externalSensorId, fromIso, toIso, accessToken);
       const ext = extensionFromBackendFilename(filename);
       const label = sensorLabelToFilenameSlug(activeSensor.label || activeSensor.externalSensorId);
       const saveAs = `${label}_${dateToFilenameSlug(from)}_${dateToFilenameSlug(to)}.${ext}`;
@@ -1532,7 +1530,8 @@ export default function SensorNetwork() {
                   border: '1px solid var(--reflected-light)',
                   color: 'var(--blue)',
                   ...drawerNavButtonSurfaceSx,
-                  boxShadow: '0 11px 19px 1px #0000002e'
+                  boxShadow: '0 11px 19px 1px #0000002e',
+                  '&:hover': { borderColor: 'var(--green)' }
                 }}
               >
                 <Box component="img" src={mapToggleIcon} alt="" sx={{ width: 21, height: 21 }} />
@@ -1659,7 +1658,8 @@ export default function SensorNetwork() {
                               border: '1px solid var(--reflected-light)',
                               color: 'var(--blue)',
                               ...drawerNavButtonSurfaceSx,
-                              boxShadow: '0 11px 19px 1px #0000002e'
+                              boxShadow: '0 11px 19px 1px #0000002e',
+                              '&:hover': { borderColor: 'var(--green)' }
                             }}
                           >
                             <Box component="img" src={infoCardToggleIcon} alt="" sx={{ width: 22, height: 22 }} />
@@ -2248,7 +2248,9 @@ export default function SensorNetwork() {
                                 domainLimit: 'strict',
                                 tickLabelStyle: { fontSize: 11, fill: 'var(--green)' },
                                 valueFormatter: (value, context) =>
-                                  context?.location === 'tooltip' ? formatTooltipDate(value) : formatAxisTick(value, axisFormat)
+                                  context?.location === 'tooltip'
+                                    ? formatTooltipDate(value, timezone)
+                                    : formatAxisTick(value, axisFormat, timezone)
                               }
                             ]}
                             yAxis={[
@@ -2477,7 +2479,9 @@ export default function SensorNetwork() {
                               domainLimit: 'strict',
                               tickLabelStyle: { fontSize: 12, fill: 'var(--green)' },
                               valueFormatter: (value, context) =>
-                                context?.location === 'tooltip' ? formatTooltipDate(value) : formatAxisTick(value, axisFormat)
+                                context?.location === 'tooltip'
+                                  ? formatTooltipDate(value, timezone)
+                                  : formatAxisTick(value, axisFormat, timezone)
                             }
                           ]}
                           yAxis={[

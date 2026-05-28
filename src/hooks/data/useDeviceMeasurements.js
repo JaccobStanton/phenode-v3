@@ -5,6 +5,7 @@ import useAuth from 'hooks/useAuth';
 import API from 'services/endpoints';
 import { buildUrl, fetcher } from 'services/fetcher';
 import { validateMeasurementResponse } from 'services/schemas/measurements';
+import { normalizeMeasurementRow as normalizeRow } from 'hooks/data/normalizeMeasurementRow';
 
 // =============================================================================
 // useDeviceMeasurements — SWR hook for the device time-series endpoint.
@@ -114,69 +115,6 @@ const buildQueryString = ({ from, to, fields, bucket, limit }) => {
   return params.toString();
 };
 
-/**
- * Normalize a single response row into the canonical
- * `{ time, fields: { <name>: { min, max, avg } } }` shape.
- *
- * Reads from BOTH possible source shapes:
- *   raw:      row[field]                                 (flat value)
- *   bucketed: row[`${field}_min/_max/_avg`]              (suffixed)
- *
- * `KNOWN_DEVICE_FIELDS` enumerates the device-endpoint vocabulary —
- * matches `_DEVICE_FIELD_EXTRACTORS` in
- * phenodeX/phenode_backend/services/downloads.py:362. Keeping this
- * list explicit (rather than walking row.keys()) is the only way to
- * tell apart "the backend didn't report wind_speed for this device"
- * (we want to skip it) from "the backend added a new field we don't
- * understand" (we should ignore it for now, not crash the chart).
- */
-const KNOWN_DEVICE_FIELDS = [
-  'temperature',
-  'humidity',
-  'pressure',
-  'vapor_pressure',
-  'wind_speed',
-  'wind_gust',
-  'wind_direction',
-  'rainfall',
-  'tips_per_minute',
-  'battery_voltage'
-];
-
-const normalizeRow = (row) => {
-  const fields = {};
-  for (const key of KNOWN_DEVICE_FIELDS) {
-    // Bucketed mode first — if any of the suffixed keys exist on the
-    // row, prefer them. The backend won't mix shapes within a single
-    // response, but checking the suffixed form first avoids a
-    // misread when a raw field happens to equal undefined.
-    const minKey = `${key}_min`;
-    const maxKey = `${key}_max`;
-    const avgKey = `${key}_avg`;
-    const hasBucketed = minKey in row || maxKey in row || avgKey in row;
-    if (hasBucketed) {
-      const min = row[minKey] ?? null;
-      const max = row[maxKey] ?? null;
-      const avg = row[avgKey] ?? null;
-      // Skip fields where every aggregate is null — empty bucket for
-      // that metric. Carrying it through as `{min: null, max: null,
-      // avg: null}` would force the chart layer to defensive-check
-      // every access; dropping it lets the chart just iterate the
-      // keys that actually have data.
-      if (min === null && max === null && avg === null) continue;
-      fields[key] = { min, max, avg };
-    } else if (key in row && row[key] !== null && row[key] !== undefined) {
-      // Raw mode — single value. min === max === avg so the chart's
-      // area-fill logic (which expects all three) renders a degenerate
-      // band that overlays the line exactly. Visually identical to a
-      // plain line, which is what we want for raw data.
-      const value = row[key];
-      fields[key] = { min: value, max: value, avg: value };
-    }
-  }
-  return { time: row.time, fields };
-};
-
 const fetchAndValidateMeasurements = async (key) => {
   const data = await fetcher(key);
   return validateMeasurementResponse(data);
@@ -276,9 +214,3 @@ export default function useDeviceMeasurements(
     mutate
   };
 }
-
-// Re-export the field list so chart code can iterate it without
-// duplicating the source-of-truth array. Important: this is the
-// frontend-side mirror of the backend's _DEVICE_FIELD_EXTRACTORS. If
-// the backend adds a field, update this list in lockstep.
-export { KNOWN_DEVICE_FIELDS };

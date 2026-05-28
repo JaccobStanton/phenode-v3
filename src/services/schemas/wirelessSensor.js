@@ -49,9 +49,11 @@ import * as yup from 'yup';
 //     (_clean_location helper — Null-Island, bounds, NaN guards
 //      applied to both list and detail endpoints)
 //   phenodeX/phenode_backend/api/wireless_sensors/routes.py:139-240
-//     (list route — health_status computed via 30-min cutoff to
-//      match the device convention; location resolved from latest
-//      reading with fallback to the static sensor row, then cleaned)
+//     (list route — health_status computed via the configurable
+//      DEVICE_LIVE_WINDOW_MINUTES window (default 120 min, routes.py:
+//      206-214), the same setting PheNode devices use. Location resolved
+//      from latest reading with fallback to the static sensor row, then
+//      cleaned)
 
 const wirelessSensorListItemSchema = yup.object({
   // Required identifiers — the backend always populates these.
@@ -74,7 +76,9 @@ const wirelessSensorListItemSchema = yup.object({
   // Optional summary fields — what the fleet view actually displays.
   // ISO 8601 datetime, omitted if the sensor has never reported.
   lastMeasurementAt: yup.string().nullable().optional(),
-  // Computed server-side: "Live" if seen within 30 min, else "Offline".
+  // Computed server-side: "Live" if seen within the configurable
+  // DEVICE_LIVE_WINDOW_MINUTES window (default 120 min), else "Offline" —
+  // the same window PheNode devices use.
   healthStatus: yup.string().nullable().optional(),
   batteryPercent: yup.number().nullable().optional(),
   soilMoisture: yup.number().nullable().optional(),

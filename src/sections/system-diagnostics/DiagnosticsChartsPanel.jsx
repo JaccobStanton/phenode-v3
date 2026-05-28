@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -196,9 +196,53 @@ export default function DiagnosticsChartsPanel({ selectedPheNodeId, selectedDevi
 
   // Two feeds back the six charts. Both hooks live INSIDE this lazy panel, so
   // the network requests don't fire until the panel mounts — that's the LCP
-  // win the lazy split is here for.
-  const { rows: healthRows } = useDeviceHealth(selectedPheNodeId, { from, to, fields: HEALTH_CHART_FIELDS, bucket: 'auto' });
-  const { rows: envRows } = useDeviceMeasurements(selectedPheNodeId, { from, to, fields: ENV_CHART_FIELDS, bucket: 'auto' });
+  // win the lazy split is here for. We pull `isLoading` + `isValidating` from
+  // each so the toolbar can show a selection-change loading badge below
+  // (mirrors the sensor-measurements pattern).
+  const {
+    rows: healthRows,
+    isLoading: healthLoading,
+    isValidating: healthValidating
+  } = useDeviceHealth(selectedPheNodeId, { from, to, fields: HEALTH_CHART_FIELDS, bucket: 'auto' });
+  const {
+    rows: envRows,
+    isLoading: envLoading,
+    isValidating: envValidating
+  } = useDeviceMeasurements(selectedPheNodeId, { from, to, fields: ENV_CHART_FIELDS, bucket: 'auto' });
+
+  // "User just changed the selection" tracker — feeds the toolbar loading
+  // badge without flickering on the 60s SWR background poll. Mirrors
+  // sensor-measurements:957-978.
+  //
+  // The composite key captures everything that changes the SWR query: the
+  // selected device plus the active from/to window. When the key changes
+  // (dropdown pick, time-range change), we flip isFetchingSelection on; when
+  // BOTH feeds finish validating, we flip it off. Background polls don't
+  // change the key, so the flag never flips and the badge stays quiet — even
+  // though `isValidating` itself toggles every minute.
+  const selectionKey = useMemo(
+    () => `${selectedPheNodeId ?? ''}|${from?.getTime() ?? ''}|${to?.getTime() ?? ''}`,
+    [selectedPheNodeId, from, to]
+  );
+  const previousSelectionKeyRef = useRef(selectionKey);
+  const [isFetchingSelection, setIsFetchingSelection] = useState(false);
+  useEffect(() => {
+    if (previousSelectionKeyRef.current !== selectionKey) {
+      setIsFetchingSelection(true);
+      previousSelectionKeyRef.current = selectionKey;
+    }
+  }, [selectionKey]);
+  useEffect(() => {
+    if (isFetchingSelection && !healthValidating && !envValidating) {
+      setIsFetchingSelection(false);
+    }
+  }, [isFetchingSelection, healthValidating, envValidating]);
+
+  // Unified indicator flag. True during the first fetch for a fresh key
+  // (no cached data yet) OR when the user just changed selection and the
+  // resulting fetch is still in flight. Stays false during background polls
+  // on a stable selection.
+  const showSelectionLoading = healthLoading || envLoading || isFetchingSelection;
 
   const chartConfigs = useMemo(() => buildChartConfigs(displayPrefs), [displayPrefs]);
 
@@ -315,6 +359,37 @@ export default function DiagnosticsChartsPanel({ selectedPheNodeId, selectedDevi
             </IconButton>
           </Box>
         </Tooltip>
+
+        {/*
+          Selection-change loading badge — sits next to the toolbar controls
+          the user just changed, mirroring sensor-measurements:1555-1586. Only
+          fires when the user's selection actually triggered a fetch (initial
+          load or dropdown/time-range change); the 60s background SWR poll
+          doesn't flip `isFetchingSelection`, so a quiet idle page stays quiet.
+          Subtle fade-in so a quick fetch doesn't pop hard.
+        */}
+        {showSelectionLoading && (
+          <Stack
+            direction="row"
+            spacing={0.75}
+            sx={{
+              alignItems: 'center',
+              color: 'var(--green)',
+              '@keyframes phenode-loading-fade-in': {
+                from: { opacity: 0 },
+                to: { opacity: 1 }
+              },
+              animation: 'phenode-loading-fade-in 200ms ease-out'
+            }}
+            role="status"
+            aria-live="polite"
+          >
+            <CircularProgress size={14} sx={{ color: 'var(--green)' }} />
+            <Typography variant="caption" sx={{ color: 'var(--green)', textShadow: '0 0 6px rgba(72, 247, 245, 0.35)', fontWeight: 600 }}>
+              Loading…
+            </Typography>
+          </Stack>
+        )}
       </Stack>
 
       <Box
@@ -384,23 +459,37 @@ export default function DiagnosticsChartsPanel({ selectedPheNodeId, selectedDevi
                   marginBottom={10}
                   marginLeft={10}
                   idSuffix=""
+                  timezone={displayPrefs.timezone}
                 />
               ) : (
-                <Box
+                <Stack
+                  direction="row"
+                  spacing={1}
                   sx={{
                     flex: 1,
                     minHeight: chartHeight,
-                    display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     textAlign: 'center',
-                    px: 2
+                    px: 2,
+                    color: 'var(--blue)'
                   }}
+                  role={isLoading ? 'status' : undefined}
+                  aria-live={isLoading ? 'polite' : undefined}
                 >
+                  {/*
+                    Per-chart empty state. When the data is still loading we
+                    show a spinner alongside the text so the chart card visibly
+                    "tries" — without it the small Typography alone reads as a
+                    static "No data" rather than "still working on it." Once
+                    loaded, the same Box just shows the appropriate message
+                    (e.g. "Awaiting Wi-Fi telemetry").
+                  */}
+                  {isLoading && <CircularProgress size={18} sx={{ color: 'var(--green)' }} />}
                   <Typography variant="body2" sx={{ color: 'var(--blue)', opacity: 0.85 }}>
                     {emptyMessage}
                   </Typography>
-                </Box>
+                </Stack>
               )}
             </Box>
           );

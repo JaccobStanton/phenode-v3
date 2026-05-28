@@ -5,6 +5,7 @@ import useAuth from 'hooks/useAuth';
 import API from 'services/endpoints';
 import { buildUrl, fetcher } from 'services/fetcher';
 import { validateMeasurementResponse } from 'services/schemas/measurements';
+import { normalizeMeasurementRow as normalizeRow } from 'hooks/data/normalizeMeasurementRow';
 
 // =============================================================================
 // useWirelessSensorMeasurements — SWR hook for the wireless-sensor
@@ -91,56 +92,6 @@ const buildQueryString = ({ from, to, fields, bucket, limit }) => {
   return params.toString();
 };
 
-/**
- * Wireless-sensor field vocabulary the chart layer renders. Mirrors a
- * curated subset of phenodeX/phenode_backend/services/downloads.py:544-586
- * (`_WIRELESS_FIELD_KEYS`) — see the module-level comment for the
- * "why this list" rationale.
- *
- * Exported so the chart config in sensor-network.jsx can pass the
- * same array to the hook's `fields` projection (saves bandwidth) and
- * iterate it when building chart configs (single source of truth).
- */
-const KNOWN_WIRELESS_SENSOR_FIELDS = [
-  'mVbat',
-  'lux',
-  'rssi',
-  'vwcPercent_1',
-  'vwcPercent_2',
-  'electricalConductivity_1',
-  'electricalConductivity_2',
-  'temperatureTeros12_1',
-  'temperatureTeros12_2'
-];
-
-/**
- * Normalize a single response row into the canonical
- * `{ time, fields: { <name>: { min, max, avg } } }` shape.
- *
- * Reads from BOTH possible source shapes (raw / bucketed) — see the
- * matching helper in useDeviceMeasurements for the full rationale.
- */
-const normalizeRow = (row) => {
-  const fields = {};
-  for (const key of KNOWN_WIRELESS_SENSOR_FIELDS) {
-    const minKey = `${key}_min`;
-    const maxKey = `${key}_max`;
-    const avgKey = `${key}_avg`;
-    const hasBucketed = minKey in row || maxKey in row || avgKey in row;
-    if (hasBucketed) {
-      const min = row[minKey] ?? null;
-      const max = row[maxKey] ?? null;
-      const avg = row[avgKey] ?? null;
-      if (min === null && max === null && avg === null) continue;
-      fields[key] = { min, max, avg };
-    } else if (key in row && row[key] !== null && row[key] !== undefined) {
-      const value = row[key];
-      fields[key] = { min: value, max: value, avg: value };
-    }
-  }
-  return { time: row.time, fields };
-};
-
 const fetchAndValidateMeasurements = async (key) => {
   const data = await fetcher(key);
   return validateMeasurementResponse(data);
@@ -151,7 +102,7 @@ const fetchAndValidateMeasurements = async (key) => {
  * @param {Object}      options
  * @param {Date|string|number} options.from REQUIRED. Range start.
  * @param {Date|string|number} options.to   REQUIRED. Range end.
- * @param {string[]}    [options.fields]    Subset of KNOWN_WIRELESS_SENSOR_FIELDS.
+ * @param {string[]}    [options.fields]    Subset of known wireless fields.
  *                                           Omit to fetch all.
  * @param {string}      [options.bucket]    'raw' | '5m' | '10m' | '15m' |
  *                                           '30m' | '1h' | '3h' | '6h' |
@@ -213,5 +164,3 @@ export default function useWirelessSensorMeasurements(
     mutate
   };
 }
-
-export { KNOWN_WIRELESS_SENSOR_FIELDS };

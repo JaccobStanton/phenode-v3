@@ -20,14 +20,7 @@ import useUserPreferences, { defaultUiPreferences } from 'hooks/data/useUserPref
 import { useToast } from 'providers/ToastProvider';
 import { neonControlSx, neonMenuPaperSx, neonMenuItemSx } from 'themes/sx-tokens';
 import { updateUserPreferences } from 'services/mutations';
-import {
-  themedSelectSx,
-  themedDropdownMenuProps,
-  fieldLabelSx,
-  primaryActionButtonSx,
-  sectionTitleSx,
-  sectionSubtitleSx
-} from '../shared';
+import { themedSelectSx, themedDropdownMenuProps, fieldLabelSx, primaryActionButtonSx, sectionTitleSx, sectionSubtitleSx } from '../shared';
 
 // assets
 import AntIcon from 'components/AntIcon';
@@ -111,13 +104,7 @@ function UnitSelect({ label, id, value, onChange, options }) {
         {label}
       </Typography>
       <FormControl fullWidth>
-        <Select
-          id={id}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          sx={themedSelectSx}
-          MenuProps={themedDropdownMenuProps}
-        >
+        <Select id={id} value={value} onChange={(e) => onChange(e.target.value)} sx={themedSelectSx} MenuProps={themedDropdownMenuProps}>
           {options.map((opt) => (
             <MenuItem key={opt.value} value={opt.value}>
               {opt.label}
@@ -156,6 +143,22 @@ const CONDUCTIVITY_OPTIONS = [
   { value: 'dsm', label: 'Decisiemens / meter (dS/m)' },
   { value: 'mscm', label: 'Millisiemens / centimeter (mS/cm)' }
 ];
+// Re-enabled for the tabbed sensor-measurements charts: gas resistance uses
+// `resistance`, the accelerometer uses `acceleration`, and the altitude chart
+// derives its unit from `distance`. Values match UiPreferencesUnits
+// (phenodeX/phenode_backend/schemas/user_preferences.py:20,26,27).
+const RESISTANCE_OPTIONS = [
+  { value: 'kohm', label: 'Kilohms (kΩ)' },
+  { value: 'ohm', label: 'Ohms (Ω)' }
+];
+const ACCELERATION_OPTIONS = [
+  { value: 'ms2', label: 'Meters / second² (m/s²)' },
+  { value: 'g', label: 'g-force (g)' }
+];
+const DISTANCE_OPTIONS = [
+  { value: 'mi', label: 'Miles (mi)' },
+  { value: 'km', label: 'Kilometers (km)' }
+];
 
 export default function DisplayTab() {
   const { accessToken } = useAuth();
@@ -193,10 +196,7 @@ export default function DisplayTab() {
     if (!isDirty || saving) return;
     setSaving(true);
     try {
-      const updated = await updateUserPreferences(
-        { uiPreferences: { timezone: timezone || null, units } },
-        accessToken
-      );
+      const updated = await updateUserPreferences({ uiPreferences: { timezone: timezone || null, units } }, accessToken);
       await mutate(updated, { revalidate: false });
       toast.success('Your display preferences have been saved.');
     } catch (err) {
@@ -221,9 +221,7 @@ export default function DisplayTab() {
   if (error && !preferences) {
     return (
       <Stack alignItems="center" sx={{ py: 6, gap: 1 }}>
-        <Typography sx={{ color: 'var(--orange)', fontWeight: 600 }}>
-          We couldn't load your preferences.
-        </Typography>
+        <Typography sx={{ color: 'var(--orange)', fontWeight: 600 }}>We couldn't load your preferences.</Typography>
         <Typography sx={{ color: 'var(--blue)', fontSize: '0.85rem', opacity: 0.85 }}>
           Try refreshing the page. If this keeps happening, contact support.
         </Typography>
@@ -236,11 +234,13 @@ export default function DisplayTab() {
       {/* ----- Timezone ----- */}
       <Box>
         <Typography variant="h6" sx={sectionTitleSx}>
-          Timezone
+          Display Timezone
         </Typography>
         <Typography sx={sectionSubtitleSx}>
-          Controls the timezone used to display timestamps in charts, tables, and download files. Leave on
-          &quot;Use device timezone&quot; to let the app follow whatever timezone your computer is set to.
+          Sets the timezone every clock in the app uses — chart axes, tooltips, the &quot;Last Measurements Taken&quot; rows on sensor
+          cards, and the hover panels on the fleet map. Also becomes the default timezone for CSV download timestamps unless you choose a
+          different one on the Download Preferences page. Leave on &quot;Use device timezone&quot; to follow whatever timezone your computer
+          is currently set to.
         </Typography>
         {/* Typeable timezone picker — same Autocomplete recipe as the
             device picker in device-settings-tab.jsx and the multi-select
@@ -262,14 +262,7 @@ export default function DisplayTab() {
           onChange={(_e, next) => setTimezone(next ?? USE_DEVICE_TZ_VALUE)}
           disableClearable
           autoHighlight
-          renderInput={(params) => (
-            <TextField
-              {...params}
-              placeholder={USE_DEVICE_TZ_LABEL}
-              size="small"
-              sx={timezoneInputSx}
-            />
-          )}
+          renderInput={(params) => <TextField {...params} placeholder={USE_DEVICE_TZ_LABEL} size="small" sx={timezoneInputSx} />}
           slotProps={{
             paper: { sx: { ...neonMenuPaperSx, maxHeight: 360 } },
             listbox: {
@@ -290,8 +283,8 @@ export default function DisplayTab() {
           Units
         </Typography>
         <Typography sx={sectionSubtitleSx}>
-          Choose the units used everywhere readings are shown — sensor cards, charts, exported CSV files, and any
-          embedded dashboards. Your selection applies across the whole app.
+          Choose the units used everywhere readings are shown — sensor cards, charts, exported CSV files, and any embedded dashboards. Your
+          selection applies across the whole app.
         </Typography>
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, sm: 6 }}>
@@ -348,6 +341,33 @@ export default function DisplayTab() {
               options={CONDUCTIVITY_OPTIONS}
             />
           </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <UnitSelect
+              label="Resistance"
+              id="unit-resistance"
+              value={units.resistance}
+              onChange={(v) => setUnits((u) => ({ ...u, resistance: v }))}
+              options={RESISTANCE_OPTIONS}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <UnitSelect
+              label="Acceleration"
+              id="unit-acceleration"
+              value={units.acceleration}
+              onChange={(v) => setUnits((u) => ({ ...u, acceleration: v }))}
+              options={ACCELERATION_OPTIONS}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <UnitSelect
+              label="Distance / Altitude"
+              id="unit-distance"
+              value={units.distance}
+              onChange={(v) => setUnits((u) => ({ ...u, distance: v }))}
+              options={DISTANCE_OPTIONS}
+            />
+          </Grid>
         </Grid>
       </Box>
 
@@ -355,9 +375,7 @@ export default function DisplayTab() {
 
       <Stack direction="row" sx={{ justifyContent: 'flex-end', gap: 1.5, alignItems: 'center' }}>
         {isDirty && (
-          <Typography sx={{ fontSize: '0.78rem', color: 'var(--orange)', fontStyle: 'italic' }}>
-            You have unsaved changes.
-          </Typography>
+          <Typography sx={{ fontSize: '0.78rem', color: 'var(--orange)', fontStyle: 'italic' }}>You have unsaved changes.</Typography>
         )}
         <Button
           variant="outlined"

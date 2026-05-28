@@ -1,12 +1,8 @@
-import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
-import Dialog from '@mui/material/Dialog';
-import DialogContent from '@mui/material/DialogContent';
-import DialogTitle from '@mui/material/DialogTitle';
 import FormControl from '@mui/material/FormControl';
 import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
@@ -14,13 +10,11 @@ import Select from '@mui/material/Select';
 import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { LineChart } from '@mui/x-charts/LineChart';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 
 import AntIcon from 'components/AntIcon';
-import CloseOutlined from '@ant-design/icons-svg/lib/asn/CloseOutlined';
 import DownloadOutlined from '@ant-design/icons-svg/lib/asn/DownloadOutlined';
 
 import ChartGlowDefs from 'components/ChartGlowDefs';
@@ -35,6 +29,12 @@ import { useSelection } from 'contexts/SelectionContext';
 // with a small CircularProgress fallback for the brief moment between
 // "user clicked the toggle" and "map chunk has finished parsing."
 const PheNodeFleetMap = lazy(() => import('sections/sensor-measurements/phenode-fleet-map'));
+// Catalog-driven panel for the Light / Soil / Power & Device / Overview tabs.
+// Lazy so its chart-type code (ScatterChart, etc.) only parses when the user
+// actually opens a non-Weather tab — the default Weather tab stays in the
+// existing (already-loaded) grid.
+const MeasurementTabPanel = lazy(() => import('sections/sensor-measurements/MeasurementTabPanel'));
+import { buildMeasurementCatalog, TAB_IDS } from 'sections/sensor-measurements/measurementCatalog';
 import useAuth from 'hooks/useAuth';
 import useMyDevices from 'hooks/data/useMyDevices';
 import useDeviceMeasurements from 'hooks/data/useDeviceMeasurements';
@@ -46,12 +46,9 @@ import { formatLastMeasurement, formatTemperature, formatTodaysRainfall, formatW
 import {
   CHART_TIME_RANGE_LABELS,
   DEFAULT_CHART_TIME_RANGE,
-  axisTickNumberFor,
   computeAxisTicks,
   computeChartWindow,
   findChartTimeRange,
-  formatAxisTick,
-  formatTooltipDate,
   pickAxisFormatForRange
 } from 'utils/chartTimeRanges';
 import rainSensorIcon from 'assets/sensor-measurements/Rain.svg';
@@ -61,10 +58,11 @@ import mapIconActive from 'assets/toggle_buttons/Map_Icon_Active.svg';
 import mapIconInactive from 'assets/toggle_buttons/Map_Icon_Inactive.svg';
 import phenodeFleetIcon from 'assets/drawer-icons/PheNode_Fleet.svg';
 import phenodeFleetIconActive from 'assets/drawer-icons/PheNode_Fleet_Active.svg';
+import soilProbeIcon from 'assets/toggle_buttons/Soil_Probe_Icon_Inactive.svg';
 
 import AppstoreOutlined from '@ant-design/icons-svg/lib/asn/AppstoreOutlined';
 import ClockCircleOutlined from '@ant-design/icons-svg/lib/asn/ClockCircleOutlined';
-import ZoomInOutlined from '@ant-design/icons-svg/lib/asn/ZoomInOutlined';
+import CloudOutlined from '@ant-design/icons-svg/lib/asn/CloudOutlined';
 
 import {
   reflectedCardChromeSx,
@@ -80,13 +78,6 @@ import {
 const glassSurfaceSx = {
   backgroundColor: 'var(--drf)',
   backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))'
-};
-
-// Chart panel surface – gradient with custom border, distinct from the shared chart surface.
-const chartSurfaceSx = {
-  backgroundColor: '#07143f',
-  backgroundImage: 'linear-gradient(180deg, #06102a 0%, #07143f 100%)',
-  border: '1px solid #0e346a'
 };
 
 // Search-param names this page reads from and writes to.
@@ -113,6 +104,50 @@ const DEVICE_PARAM = 'device';
 const RANGE_PARAM = 'range';
 const VIEW_PARAM = 'view';
 const VIEW_PARAM_MAP_VALUE = 'map';
+// Which chart category tab is active. Omitted from the URL for the default
+// (Weather) so the common state keeps a clean URL, mirroring how RANGE_PARAM
+// is dropped for the default range.
+const TAB_PARAM = 'tab';
+
+// Small inline sun glyph for the Light category (the icon set has no Sun).
+// Strokes with currentColor so the wrapper's color drives it.
+function SunGlyph() {
+  return (
+    <svg
+      width="17"
+      height="17"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ color: 'var(--blue)' }}
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M19.07 4.93l-1.41 1.41M6.34 17.66l-1.41 1.41" />
+    </svg>
+  );
+}
+
+// Icon for a given chart category, used in the category selector trigger and
+// menu rows. Light → sun, Weather → cloud, Soil → soil-probe asset, Power →
+// PheNode fleet asset.
+function categoryIcon(tabId) {
+  switch (tabId) {
+    case TAB_IDS.WEATHER:
+      return <AntIcon icon={CloudOutlined} style={{ color: 'var(--blue)' }} />;
+    case TAB_IDS.LIGHT:
+      return <SunGlyph />;
+    case TAB_IDS.SOIL:
+      return <Box component="img" src={soilProbeIcon} alt="" sx={{ width: 18, height: 18 }} />;
+    case TAB_IDS.POWER:
+      return <Box component="img" src={phenodeFleetIcon} alt="" sx={{ width: 18, height: 18 }} />;
+    default:
+      return <AntIcon icon={AppstoreOutlined} style={{ color: 'var(--blue)' }} />;
+  }
+}
 
 // Sentinel label appended to the time-range dropdown options. When the
 // user picks this entry the toolbar reveals two DateTimePickers and
@@ -432,331 +467,11 @@ function extensionFromBackendFilename(filename) {
   return m ? m[1].toLowerCase() : 'csv';
 }
 
-// Conversion helpers used by the chart-config factory below.
-const FAHRENHEIT_RATIO = 9 / 5;
-const identity = (v) => v;
-const cToF = (celsius) => celsius * FAHRENHEIT_RATIO + 32;
-const msToMph = (ms) => ms * 2.2369362921;
-const msToKmh = (ms) => ms * 3.6;
-const mmToIn = (mm) => mm * 0.0393700787;
-const kpaToHpa = (kpa) => kpa * 10;
-const mvToV = (mv) => mv / 1000;
-
 // Field key list passed to the SWR hook as the `fields` projection.
 // The fieldKey set never changes with user preferences (we always need
 // the same raw columns from the API; only the display conversion + unit
 // label vary), so this stays a module constant.
 const DEVICE_CHART_FIELDS = ['temperature', 'humidity', 'pressure', 'wind_speed', 'rainfall', 'battery_voltage'];
-
-// Per-chart configuration factory for the device-level chart panel.
-// One entry in the returned array = one rendered chart card. The
-// factory takes the current display-preferences object so each chart's
-// `unit` label and `transform` track the user's saved units.
-//
-// Schema:
-//   key:    Field name on the response row (matches the canonical
-//           list in services/downloads.py _DEVICE_FIELD_EXTRACTORS).
-//   title:  Header text shown above the chart.
-//   color:  Stroke + area-fill color, picked from the existing
-//           sensor-measurements palette for visual continuity.
-//   unit:   Unit suffix appended to Y-axis tick labels and tooltip
-//           values — comes from displayPrefs.
-//   transform: Value transform applied per point — also from
-//              displayPrefs.
-//
-// Why six charts (not the seven the original mock had):
-//   The dropped mock charts (Soil Temperature, Electrical Conductivity,
-//   Soil Moisture, LUX) are all wireless-sensor metrics, not device-
-//   level metrics. They live on the wireless-sensor page now.
-//
-// Canonical backend units (per services/downloads.py and the chart
-// endpoint comments):
-//   temperature        → °C
-//   pressure           → kPa
-//   wind_speed         → m/s
-//   rainfall           → mm
-//   battery_voltage    → mV
-//   humidity           → % (no unit pref applies)
-function buildDeviceChartConfigs(displayPrefs) {
-  const tempUnit = displayPrefs?.tempUnit ?? 'F';
-  const speedUnit = displayPrefs?.speedUnit ?? 'ms';
-  const pressureUnit = displayPrefs?.pressureUnit ?? 'kpa';
-  const rainUnit = displayPrefs?.rainUnit ?? 'mm';
-  const voltageUnit = displayPrefs?.voltageUnit ?? 'mv';
-
-  // Temperature: backend ships °C. Default 'F' converts; 'C' is identity.
-  const tempTransform = tempUnit === 'C' ? identity : cToF;
-  const tempLabel = tempUnit === 'C' ? '°C' : '°F';
-
-  // Wind: backend ships m/s. 'mph' / 'kmh' / 'ms'.
-  const speedTransform = speedUnit === 'mph' ? msToMph : speedUnit === 'kmh' ? msToKmh : identity;
-  const speedLabel = speedUnit === 'mph' ? 'mph' : speedUnit === 'kmh' ? 'km/h' : 'm/s';
-
-  // Pressure: backend ships kPa. 'kpa' identity; 'hpa' x10.
-  const pressureTransform = pressureUnit === 'hpa' ? kpaToHpa : identity;
-  const pressureLabel = pressureUnit === 'hpa' ? 'hPa' : 'kPa';
-
-  // Rainfall: backend ships mm. 'mm' identity; 'in' converts.
-  const rainTransform = rainUnit === 'in' ? mmToIn : identity;
-  const rainLabel = rainUnit === 'in' ? 'in' : 'mm';
-
-  // Battery voltage: backend ships mV. 'mv' identity; 'v' / 1000.
-  const voltageTransform = voltageUnit === 'v' ? mvToV : identity;
-  const voltageLabel = voltageUnit === 'v' ? 'V' : 'mV';
-
-  return [
-    {
-      key: 'temperature',
-      title: 'Temperature',
-      color: '#48f7f5',
-      unit: tempLabel,
-      transform: tempTransform
-    },
-    {
-      key: 'humidity',
-      title: 'Humidity',
-      color: '#c96cfc',
-      unit: '%'
-    },
-    {
-      key: 'pressure',
-      title: 'Atmospheric Pressure',
-      color: '#f47568',
-      unit: pressureLabel,
-      transform: pressureTransform
-    },
-    {
-      key: 'wind_speed',
-      title: 'Wind Speed',
-      color: '#f4d04b',
-      unit: speedLabel,
-      transform: speedTransform
-    },
-    {
-      key: 'rainfall',
-      title: 'Rainfall',
-      color: '#0043c2',
-      unit: rainLabel,
-      transform: rainTransform
-    },
-    {
-      key: 'battery_voltage',
-      title: 'Battery Voltage',
-      color: '#8539e0',
-      unit: voltageLabel,
-      transform: voltageTransform
-    }
-  ];
-}
-
-// Hoisted chart sx — was being recreated 7 times per render at the
-// previous call site (every chart re-created the whole object literal).
-// Now it's one stable reference shared across all charts. The line-
-// stroke color is interpolated per-chart via a CSS variable set on
-// the wrapper Box, so this object is fully chart-agnostic.
-const chartSx = {
-  width: '100%',
-  overflow: 'visible',
-  '& .MuiChartsSurface-root': {
-    overflow: 'visible'
-  },
-  '& .MuiChartsGrid-line': {
-    stroke: 'var(--blue)',
-    strokeOpacity: 0.38,
-    strokeWidth: 0.65
-  },
-  '& .MuiLineElement-root': {
-    strokeWidth: 0.95,
-    strokeLinecap: 'round',
-    strokeLinejoin: 'round',
-    // Reference a STATIC SVG <filter> by id rather than computing
-    // `drop-shadow(...)` per element. The filter defs live in
-    // <ChartGlowDefs/>, mounted once at the top of this page's
-    // tree. Two reasons for this approach:
-    //
-    //   1. drop-shadow on every line stroke triggers a separate
-    //      raster pass per element. A static <filter> in <defs> is
-    //      compiled once and reused, which lets the browser
-    //      amortize the cost across every reference.
-    //   2. The wrapper Box sets `--chart-glow-filter` based on the
-    //      current point count (full glow ≤500 points; lite glow
-    //      above that — see useLiteGlow in the panel below). The
-    //      CSS variable indirection means the same chartSx rule
-    //      serves both cases without JS branching.
-    //
-    // Both this surface AND the wireless-sensor chart surfaces
-    // (sensor-network, MeasurementsChartGrid) use the same filter
-    // ids — the two pages render visually identical glow.
-    filter: 'var(--chart-glow-filter, url(#chart-glow-full))'
-  },
-  '& .MuiAreaElement-root': {
-    fillOpacity: 0.16
-  },
-  '& .MuiChartsAxis-line, & .MuiChartsAxis-tick': {
-    stroke: 'rgba(232, 232, 232, 0.45)'
-  },
-  '& .MuiChartsAxis-tickLabel': {
-    fill: 'var(--green)',
-    fontWeight: 600
-  },
-  '& .MuiChartsAxis-left .MuiChartsAxis-line, & .MuiChartsAxis-bottom .MuiChartsAxis-line': {
-    stroke: 'rgba(232, 232, 232, 0.55)'
-  },
-  // Hover indicator (the dashed vertical line that follows the cursor).
-  // MUI's default is black on light themes / white on dark — neither
-  // matches the chart line color. Pulling it from the per-chart CSS
-  // variable means each chart's indicator picks up its own line color
-  // automatically. !important is required because the styled component
-  // ships its stroke as a styled-component-level rule.
-  '& .MuiChartsAxisHighlight-root': {
-    stroke: 'var(--chart-line-color) !important',
-    strokeOpacity: 0.75,
-    strokeWidth: 1.25
-  },
-  background: 'transparent',
-  borderRadius: 1
-};
-
-// Y-axis tick label formatter. Compacts large values (1500 → "1.5k")
-// and appends the chart's unit suffix. Defined once at module scope
-// so it doesn't get re-created per chart, per render. Curried (returns
-// a function bound to the unit) because MUI x-charts' valueFormatter
-// API takes a single-arg callback.
-const makeYAxisFormatter = (unit) => (value) => {
-  if (value === null || value === undefined) return '';
-  const compact = Math.abs(value) >= 1000 ? `${(value / 1000).toFixed(1)}k` : `${value}`;
-  return unit ? `${compact} ${unit}` : compact;
-};
-
-// =============================================================================
-// MeasurementChart — memoized LineChart wrapper.
-// =============================================================================
-//
-// Why this is a separate memo'd component rather than inline JSX in the
-// .map() loop:
-//
-//   The toolbar (selection-loading indicator, hover state, custom date
-//   pickers, download disabled state) re-renders frequently while the
-//   chart data itself is stable. Without React.memo, every toolbar
-//   state change cascades into 6 LineChart re-renders — each of which
-//   does internal layout, re-measures its SVG, and re-applies its sx
-//   tree. MUI x-charts has its own memoization but it can't skip work
-//   if React keeps handing it new prop references on every parent
-//   render.
-//
-//   Extracting the chart into a memo'd component with PRIMITIVE props
-//   (not object literals) means React.memo's default shallowEqual
-//   compare actually catches "nothing changed for this chart" and
-//   short-circuits the whole subtree. The toolbar can fidget all it
-//   wants and the charts don't redraw.
-//
-// All props are designed to be stable across renders unless the data
-// actually changed:
-//
-//   - config: comes from chartConfigs (computed in this component via
-//             buildDeviceChartConfigs(displayPrefs)),
-//     same reference every render.
-//   - seriesTimes / seriesData: from useMemo(chartSeriesByField), same
-//     reference until measurementRows changes.
-//   - xAxisMin / xAxisMax: derived from a memoized array's elements,
-//     so Date references are stable too.
-//   - xAxisTicks: useMemo'd.
-//   - axisFormat: memoized.
-//   - primitives are trivially stable.
-//
-// The "No data" empty-state lives at the PARENT level rather than
-// inside this component because the grid version and the enlarged-
-// Dialog version want different "empty" styling (compact flex:1 vs
-// fixed minHeight). Pushing the styling decision back to the caller
-// keeps this component focused on one job: render a chart.
-//
-// `idSuffix` is appended to every LineChart axis/series id so the
-// grid version and the enlarged-Dialog version never collide. MUI
-// x-charts uses ids internally for cross-references between axes
-// and series — two charts with the same id in the same DOM produce
-// subtle render glitches.
-const MeasurementChart = memo(function MeasurementChart({
-  config,
-  seriesTimes,
-  seriesData,
-  xAxisMin,
-  xAxisMax,
-  xAxisTicks,
-  axisFormat,
-  height,
-  yAxisWidth,
-  xAxisFontSize,
-  yAxisFontSize,
-  marginTop,
-  marginRight,
-  marginBottom,
-  marginLeft,
-  idSuffix
-}) {
-  // Y-axis padding — 4% of the range, with a 0.1 floor so a flat
-  // series (every value identical) still renders a visible band
-  // rather than collapsing the line into the axis. Calculation
-  // happens inside the memo so the parent doesn't need to pass min
-  // / max / pad through as separate props.
-  const minVal = Math.min(...seriesData);
-  const maxVal = Math.max(...seriesData);
-  const pad = Math.max(0.1, (maxVal - minVal) * 0.04);
-
-  return (
-    <LineChart
-      xAxis={[
-        {
-          // Time-scale axis — was 'point' (categorical) in the
-          // mock-data version, which meant evenly-spaced ticks
-          // regardless of actual timestamp gaps. 'time' draws ticks
-          // against real wall-clock positions, so a 6h data gap reads
-          // as a 6h gap visually.
-          id: `${config.key}-x${idSuffix}`,
-          scaleType: 'time',
-          data: seriesTimes,
-          tickNumber: axisTickNumberFor(axisFormat),
-          tickInterval: xAxisTicks,
-          min: xAxisMin,
-          max: xAxisMax,
-          domainLimit: 'strict',
-          tickLabelStyle: { fontSize: xAxisFontSize, fill: 'var(--green)' },
-          valueFormatter: (value, context) =>
-            context?.location === 'tooltip' ? formatTooltipDate(value) : formatAxisTick(value, axisFormat)
-        }
-      ]}
-      yAxis={[
-        {
-          id: `${config.key}-y${idSuffix}`,
-          min: minVal - pad,
-          max: maxVal + pad,
-          width: yAxisWidth,
-          tickLabelStyle: { fontSize: yAxisFontSize, fill: 'var(--green)' },
-          valueFormatter: makeYAxisFormatter(config.unit)
-        }
-      ]}
-      series={[
-        {
-          id: `${config.key}-line${idSuffix}`,
-          data: seriesData,
-          color: config.color,
-          area: true,
-          showMark: false,
-          curve: 'linear',
-          valueFormatter: (value) =>
-            value === null || value === undefined
-              ? 'No data'
-              : `${Number(value).toFixed(2)}${config.unit ? ` ${config.unit}` : ''}`
-        }
-      ]}
-      grid={{ horizontal: true, vertical: true }}
-      height={height}
-      margin={{ top: marginTop, right: marginRight, bottom: marginBottom, left: marginLeft }}
-      hideLegend
-      sx={chartSx}
-    />
-  );
-});
-
 // Build the three "current value" circles from a single DeviceRead. The
 // values use the same formatters the fleet-overview cards use, so the
 // number the user clicked on the fleet card visually matches the number
@@ -823,6 +538,7 @@ export default function SensorMeasurements() {
   const deviceFromUrl = searchParams.get(DEVICE_PARAM);
   const rangeFromUrl = searchParams.get(RANGE_PARAM);
   const viewFromUrl = searchParams.get(VIEW_PARAM);
+  const tabFromUrl = searchParams.get(TAB_PARAM);
 
   // Resolve `timeRange` from the URL with a defensive fallback:
   //   - `?range=Last 24 hours` → match against the preset table → use it.
@@ -849,6 +565,27 @@ export default function SensorMeasurements() {
           next.set(RANGE_PARAM, nextRange);
         } else {
           next.delete(RANGE_PARAM);
+        }
+        return next;
+      });
+    },
+    [setSearchParams]
+  );
+
+  // Active chart-category tab, resolved from the URL with a defensive
+  // fallback to Weather for a missing/garbage ?tab= value.
+  const activeTab = useMemo(() => {
+    const ids = Object.values(TAB_IDS);
+    return tabFromUrl && ids.includes(tabFromUrl) ? tabFromUrl : TAB_IDS.WEATHER;
+  }, [tabFromUrl]);
+  const setActiveTab = useCallback(
+    (nextTab) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        if (nextTab && nextTab !== TAB_IDS.WEATHER) {
+          next.set(TAB_PARAM, nextTab);
+        } else {
+          next.delete(TAB_PARAM);
         }
         return next;
       });
@@ -1099,22 +836,29 @@ export default function SensorMeasurements() {
   // bust the memo.
   const displayPrefs = useDisplayPreferences();
 
-  // Device chart configs derived from preferences. A unit-pref change
-  // flips displayPrefs, this useMemo recomputes, and every consumer
-  // (the chart renderer, the enlarged-chart lookup, the CSV export)
-  // sees the new transforms + unit labels in lockstep.
-  const chartConfigs = useMemo(() => buildDeviceChartConfigs(displayPrefs), [displayPrefs]);
+  // Full tabbed catalog (Weather/Light/Soil/Power + Overview). Unit-resolved
+  // from displayPrefs so a unit change re-derives every tab's labels and
+  // transforms in lockstep with the Weather grid above.
+  const measurementCatalog = useMemo(() => buildMeasurementCatalog(displayPrefs), [displayPrefs]);
 
-  const circleMetrics = useMemo(
-    () => buildCircleMetrics(activeDevice, displayPrefs),
-    [activeDevice, displayPrefs]
-  );
+  // Auto-picked primary wireless sensor for this PheNode — the Soil / Light /
+  // Power tabs read from it. DeviceRead carries wireless_sensors[] of
+  // { id, external_sensor_id, label } (services/schemas/device.js); we take
+  // the first as the primary per the agreed "auto-pick" scope.
+  const activeWirelessSensorId = activeDevice?.wireless_sensors?.[0]?.external_sensor_id ?? null;
+
+  // Charts for the currently-active tab. Every tab — including Weather — now
+  // renders through the single catalog-driven MeasurementTabPanel, so the
+  // whole page uses one renderer + one grid per tab.
+  const activeTabCharts = useMemo(() => measurementCatalog.find((t) => t.id === activeTab)?.charts ?? [], [activeTab, measurementCatalog]);
+
+  const circleMetrics = useMemo(() => buildCircleMetrics(activeDevice, displayPrefs), [activeDevice, displayPrefs]);
 
   // Formatted "Last Measurements Taken" string for the page header.
   // Uses the shared transform (returns "Never" for null,
   // "Unknown" for an unparseable string) so this page surfaces the
   // same vocabulary as the fleet cards.
-  const lastMeasurementsDisplay = activeDevice ? formatLastMeasurement(activeDevice.last_measurement_at) : '—';
+  const lastMeasurementsDisplay = activeDevice ? formatLastMeasurement(activeDevice.last_measurement_at, displayPrefs.timezone) : '—';
 
   // ---------------------------------------------------------------------------
   // CSV download — backend POST → Blob → browser save.
@@ -1139,12 +883,7 @@ export default function SensorMeasurements() {
     try {
       const fromIso = from.toISOString();
       const toIso = to.toISOString();
-      const { blob, filename } = await downloadDeviceSensorData(
-        activeDevice.external_device_id,
-        fromIso,
-        toIso,
-        accessToken
-      );
+      const { blob, filename } = await downloadDeviceSensorData(activeDevice.external_device_id, fromIso, toIso, accessToken);
       // Construct a per-device + date-range name, but use whatever
       // extension the backend chose (.csv vs .zip varies).
       const ext = extensionFromBackendFilename(filename);
@@ -1191,8 +930,7 @@ export default function SensorMeasurements() {
   const {
     rows: measurementRows,
     isLoading: measurementsLoading,
-    isValidating: measurementsValidating,
-    error: measurementsError
+    isValidating: measurementsValidating
   } = useDeviceMeasurements(activeDeviceId, {
     from,
     to,
@@ -1238,92 +976,6 @@ export default function SensorMeasurements() {
   //     still in flight (isFetchingSelection)
   // False during background polls on a stable selection.
   const showSelectionLoading = measurementsLoading || isFetchingSelection;
-
-  // Chart-key of the chart currently displayed in the "Enlarge" Dialog,
-  // or null when no enlarged view is open. Single piece of state instead
-  // of a separate open/closed flag — `null` IS closed, anything else is
-  // the enlarged target's config.key from chartConfigs.
-  const [enlargedChartKey, setEnlargedChartKey] = useState(null);
-  const enlargedChartConfig = enlargedChartKey ? (chartConfigs.find((c) => c.key === enlargedChartKey) ?? null) : null;
-
-  // Pre-compute the X-axis timestamp array once per data refresh.
-  // Every chart shares this exact array (same X for every metric of
-  // the same device, by definition), so building it once at the
-  // panel level rather than inside each chart's render saves both
-  // memory allocation and re-render churn.
-  const chartTimes = useMemo(() => {
-    if (!measurementRows) return [];
-    return measurementRows.map((row) => new Date(row.time));
-  }, [measurementRows]);
-
-  // Glow intensity selector — picks the chart-stroke filter once at
-  // the panel level since point counts move together (all six charts
-  // share chartTimes by definition). When the user selects a long
-  // time range and the backend's auto-bucketing returns lots of
-  // buckets, switch to the lite glow: the full 8px-equivalent blur
-  // is visually unnecessary at high line density (the glow on
-  // individual segments overlaps with itself) AND it's a measurable
-  // paint-cost win. Threshold of 500 points is calibrated to the
-  // typical break-even where the glow stops adding perceptible
-  // visual richness.
-  //
-  // The variable name `--chart-glow-filter` is what `chartSx` reads
-  // via `filter: var(--chart-glow-filter, url(#chart-glow-full))`.
-  // Setting it on the chart wrapper Box scopes the choice per
-  // chart-card — although in practice all six pick the same value
-  // since they share the data shape.
-  const useLiteGlow = chartTimes.length > 500;
-  const chartGlowFilterVar = useLiteGlow ? 'url(#chart-glow-lite)' : 'url(#chart-glow-full)';
-
-  // Per-chart series data. Returns an object keyed by field name with
-  // a `{ times, values }` pair PER CHART — each chart has its own
-  // X-axis timestamps containing ONLY the rows where that specific
-  // field actually has a reading. Rows where the field is missing
-  // (or its `.avg` is null) are dropped from BOTH the times and
-  // values arrays for that chart, not preserved as null gaps.
-  //
-  // Why per-chart filtering instead of preserving nulls:
-  //   The previous implementation aligned every chart to one shared
-  //   `chartTimes` array and used `null` in the values array to mark
-  //   gaps. MUI x-charts honored those nulls in two visible ways:
-  //     (1) The line broke at every null position — a connected
-  //         "Last 24 hours" stretch with intermittent missing fields
-  //         rendered as dozens of disconnected line segments.
-  //     (2) The tooltip's null branch ("No data") fired whenever the
-  //         user hovered at one of those null positions.
-  //   Per-chart filtering makes the line continuous and ensures the
-  //   tooltip only ever resolves to real data points. The shared
-  //   chartTimes (above) is still used for the X-axis min/max so all
-  //   six charts in the grid stay aligned on the same time range
-  //   even when their individual data extents differ.
-  //
-  // For raw rows the hook collapses min/max/avg to a single value
-  // (set all three to the raw value), so reading `.avg` works
-  // uniformly. Bucketed rows are likewise rendered against `.avg`
-  // for the line — future work could add a translucent min/max
-  // envelope using the same row data, but the line alone is the
-  // baseline a chart layer always supports.
-  const chartSeriesByField = useMemo(() => {
-    if (!measurementRows) return {};
-    const seriesMap = {};
-    for (const config of chartConfigs) {
-      const transform = config.transform;
-      const times = [];
-      const values = [];
-      for (const row of measurementRows) {
-        const field = row.fields[config.key];
-        if (!field) continue;
-        const raw = field.avg;
-        if (raw === null || raw === undefined) continue;
-        times.push(new Date(row.time));
-        values.push(transform ? transform(raw) : raw);
-      }
-      seriesMap[config.key] = { times, values };
-    }
-    return seriesMap;
-    // `chartConfigs` in the deps so a unit-pref change re-derives the
-    // values array through the new transforms.
-  }, [measurementRows, chartConfigs]);
 
   return (
     <>
@@ -1431,7 +1083,8 @@ export default function SensorMeasurements() {
                   border: '1px solid var(--reflected-light)',
                   color: 'var(--blue)',
                   ...drawerNavButtonSurfaceSx,
-                  boxShadow: '0 11px 19px 1px #0000002e'
+                  boxShadow: '0 11px 19px 1px #0000002e',
+                  '&:hover': { borderColor: 'var(--green)' }
                 }}
               >
                 {/*
@@ -1632,6 +1285,8 @@ export default function SensorMeasurements() {
               <Typography variant="h5" sx={{ color: 'var(--blue)' }}>
                 Measurements Over Time
               </Typography>
+
+              {/* Orientation toggle — kept in the title-row corner. */}
               <Tooltip title="Orientation" arrow={false} slotProps={tooltipSlotProps}>
                 <IconButton
                   aria-label="toggle sensor chart layout"
@@ -1760,6 +1415,85 @@ export default function SensorMeasurements() {
                     </Select>
                   </FormControl>
 
+                  {/* Category selector — the 4 chart categories collapsed into
+                      one dropdown next to the time-range control. Click rolls
+                      the options out; choosing one closes it. Mirrors the
+                      time-range Select styling for a consistent control family. */}
+                  <FormControl
+                    size="small"
+                    sx={{ minWidth: { xs: 0, sm: 200 }, width: { xs: '100%', sm: 200 }, flex: { xs: 1, sm: '0 0 auto' } }}
+                  >
+                    <Select
+                      value={activeTab}
+                      onChange={(event) => setActiveTab(event.target.value)}
+                      inputProps={{ 'aria-label': 'Chart category' }}
+                      sx={{
+                        color: 'var(--green)',
+                        border: '1px solid var(--reflected-light)',
+                        borderRadius: 1,
+                        backgroundColor: 'var(--drf)',
+                        boxShadow: '0 11px 19px 1px #0000002e',
+                        '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                        '& .MuiSelect-select': { color: 'var(--green)' },
+                        '& .MuiSelect-icon': { color: 'var(--blue)' }
+                      }}
+                      MenuProps={{ PaperProps: neonSelectMenuPaperProps }}
+                      renderValue={(selected) => (
+                        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                          <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                            {categoryIcon(selected)}
+                          </Box>
+                          <Box component="span" sx={{ color: 'var(--green)' }}>
+                            {measurementCatalog.find((tab) => tab.id === selected)?.label ?? 'Category'}
+                          </Box>
+                        </Stack>
+                      )}
+                    >
+                      {measurementCatalog.map((tab) => (
+                        <MenuItem
+                          key={tab.id}
+                          value={tab.id}
+                          sx={{
+                            color: 'var(--green)',
+                            '&:hover': { backgroundColor: 'rgba(72, 247, 245, 0.12)' },
+                            '&.Mui-selected': { backgroundColor: 'rgba(72, 247, 245, 0.18)' }
+                          }}
+                        >
+                          <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', mr: 1 }}>
+                            {categoryIcon(tab.id)}
+                          </Box>
+                          {tab.label}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+
+                  {/* Download CSV — sits next to the category dropdown. Span
+                      wrapper keeps the tooltip working while disabled. */}
+                  <Tooltip
+                    title={measurementRows?.length ? 'Download data for this time period' : 'No data to download'}
+                    arrow={false}
+                    slotProps={tooltipSlotProps}
+                  >
+                    <Box component="span" sx={{ display: 'inline-flex', flexShrink: 0 }}>
+                      <IconButton
+                        aria-label="download csv for this range"
+                        onClick={handleDownload}
+                        disabled={!measurementRows?.length || downloading || !activeDevice}
+                        sx={{
+                          color: 'var(--blue)',
+                          border: '1px solid var(--reflected-light)',
+                          borderRadius: 1,
+                          backgroundColor: 'var(--drf)',
+                          boxShadow: '0 11px 19px 1px #0000002e',
+                          '&:hover': { color: 'var(--green)', borderColor: 'var(--green)', backgroundColor: 'var(--drf)' }
+                        }}
+                      >
+                        {downloading ? <CircularProgress size={16} sx={{ color: 'var(--green)' }} /> : <AntIcon icon={DownloadOutlined} />}
+                      </IconButton>
+                    </Box>
+                  </Tooltip>
+
                   {/*
                   Custom range DateTimePickers — only rendered when the
                   dropdown is on the custom sentinel. Two side-by-side
@@ -1852,69 +1586,6 @@ export default function SensorMeasurements() {
                     </Stack>
                   )}
                 </Stack>
-
-                {/*
-                  Download CSV — exports the currently-loaded
-                  measurement rows for whichever range is active
-                  (preset OR custom). Disabled when there's no data
-                  to export (loading window, empty range, or error
-                  before first response). Filename embeds the device
-                  label slug + ISO from/to dates so multiple
-                  downloads from the same session don't overwrite
-                  each other in the user's Downloads folder.
-
-                  Sits as the second (right-most) child of the outer
-                  space-between Stack, so it anchors to the right edge
-                  of the toolbar regardless of how wide the left group
-                  is — see the outer Stack's justifyContent comment
-                  above.
-                */}
-                <Tooltip
-                  title={measurementRows?.length ? 'Download CSV for this range' : 'No data to download'}
-                  arrow={false}
-                  slotProps={tooltipSlotProps}
-                >
-                  <Box component="span" sx={{ display: 'inline-flex', flexShrink: 0 }}>
-                    <Button
-                      variant="outlined"
-                      startIcon={<AntIcon icon={DownloadOutlined} />}
-                      disabled={!measurementRows?.length || downloading || !activeDevice}
-                      onClick={handleDownload}
-                      sx={{
-                        textTransform: 'none',
-                        borderColor: 'var(--orange)',
-                        color: 'var(--green)',
-                        backgroundColor: 'rgba(0, 20, 61, 0.72)',
-                        boxShadow: '0 11px 19px 1px #0000002e',
-                        transition: 'none',
-                        '&:hover': {
-                          borderColor: 'var(--green)',
-                          boxShadow: '0 0 7px -5px var(--green)',
-                          color: 'var(--green)',
-                          textShadow: '0 1px 5px #007bff',
-                          backgroundColor: 'rgba(72, 247, 245, 0.08)'
-                        },
-                        // Disabled state matches the Download button in
-                        // the Data Downloads page (sections/data-download/
-                        // data-downloads.jsx:586-593) so the "no data
-                        // available" affordance is consistent across the
-                        // app's download surfaces — grey text + grey
-                        // border on a flat dark-navy fill, no hover
-                        // brightening.
-                        '&.Mui-disabled': {
-                          color: 'var(--med-grey)',
-                          borderColor: 'var(--med-grey)',
-                          backgroundColor: '#01113d'
-                        },
-                        '&.Mui-disabled:hover': {
-                          backgroundColor: '#01113d'
-                        }
-                      }}
-                    >
-                      {downloading ? 'Downloading…' : 'Download CSV'}
-                    </Button>
-                  </Box>
-                </Tooltip>
               </Stack>
             </LocalizationProvider>
 
@@ -1939,325 +1610,37 @@ export default function SensorMeasurements() {
               `!measurementRows` guard ensures we only suppress the
               grid before the very first response arrives.
             */}
-            {measurementsError && !measurementRows ? (
-              <Box
-                sx={{
-                  minHeight: { xs: 320, md: 380 },
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--orange)',
-                  fontSize: '0.9rem',
-                  fontStyle: 'italic'
-                }}
-                role="alert"
-              >
-                Failed to load chart data
-              </Box>
-            ) : measurementsLoading && !measurementRows ? (
-              <Stack
-                direction="row"
-                spacing={1.5}
-                sx={{
-                  minHeight: { xs: 320, md: 380 },
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--blue)',
-                  fontSize: '0.9rem'
-                }}
-                role="status"
-                aria-live="polite"
-              >
-                <CircularProgress size={22} sx={{ color: 'var(--green)' }} />
-                <Box component="span">Loading chart data…</Box>
-              </Stack>
-            ) : (
-            <Box
-              sx={{
-                display: 'grid',
-                gap: 1.5,
-                gridTemplateColumns:
-                  chartLayout === 'row' ? { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' } : '1fr'
-              }}
+            {/* Every tab renders through the single catalog-driven panel, which
+                owns its own device/wireless fetching + loading / empty / error
+                states. Only the active tab is mounted. */}
+            <Suspense
+              fallback={
+                <Stack
+                  direction="row"
+                  spacing={1.5}
+                  sx={{ minHeight: { xs: 320, md: 380 }, alignItems: 'center', justifyContent: 'center', color: 'var(--blue)' }}
+                  role="status"
+                  aria-live="polite"
+                >
+                  <CircularProgress size={22} sx={{ color: 'var(--green)' }} />
+                  <Box component="span">Loading…</Box>
+                </Stack>
+              }
             >
-              {chartConfigs.map((config) => {
-                // Per-chart series shape is now `{ times, values }` —
-                // both arrays are null-filtered so the chart only
-                // plots positions where this field actually has a
-                // reading. The shared `chartTimes` above is still
-                // used for the X-axis min/max so every chart in the
-                // grid stays aligned on the same time range.
-                const { times: seriesTimes, values: seriesData } = chartSeriesByField[config.key] ?? { times: [], values: [] };
-                // `seriesData` is already null-filtered above, so
-                // these are all real numeric values — no need to
-                // re-filter. Length check alone tells us if there's
-                // anything to render.
-                const hasData = seriesData.length > 0;
-
-                // Y-axis padding is computed INSIDE MeasurementChart
-                // now — see the memoized component at the top of this
-                // file. We only need `hasData` here to gate between
-                // the "No data" branch and the chart render below.
-
-                return (
-                  <Box
-                    key={config.key}
-                    // Per-chart CSS variable for the line/glow color.
-                    // The shared `chartSx` references both vars so we
-                    // don't have to build a different sx object per
-                    // chart — keeps `chartSx` a single hoisted
-                    // reference instead of N reconstructed objects.
-                    // `--chart-glow-filter` is computed once at the
-                    // panel level (chartGlowFilterVar) since all six
-                    // charts share the same point-count threshold —
-                    // setting it on the wrapper scopes the lookup
-                    // while keeping the threshold logic in one place.
-                    style={{ '--chart-line-color': config.color, '--chart-glow-filter': chartGlowFilterVar }}
-                    sx={{
-                      borderRadius: 1,
-                      p: { xs: 0.45, sm: 0.65 },
-                      // Card min-height tuned so it exactly matches the
-                      // content height in row layout: padding-top (~5.2px
-                      // sm) + title row (~28px) + title-mb (~2px) + chart
-                      // height (228 in row, 258 in column) + padding-
-                      // bottom (~5.2px sm) ≈ 268. Previously this was 286,
-                      // forcing the card ~18px taller than its content
-                      // and parking that extra space as a visible gap
-                      // below the chart. The new value lets the bottom
-                      // padding-inside-card equal the top padding-inside-
-                      // card (both ~5.2px). For column layout the chart
-                      // is taller (258) so the card naturally grows
-                      // beyond minHeight to fit it — no gap either way.
-                      minHeight: { xs: 265, sm: 268 },
-                      display: 'flex',
-                      flexDirection: 'column',
-                      ...reflectedCardChromeSx,
-                      ...chartSurfaceSx,
-                      border: '1px solid #0e346a'
-                    }}
-                  >
-                    <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 0.25 }}>
-                      <Typography variant="subtitle1" component="p" sx={{ color: 'var(--blue)', ml: 1.25, mt: 0, mb: 0, mr: 0 }}>
-                        {config.title}
-                        {config.unit ? (
-                          <Box component="span" sx={{ color: 'var(--green)', ml: 0.75, fontSize: '0.85em' }}>
-                            ({config.unit})
-                          </Box>
-                        ) : null}
-                      </Typography>
-                      <Tooltip title="Enlarge" arrow={false} slotProps={tooltipSlotProps}>
-                        <IconButton
-                          aria-label={`enlarge ${config.title} chart`}
-                          size="small"
-                          // Click opens a themed Dialog with the same
-                          // chart rendered at full Dialog width. The
-                          // single Dialog instance lives at the end of
-                          // this component and switches its content
-                          // based on enlargedChartKey.
-                          onClick={() => setEnlargedChartKey(config.key)}
-                          sx={{ color: 'var(--blue)', '&:hover': { color: 'var(--green)' } }}
-                        >
-                          <AntIcon icon={ZoomInOutlined} />
-                        </IconButton>
-                      </Tooltip>
-                    </Stack>
-
-                    {/*
-                      Three render branches: error → loading → empty →
-                      chart. The initial-load / first-error states are
-                      now handled at the PANEL level (see the wrapper
-                      above), so each chart only needs to distinguish
-                      "no data for this metric in this range" from
-                      "we have data — draw it." Background poll errors
-                      don't blank charts that already have rows; this
-                      is the stale-while-revalidate side of the
-                      per-chart treatment.
-                    */}
-                    {!hasData ? (
-                      <Box
-                        sx={{
-                          flex: 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'var(--blue)',
-                          fontSize: '0.85rem',
-                          fontStyle: 'italic'
-                        }}
-                      >
-                        No data for this time range
-                      </Box>
-                    ) : (
-                      // Memoized chart — see MeasurementChart at the
-                      // top of this file for the rationale. All props
-                      // are primitives or stable-reference values so
-                      // React.memo's default shallowEqual will skip
-                      // the chart re-render when nothing meaningful
-                      // changed (the toolbar fidgeting elsewhere on
-                      // the page won't propagate down here).
-                      <MeasurementChart
-                        config={config}
-                        seriesTimes={seriesTimes}
-                        seriesData={seriesData}
-                        xAxisMin={chartTimes[0]}
-                        xAxisMax={chartTimes[chartTimes.length - 1]}
-                        xAxisTicks={xAxisTicks}
-                        axisFormat={axisFormat}
-                        height={chartLayout === 'row' ? 228 : 258}
-                        yAxisWidth={56}
-                        xAxisFontSize={11}
-                        yAxisFontSize={11}
-                        marginTop={8}
-                        marginRight={8}
-                        marginBottom={0}
-                        marginLeft={0}
-                        idSuffix=""
-                      />
-                    )}
-                  </Box>
-                );
-              })}
-            </Box>
-            )}
+              <MeasurementTabPanel
+                charts={activeTabCharts}
+                deviceId={activeDeviceId}
+                wirelessSensorId={activeWirelessSensorId}
+                from={from}
+                to={to}
+                axisFormat={axisFormat}
+                xAxisTicks={xAxisTicks}
+                layout={chartLayout}
+              />
+            </Suspense>
           </Box>
         </Box>
       </MainCard>
-      {/*
-      Enlarge Dialog — renders the user-selected chart at full Dialog
-      width. Single mounted instance for the whole panel: open by
-      setEnlargedChartKey(<key>), close by setEnlargedChartKey(null).
-      MUI Dialog uses a Portal internally so it visually escapes the
-      MainCard chrome and sits above the rest of the page with the
-      themed backdrop blur (same recipe used by the ConfirmRenameModal).
-
-      Data flows directly from the existing useDeviceMeasurements hook —
-      so a fetch that updates the grid charts also updates the enlarged
-      chart, and the same loading / empty / error branches handle the
-      states uniformly.
-    */}
-      <Dialog
-        open={Boolean(enlargedChartConfig)}
-        onClose={() => setEnlargedChartKey(null)}
-        maxWidth="lg"
-        fullWidth
-        slotProps={{
-          paper: {
-            sx: {
-              backgroundColor: 'rgba(0, 20, 61, 0.96)',
-              backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))',
-              border: '1px solid var(--reflected-light)',
-              boxShadow: '0 11px 19px 1px #0000002e',
-              borderRadius: 1
-            }
-          },
-          backdrop: {
-            sx: {
-              backgroundColor: 'rgba(0, 0, 0, 0.45)',
-              backdropFilter: 'blur(6px)'
-            }
-          }
-        }}
-      >
-        {enlargedChartConfig &&
-          (() => {
-            const config = enlargedChartConfig;
-            // Same per-chart `{ times, values }` shape as the grid
-            // version above — null-filtered so the enlarged line is
-            // continuous and the tooltip never resolves to "No data".
-            const { times: seriesTimes, values: seriesData } = chartSeriesByField[config.key] ?? { times: [], values: [] };
-            const hasData = seriesData.length > 0;
-            return (
-              <>
-                <DialogTitle sx={{ pb: 1, pr: 1 }}>
-                  <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
-                    <Typography variant="h5" sx={{ color: 'var(--blue)' }}>
-                      {config.title}
-                      {config.unit ? (
-                        <Box component="span" sx={{ color: 'var(--green)', ml: 1, fontSize: '0.85em' }}>
-                          ({config.unit})
-                        </Box>
-                      ) : null}
-                    </Typography>
-                    <Tooltip title="Close" arrow={false} slotProps={tooltipSlotProps}>
-                      <IconButton aria-label="close enlarged chart" onClick={() => setEnlargedChartKey(null)} sx={{ color: 'var(--blue)' }}>
-                        <AntIcon icon={CloseOutlined} />
-                      </IconButton>
-                    </Tooltip>
-                  </Stack>
-                </DialogTitle>
-                <DialogContent sx={{ pt: 1.5, pb: 2.5 }}>
-                  <Box
-                    style={{ '--chart-line-color': config.color, '--chart-glow-filter': chartGlowFilterVar }}
-                    sx={{ ...chartSurfaceSx, border: '1px solid #0e346a', borderRadius: 1, p: { xs: 1, sm: 1.5 } }}
-                  >
-                    {measurementsError && !measurementRows ? (
-                      <Box
-                        sx={{
-                          minHeight: 380,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'var(--orange)',
-                          fontSize: '0.85rem',
-                          fontStyle: 'italic'
-                        }}
-                      >
-                        Failed to load chart data
-                      </Box>
-                    ) : measurementsLoading && !measurementRows ? (
-                      <Stack
-                        direction="row"
-                        spacing={1.5}
-                        sx={{ minHeight: 380, alignItems: 'center', justifyContent: 'center', color: 'var(--blue)', fontSize: '0.85rem' }}
-                      >
-                        <CircularProgress size={22} sx={{ color: 'var(--green)' }} />
-                        <Box component="span">Loading chart data…</Box>
-                      </Stack>
-                    ) : !hasData ? (
-                      <Box
-                        sx={{
-                          minHeight: 380,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'var(--blue)',
-                          fontSize: '0.85rem',
-                          fontStyle: 'italic'
-                        }}
-                      >
-                        No data for this time range
-                      </Box>
-                    ) : (
-                      // Same memoized component as the grid version —
-                      // just larger and with a unique idSuffix so the
-                      // two charts' MUI x-charts ids don't collide
-                      // when both are mounted (the grid card stays
-                      // visible underneath the Dialog).
-                      <MeasurementChart
-                        config={config}
-                        seriesTimes={seriesTimes}
-                        seriesData={seriesData}
-                        xAxisMin={seriesTimes[0]}
-                        xAxisMax={seriesTimes[seriesTimes.length - 1]}
-                        xAxisTicks={xAxisTicks}
-                        axisFormat={axisFormat}
-                        height={500}
-                        yAxisWidth={64}
-                        xAxisFontSize={12}
-                        yAxisFontSize={12}
-                        marginTop={12}
-                        marginRight={12}
-                        marginBottom={4}
-                        marginLeft={4}
-                        idSuffix="-enlarged"
-                      />
-                    )}
-                  </Box>
-                </DialogContent>
-              </>
-            );
-          })()}
-      </Dialog>
     </>
   );
 }

@@ -1,0 +1,551 @@
+// =============================================================================
+// measurementCatalog.js — single source of truth for the tabbed chart layout.
+// =============================================================================
+//
+// This module is intentionally PURE DATA (no JSX, no React, no app imports
+// beyond unit conversions): it maps every measurement the dashboard renders
+// to (a) the tab it lives on, (b) the backend data source + field name(s)
+// that feed it, (c) the unit label + per-point transform that track the
+// user's display preferences, (d) the chart type, and (e) whether the field
+// is live today or pending a backend change.
+//
+// Why a standalone catalog rather than extending buildDeviceChartConfigs:
+//   The original factory only described DEVICE-level line charts. The tabbed
+//   layout spans TWO data sources (device + wireless) and FIVE chart types
+//   (line, multi-line, scatter, step, sparkline). Centralizing the whole
+//   matrix here means the tab shell, each tab panel, the field projections
+//   sent to the SWR hooks, and the backend punch-list all derive from ONE
+//   place — change a field name or move a chart between tabs in exactly one
+//   spot.
+//
+// SOURCE-OF-TRUTH for field availability (verified, not assumed):
+//   Device time-series fields  → phenodeX/phenode_backend/services/downloads.py:877-919
+//                                (_DEVICE_FIELD_EXTRACTORS) + the computed `gdd`
+//                                special field at downloads.py:788-874.
+//   Wireless time-series fields → phenodeX/phenode_backend/services/downloads.py:1073-1115
+//                                (_WIRELESS_FIELD_KEYS).
+//   Both endpoints return ALL their defined fields by default and accept a
+//   `fields` CSV projection to narrow the payload (routes.py:935-944 device /
+//   routes.py:494-498 wireless).
+//
+// Wiring note: the measurement hooks derive their field list from each
+//   response row directly (hooks/data/normalizeMeasurementRow.js), so any
+//   key the backend returns through its `fields=` projection reaches the
+//   chart layer automatically. Adding a measurement end-to-end is now a
+//   single change in `_DEVICE_FIELD_EXTRACTORS` / `_WIRELESS_FIELD_KEYS` —
+//   no frontend allow-list to keep in lockstep.
+//
+// `availability` values:
+//   'live'            → field is in the time-series projection today; chart
+//                        populates as soon as it's wired.
+//   'needs-backend'   → no time-series field exists; the panel renders with a
+//                        "sensor not connected / no data" empty state until
+//                        the backend adds it.
+
+// ---------------------------------------------------------------------------
+// Unit conversions — mirror the helpers in sensor-measurements.jsx so the
+// catalog's transforms match what the existing device charts already do.
+// Kept local (not imported) so this module has zero coupling to the page.
+// ---------------------------------------------------------------------------
+const FAHRENHEIT_RATIO = 9 / 5;
+const identity = (v) => v;
+const cToF = (c) => c * FAHRENHEIT_RATIO + 32;
+const msToMph = (ms) => ms * 2.2369362921;
+const msToKmh = (ms) => ms * 3.6;
+const mmToIn = (mm) => mm * 0.0393700787;
+const kpaToHpa = (kpa) => kpa * 10;
+const mvToV = (mv) => mv / 1000;
+const mToFt = (m) => m * 3.280839895;
+const ohmToKohm = (ohm) => ohm / 1000;
+
+// Tab ids — used by the URL ?tab= param and the panel switch. Exported so the
+// shell and the deep-link logic share the same vocabulary.
+export const TAB_IDS = {
+  WEATHER: 'weather',
+  LIGHT: 'light',
+  SOIL: 'soil',
+  POWER: 'power'
+};
+
+// Palette — reuses the existing sensor-measurements stroke colors for visual
+// continuity, then extends with distinct hues for the new metrics. Secondary
+// / overlay series get a desaturated sibling so "primary vs Atmos" reads at a
+// glance without a legend lookup.
+const COLORS = {
+  temperature: '#48f7f5',
+  temperatureSecondary: '#2a8f8e',
+  humidity: '#c96cfc',
+  pressure: '#f47568',
+  gas: '#7dd3fc',
+  windSpeed: '#f4d04b',
+  windSpeedSecondary: '#9a812b',
+  windDirection: '#f4a04b',
+  windGust: '#f7e06b',
+  rainfall: '#0043c2',
+  rainfallSecondary: '#3b6fd6',
+  gdd: '#56d364',
+  lightning: '#fbbf24',
+  lux: '#fde047',
+  par: '#a3e635',
+  solarRadiation: '#f59e0b',
+  soilMoisture: '#38bdf8',
+  soilTemp: '#fb7185',
+  soilEc: '#c084fc',
+  soilMatric: '#22d3ee',
+  altitude: '#94a3b8',
+  accel: '#f87171',
+  batteryCharge: '#34d399',
+  batteryVoltage: '#8539e0',
+  solarVoltage: '#fbbf24',
+  usbVoltage: '#60a5fa',
+  // Depth ramps for the 4-line soil-profile charts (shallow → deep).
+  depth: ['#7dd3fc', '#38bdf8', '#0ea5e9', '#0369a1']
+};
+
+const DEPTH_LABELS = ['15 cm', '30 cm', '45 cm', '60 cm'];
+
+// Resolve the unit-dependent label + transform for the families that respond
+// to display preferences. Returns { label, transform }.
+function resolveUnit(kind, displayPrefs) {
+  switch (kind) {
+    case 'temperature': {
+      const u = displayPrefs?.tempUnit ?? 'F';
+      return u === 'C' ? { label: '°C', transform: identity } : { label: '°F', transform: cToF };
+    }
+    case 'speed': {
+      const u = displayPrefs?.speedUnit ?? 'ms';
+      if (u === 'mph') return { label: 'mph', transform: msToMph };
+      if (u === 'kmh') return { label: 'km/h', transform: msToKmh };
+      return { label: 'm/s', transform: identity };
+    }
+    case 'pressure': {
+      const u = displayPrefs?.pressureUnit ?? 'kpa';
+      return u === 'hpa' ? { label: 'hPa', transform: kpaToHpa } : { label: 'kPa', transform: identity };
+    }
+    case 'rainfall': {
+      const u = displayPrefs?.rainUnit ?? 'mm';
+      return u === 'in' ? { label: 'in', transform: mmToIn } : { label: 'mm', transform: identity };
+    }
+    case 'voltage': {
+      const u = displayPrefs?.voltageUnit ?? 'mv';
+      return u === 'v' ? { label: 'V', transform: mvToV } : { label: 'mV', transform: identity };
+    }
+    case 'conductivity': {
+      // Backend enum is dS/m or mS/cm (user_preferences.py:25). 1 dS/m = 1
+      // mS/cm, so the numeric value is identical — only the label differs.
+      // Default dS/m to match the backend default.
+      const u = displayPrefs?.conductivityUnit ?? 'dsm';
+      return u === 'mscm' ? { label: 'mS/cm', transform: identity } : { label: 'dS/m', transform: identity };
+    }
+    case 'resistance': {
+      const u = displayPrefs?.resistanceUnit ?? 'kohm';
+      return u === 'ohm' ? { label: 'Ω', transform: identity } : { label: 'kΩ', transform: ohmToKohm };
+    }
+    case 'acceleration': {
+      const u = displayPrefs?.accelerationUnit ?? 'ms2';
+      return u === 'g' ? { label: 'g', transform: (ms2) => ms2 / 9.80665 } : { label: 'm/s²', transform: identity };
+    }
+    case 'altitude': {
+      // No dedicated altitude pref; piggy-back on distance (mi→ft, km→m).
+      const u = displayPrefs?.distanceUnit ?? 'mi';
+      return u === 'km' ? { label: 'm', transform: identity } : { label: 'ft', transform: mToFt };
+    }
+    default:
+      return { label: '', transform: identity };
+  }
+}
+
+// =============================================================================
+// buildMeasurementCatalog(displayPrefs)
+// =============================================================================
+// Returns the ordered tab list. Each tab: { id, label, source(s), charts[] }.
+// Each chart entry shape:
+//   {
+//     key,            unique id (also the MUI x-charts id suffix root)
+//     title,          header text
+//     source,         'device' | 'wireless'
+//     chartType,      'line' | 'multiline' | 'scatter' | 'step'
+//     unit,           Y-axis + tooltip suffix (already unit-resolved)
+//     transform,      per-point value transform (already unit-resolved)
+//     color,          stroke color (single-series charts)
+//     series,         [{ field, label, color, transform? }]  (multi-line/overlay)
+//     primaryField,   backend field for the main line
+//     secondaryField, optional overlay field (e.g. Atmos vs Calypso)
+//     availability,   'live' | 'needs-hook-field' | 'needs-backend'
+//     note            short human note for empty-state / tooltip / dev docs
+//   }
+export function buildMeasurementCatalog(displayPrefs) {
+  const temp = resolveUnit('temperature', displayPrefs);
+  const speed = resolveUnit('speed', displayPrefs);
+  const pressure = resolveUnit('pressure', displayPrefs);
+  const rainfall = resolveUnit('rainfall', displayPrefs);
+  const voltage = resolveUnit('voltage', displayPrefs);
+  const conductivity = resolveUnit('conductivity', displayPrefs);
+  const resistance = resolveUnit('resistance', displayPrefs);
+  const accel = resolveUnit('acceleration', displayPrefs);
+  const altitude = resolveUnit('altitude', displayPrefs);
+
+  // --- WEATHER -------------------------------------------------------------
+  const weather = [
+    {
+      key: 'temperature',
+      title: 'Ambient Temperature',
+      source: 'device',
+      chartType: 'line',
+      primaryField: 'temperature',
+      unit: temp.label,
+      transform: temp.transform,
+      color: COLORS.temperature,
+      availability: 'live'
+    },
+    {
+      // Atmos 22 secondary temp: backend currently COALESCES all air-temp
+      // sources into the single `temperature` field (downloads.py:878), so a
+      // distinct secondary line needs a dedicated backend field.
+      key: 'temperature_secondary',
+      title: 'Ambient Temperature (Atmos 22)',
+      source: 'device',
+      chartType: 'line',
+      primaryField: 'temperature_secondary',
+      unit: temp.label,
+      transform: temp.transform,
+      color: COLORS.temperatureSecondary,
+      availability: 'live'
+    },
+    {
+      key: 'humidity',
+      title: 'Relative Humidity',
+      source: 'device',
+      chartType: 'line',
+      primaryField: 'humidity',
+      unit: '%',
+      transform: identity,
+      color: COLORS.humidity,
+      availability: 'live'
+    },
+    {
+      key: 'pressure',
+      title: 'Air Pressure',
+      source: 'device',
+      chartType: 'line',
+      primaryField: 'pressure',
+      unit: pressure.label,
+      transform: pressure.transform,
+      color: COLORS.pressure,
+      availability: 'live'
+    },
+    {
+      key: 'gas_resistance',
+      title: 'Gas Resistance',
+      source: 'device',
+      chartType: 'line',
+      primaryField: 'gasResistanceBme',
+      unit: resistance.label,
+      transform: resistance.transform,
+      color: COLORS.gas,
+      availability: 'live'
+    },
+    {
+      // Wind speed: use the backend's coalesced `wind_speed` extractor
+      // (downloads.py:1004) which falls back through bus2_wind_speed →
+      // calypso_wind_speed → wind_speed → windSpeed. That way the chart
+      // populates regardless of which wind sensor the device has. A future
+      // pass can add an atmos22-explicit key to render two distinct lines.
+      key: 'wind_speed',
+      title: 'Wind Speed',
+      source: 'device',
+      chartType: 'line',
+      primaryField: 'wind_speed',
+      unit: speed.label,
+      transform: speed.transform,
+      color: COLORS.windSpeed,
+      availability: 'live'
+    },
+    {
+      key: 'wind_direction',
+      title: 'Wind Direction',
+      source: 'device',
+      chartType: 'scatter', // a continuous line wraps badly across the 0°/360° seam
+      primaryField: 'wind_direction',
+      unit: '°',
+      transform: identity,
+      color: COLORS.windDirection,
+      availability: 'live'
+    },
+    {
+      key: 'wind_gust',
+      title: 'Wind Gust',
+      source: 'device',
+      chartType: 'line',
+      primaryField: 'wind_gust',
+      unit: speed.label,
+      transform: speed.transform,
+      color: COLORS.windGust,
+      availability: 'live'
+    },
+    {
+      // Rainfall: Pronamic is primary; Atmos rain is the secondary overlay.
+      key: 'rainfall',
+      title: 'Rainfall',
+      source: 'device',
+      chartType: 'line',
+      primaryField: 'rainfall',
+      unit: rainfall.label,
+      transform: rainfall.transform,
+      color: COLORS.rainfall,
+      availability: 'live'
+    },
+    {
+      key: 'gdd',
+      title: 'Growing Degree Days',
+      source: 'device',
+      chartType: 'step', // one cumulative value per local day, plotted at the day's last reading
+      primaryField: 'gdd',
+      unit: temp.label === '°C' ? '°C·day' : '°F·day',
+      transform: identity, // backend computes GDD; do not re-transform here
+      color: COLORS.gdd,
+      availability: 'live',
+      note: 'Backend computes one cumulative GDD value per local day (downloads.py:788-874).'
+    },
+    {
+      key: 'lightning_strikes',
+      title: 'Lightning Strikes',
+      source: 'device',
+      chartType: 'line',
+      primaryField: 'lightning_strikes',
+      unit: 'count',
+      transform: identity,
+      color: COLORS.lightning,
+      availability: 'live'
+    },
+    {
+      key: 'lightning_distance',
+      title: 'Lightning Distance',
+      source: 'device',
+      chartType: 'line',
+      primaryField: 'lightning_strike_distance',
+      unit: 'km',
+      transform: identity,
+      color: COLORS.lightning,
+      availability: 'live'
+    }
+  ];
+
+  // --- LIGHT ---------------------------------------------------------------
+  const light = [
+    {
+      key: 'lux',
+      title: 'LUX',
+      source: 'device',
+      chartType: 'line',
+      primaryField: 'lux',
+      unit: 'lx',
+      transform: identity,
+      color: COLORS.lux,
+      availability: 'live'
+    },
+    {
+      // PAR/PPFD + Atmos 41 solar radiation share this panel as two lines once
+      // the backend exposes them. Neither field exists in a time-series
+      // projection today.
+      key: 'par_ppfd',
+      title: 'PAR',
+      info: 'Photosynthetic Photon Flux Density',
+      source: 'device',
+      chartType: 'multiline',
+      unit: 'W/m²',
+      transform: identity,
+      color: COLORS.par,
+      series: [
+        { field: 'par_ppfd', label: 'Apogee PAR', color: COLORS.par },
+        { field: 'solar_radiation', label: 'Atmos 41 (solar radiation)', color: COLORS.solarRadiation }
+      ],
+      availability: 'live',
+      note: 'Atmos 41 solar_radiation is live (downloads.py:987); Apogee SQ-522 PAR field still pending — the chart shows whichever series has data.'
+    }
+  ];
+
+  // --- SOIL ----------------------------------------------------------------
+  // All wireless. Probe-1 fields are the primary; probe-2 (vwcPercent_2 etc.)
+  // can be layered as a second line later if a device has two probes.
+  const soil = [
+    {
+      key: 'soil_moisture',
+      title: 'Soil Moisture (VWC)',
+      source: 'device',
+      chartType: 'line',
+      primaryField: 'soil_moisture_1',
+      unit: '%',
+      transform: identity,
+      color: COLORS.soilMoisture,
+      availability: 'live'
+    },
+    {
+      key: 'soil_temperature',
+      title: 'Soil Temperature',
+      source: 'device',
+      chartType: 'line',
+      primaryField: 'soil_temperature_1',
+      unit: temp.label,
+      transform: temp.transform,
+      color: COLORS.soilTemp,
+      availability: 'live'
+    },
+    {
+      key: 'soil_ec',
+      title: 'Soil Electrical Conductivity',
+      source: 'device',
+      chartType: 'line',
+      primaryField: 'soil_ec_1',
+      unit: conductivity.label,
+      transform: conductivity.transform,
+      color: COLORS.soilEc,
+      availability: 'live'
+    },
+    {
+      key: 'soil_matric',
+      title: 'Soil Matric Potential',
+      source: 'device',
+      chartType: 'line',
+      primaryField: 'soil_matric_1',
+      unit: 'kPa',
+      transform: identity,
+      color: COLORS.soilMatric,
+      availability: 'live'
+    },
+    {
+      key: 'soil_profile_moisture',
+      title: 'Soil Profile Moisture',
+      source: 'wireless',
+      chartType: 'multiline',
+      unit: '%',
+      transform: identity,
+      series: [
+        { field: 'sensor1_d1_vwc', label: DEPTH_LABELS[0], color: COLORS.depth[0] },
+        { field: 'sensor1_d2_vwc', label: DEPTH_LABELS[1], color: COLORS.depth[1] },
+        { field: 'sensor1_d3_vwc', label: DEPTH_LABELS[2], color: COLORS.depth[2] },
+        { field: 'sensor1_d4_vwc', label: DEPTH_LABELS[3], color: COLORS.depth[3] }
+      ],
+      availability: 'live'
+    },
+    {
+      key: 'soil_profile_temperature',
+      title: 'Soil Profile Temperature',
+      source: 'wireless',
+      chartType: 'multiline',
+      unit: temp.label,
+      transform: temp.transform,
+      series: [
+        { field: 'sensor1_d1_temp', label: DEPTH_LABELS[0], color: COLORS.depth[0], transform: temp.transform },
+        { field: 'sensor1_d2_temp', label: DEPTH_LABELS[1], color: COLORS.depth[1], transform: temp.transform },
+        { field: 'sensor1_d3_temp', label: DEPTH_LABELS[2], color: COLORS.depth[2], transform: temp.transform },
+        { field: 'sensor1_d4_temp', label: DEPTH_LABELS[3], color: COLORS.depth[3], transform: temp.transform }
+      ],
+      availability: 'live'
+    }
+  ];
+
+  // --- POWER & DEVICE ------------------------------------------------------
+  const power = [
+    {
+      key: 'altitude',
+      title: 'Altitude',
+      source: 'device',
+      chartType: 'line',
+      primaryField: 'altitude',
+      unit: altitude.label,
+      transform: altitude.transform,
+      color: COLORS.altitude,
+      availability: 'live'
+    },
+    {
+      key: 'accelerometer',
+      title: 'Accelerometer',
+      source: 'device',
+      chartType: 'multiline',
+      unit: accel.label,
+      transform: accel.transform,
+      series: [
+        { field: 'accelerationX', label: 'X', color: '#f87171', transform: accel.transform },
+        { field: 'accelerationY', label: 'Y', color: '#fbbf24', transform: accel.transform },
+        { field: 'accelerationZ', label: 'Z', color: '#60a5fa', transform: accel.transform }
+      ],
+      availability: 'live'
+    },
+    {
+      // Battery charge %: no computed % field exists; per Jake, source the raw
+      // battery voltage (mVbat). Shown as voltage until a pack-voltage→% map
+      // (or a backend %) is provided.
+      key: 'battery_charge',
+      title: 'Battery Charge',
+      source: 'device',
+      chartType: 'line',
+      primaryField: 'mVbat',
+      unit: voltage.label,
+      transform: voltage.transform,
+      color: COLORS.batteryCharge,
+      availability: 'live',
+      note: 'No backend % field; sources raw mVbat. A linear pack-voltage→% mapping can be layered on later.'
+    },
+    {
+      key: 'battery_voltage',
+      title: 'Battery Voltage',
+      source: 'device',
+      chartType: 'line',
+      primaryField: 'battery_voltage',
+      unit: voltage.label,
+      transform: voltage.transform,
+      color: COLORS.batteryVoltage,
+      availability: 'live'
+    },
+    {
+      key: 'solar_voltage',
+      title: 'Solar Panel Voltage',
+      source: 'device',
+      chartType: 'line',
+      primaryField: 'mVsolar',
+      unit: voltage.label,
+      transform: voltage.transform,
+      color: COLORS.solarVoltage,
+      availability: 'live'
+    },
+    {
+      key: 'usb_voltage',
+      title: 'USB Charger Voltage',
+      source: 'device',
+      chartType: 'line',
+      primaryField: 'mVusb',
+      unit: voltage.label,
+      transform: voltage.transform,
+      color: COLORS.usbVoltage,
+      availability: 'live'
+    }
+  ];
+
+  return [
+    { id: TAB_IDS.WEATHER, label: 'Weather', charts: weather },
+    { id: TAB_IDS.LIGHT, label: 'Light', charts: light },
+    { id: TAB_IDS.SOIL, label: 'Soil', charts: soil },
+    { id: TAB_IDS.POWER, label: 'Power & Device', charts: power }
+  ];
+}
+
+// Per-source field projections for a given tab's chart list — pass to the SWR
+// hooks' `fields` option so each tab fetches ONLY the columns it renders
+// (smaller payloads; switching tabs fetches less, not more). Skips fields that
+// don't exist server-side yet (needs-backend) to avoid noisy 4xx/empty cols.
+export function fieldProjectionsForCharts(charts) {
+  const device = new Set();
+  const wireless = new Set();
+  for (const c of charts ?? []) {
+    if (c.availability === 'needs-backend') continue;
+    const add = c.source === 'wireless' ? (f) => wireless.add(f) : (f) => device.add(f);
+    if (Array.isArray(c.series)) {
+      c.series.forEach((s) => s.field && add(s.field));
+    } else if (c.primaryField) {
+      add(c.primaryField);
+      if (c.secondaryField) add(c.secondaryField);
+    }
+  }
+  return { device: [...device], wireless: [...wireless] };
+}

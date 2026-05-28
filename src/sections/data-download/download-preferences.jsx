@@ -68,7 +68,7 @@ const CUSTOM_VALUE_STRATEGY = 'Flag with custom value';
 // recommended default for users who want their downloads to follow the
 // timezone they set in account settings.
 const USE_DISPLAY_TZ_VALUE = '';
-const USE_DISPLAY_TZ_LABEL = 'Use display preferences timezone (recommended)';
+const USE_DISPLAY_TZ_LABEL = 'Match my Display Timezone (recommended)';
 
 // Best-effort full IANA list — same recipe display-tab.jsx uses, so the two
 // timezone pickers stay in sync. Falls back to a small static list if the
@@ -503,7 +503,7 @@ export default function DownloadPreferences() {
             </Grid>
 
             <Grid size={{ xs: 12, md: 6, xl: 4 }}>
-              <PreferenceBox title="Select a time zone...">
+              <PreferenceBox title="Time zone for CSV download timestamps...">
                 <Autocomplete
                   options={[USE_DISPLAY_TZ_VALUE, ...timezones]}
                   getOptionLabel={(opt) => (opt === USE_DISPLAY_TZ_VALUE ? USE_DISPLAY_TZ_LABEL : opt)}
@@ -527,6 +527,11 @@ export default function DownloadPreferences() {
                     }
                   }}
                 />
+                <Typography variant="caption" sx={{ color: 'var(--blue)', fontSize: '0.72rem', lineHeight: 1.4 }}>
+                  Applies only to timestamps in CSV downloads. The app&apos;s charts, sensor cards, and map use the Display Timezone you set
+                  on Account Settings. Pick a specific zone here to override that default for downloads, or leave on &quot;Match my Display
+                  Timezone&quot; to keep them in sync.
+                </Typography>
               </PreferenceBox>
             </Grid>
 
