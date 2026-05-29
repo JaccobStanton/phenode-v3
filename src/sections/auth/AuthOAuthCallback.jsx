@@ -126,12 +126,7 @@ export default function AuthOAuthCallback() {
           // consumer (Profile menu, fetch hooks, route guards) sees the
           // new session without re-reading localStorage. Matches the
           // email/password flow in AuthLogin.jsx:217.
-          //
-          // Second arg flags this session as 'google'-authenticated so
-          // ChangePasswordTab can render its "not available — managed
-          // via your Google account" lock card. Removed once the
-          // backend exposes a has_password JWT claim.
-          login(data, 'google');
+          login(data);
           // Pre-warm the device list before navigating so the
           // dashboard's first paint doesn't flash a "loading fleet…"
           // state. Same trick AuthLogin uses on a successful 200.

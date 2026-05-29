@@ -543,6 +543,40 @@ function usePulse(period = 1500, fps = 20) {
   return t;
 }
 
+// PulsingHalos — renders the breathing halo rings in ISOLATION so the
+// ~20fps usePulse state update re-renders ONLY this leaf, not the whole map
+// (APIProvider, <Map>, every core marker, the InfoWindow). That per-frame
+// re-render of the entire tree was the cause of the map "flashing /
+// reloading". `targets` is a stable array the parent memoizes WITHOUT the
+// pulse value: `{ key, lat, lng, fill, zIndex }` per halo.
+function PulsingHalos({ targets }) {
+  const pulseT = usePulse();
+  if (!targets.length) return null;
+  const scale = HALO_BASE_SCALE + pulseT * HALO_GROW;
+  const fillOpacity = HALO_BASE_OPACITY * (1 - pulseT);
+  return (
+    <>
+      {targets.map((t) => (
+        <Marker
+          key={t.key}
+          position={{ lat: t.lat, lng: t.lng }}
+          clickable={false}
+          zIndex={t.zIndex}
+          icon={{
+            path: CIRCLE_PATH,
+            scale,
+            fillColor: t.fill,
+            fillOpacity,
+            strokeColor: t.fill,
+            strokeOpacity: fillOpacity * 0.6,
+            strokeWeight: 1
+          }}
+        />
+      ))}
+    </>
+  );
+}
+
 // Camera controller for "follow the selected device." Pans the map to
 // whatever PheNode is currently selected, but ONLY when the selection
 // actually changes (not on every render — the pulse animation re-renders
@@ -703,9 +737,6 @@ export default function PheNodeFleetMap({ devices, selectedDeviceId, onSelectDev
   // See the PROXIMITY FEATURE block above for the design rationale.
   const [proximityEnabled, setProximityEnabled] = useState(false);
 
-  // Pulse phase for the halo markers — 0..1 looping.
-  const pulseT = usePulse();
-
   // Memoize the plottable subset. The fit-bounds controller depends on a
   // stable reference for its count comparison.
   const plottable = useMemo(() => (devices ?? []).filter(hasValidLocation), [devices]);
@@ -783,6 +814,30 @@ export default function PheNodeFleetMap({ devices, selectedDeviceId, onSelectDev
     [nearbyDevices]
   );
 
+  // Halo targets — which pins get a pulsing ring, computed WITHOUT the pulse
+  // value so this list stays referentially stable across animation frames
+  // (the breathing is applied inside <PulsingHalos>). Declared above the
+  // loading/empty early-returns so hook order stays stable. Mirrors the
+  // marker visibility rule in the render: with Nearby OFF only the selected
+  // device renders; with it ON, every in-radius ("emphasized") device does.
+  const haloTargets = useMemo(() => {
+    const out = [];
+    for (const d of plottable) {
+      const isSelected = d.external_device_id === selectedDeviceId;
+      if (!isSelected && !proximityEnabled) continue;
+      const isEmphasized = !proximityEnabled || nearbyIds.has(d.external_device_id);
+      if (!isEmphasized) continue;
+      out.push({
+        key: d.external_device_id,
+        lat: d.latitude,
+        lng: d.longitude,
+        fill: isSelected ? HALO_SELECTED_FILL : HALO_UNSELECTED_FILL,
+        zIndex: isSelected ? 998 : 0
+      });
+    }
+    return out;
+  }, [plottable, selectedDeviceId, proximityEnabled, nearbyIds]);
+
   // Display label for the active device — mirrors deviceReadToFleetRow's
   // siteName logic (prefer user-set label, fall back to immutable
   // external_device_id, then a generic fallback) so the rename modal
@@ -835,13 +890,6 @@ export default function PheNodeFleetMap({ devices, selectedDeviceId, onSelectDev
   const totalCount = devices?.length ?? 0;
   const plottableCount = plottable.length;
   const hiddenCount = totalCount - plottableCount;
-
-  // Derived halo icon configs. Recomputed on every render (which happens
-  // ~20× per second from the pulse). The new icon object triggers vis.gl
-  // to call marker.setIcon() with the new scale/opacity, producing the
-  // expanding-and-fading ring effect underneath each device's core pin.
-  const haloScale = HALO_BASE_SCALE + pulseT * HALO_GROW;
-  const haloOpacity = HALO_BASE_OPACITY * (1 - pulseT);
 
   // ── Defensive default branches ──────────────────────────────────────────
 
@@ -1102,6 +1150,9 @@ export default function PheNodeFleetMap({ devices, selectedDeviceId, onSelectDev
                     />
                   </>
                 )}
+                {/* Pulsing halos render in isolation so the per-frame
+                    animation doesn't re-render the whole map. */}
+                <PulsingHalos targets={haloTargets} />
                 {plottable.map((d) => {
                   const isSelected = d.external_device_id === selectedDeviceId;
                   // Visibility rule: a pin renders if it's
@@ -1114,14 +1165,14 @@ export default function PheNodeFleetMap({ devices, selectedDeviceId, onSelectDev
                   // on the device the user is actively looking at.
                   if (!isSelected && !proximityEnabled) return null;
                   // Visual emphasis = selection. The selected pin gets
-                  // the larger inverted-color CORE_SELECTED_ICON and
-                  // the orange/teal HALO_SELECTED halo; everything else
-                  // renders at normal size with the standard teal+blue
-                  // unselected styling.
-                  const haloFill = isSelected ? HALO_SELECTED_FILL : HALO_UNSELECTED_FILL;
-                  // When proximity is on, dim everything outside the radius
-                  // and skip the halo render for those devices. The selected
-                  // device and any in-radius neighbor stay at full emphasis.
+                  // the larger inverted-color CORE_SELECTED_ICON; everything
+                  // else renders at normal size with the standard teal+blue
+                  // unselected styling. (The pulsing halo itself is rendered
+                  // separately by <PulsingHalos> so the animation doesn't
+                  // re-render this whole marker layer.)
+                  // When proximity is on, dim everything outside the radius.
+                  // The selected device and any in-radius neighbor stay at
+                  // full emphasis.
                   const isEmphasized = !proximityEnabled || nearbyIds.has(d.external_device_id);
                   const baseCoreIcon = isSelected ? CORE_SELECTED_ICON : CORE_UNSELECTED_ICON;
                   const coreIcon = isEmphasized
@@ -1133,34 +1184,6 @@ export default function PheNodeFleetMap({ devices, selectedDeviceId, onSelectDev
                       };
                   return (
                     <Fragment key={d.external_device_id}>
-                      {/*
-                      Halo — animated. Sits underneath the core marker
-                      (lower zIndex). clickable={false} so the pulse ring
-                      never intercepts clicks intended for the core pin.
-                      Scale and opacity are derived from pulseT, so they
-                      breathe outward and fade with each cycle.
-
-                      Skipped entirely for dimmed (outside-radius) devices
-                      so proximity mode visually quiets the background —
-                      and saves a setInterval-driven setIcon call per
-                      pulse tick per dimmed marker.
-                    */}
-                      {isEmphasized && (
-                        <Marker
-                          position={{ lat: d.latitude, lng: d.longitude }}
-                          clickable={false}
-                          zIndex={isSelected ? 998 : 0}
-                          icon={{
-                            path: CIRCLE_PATH,
-                            scale: haloScale,
-                            fillColor: haloFill,
-                            fillOpacity: haloOpacity,
-                            strokeColor: haloFill,
-                            strokeOpacity: haloOpacity * 0.6,
-                            strokeWeight: 1
-                          }}
-                        />
-                      )}
                       {/*
                       Core — static. The actual device location indicator.
                       Larger zIndex so it sits on top of its halo and on

@@ -310,9 +310,10 @@ const filenameFromContentDisposition = (header) => {
  *                                   on 401.
  * @param {'json'|'blob'} [options.parseAs='json'] - How to read the
  *   response body. 'json' (default) returns parsed JSON (or null on
- *   204). 'blob' returns `{ blob, filename }` for file downloads —
- *   filename comes from the response's Content-Disposition header,
- *   `null` when the server didn't send one.
+ *   204). 'blob' returns `{ blob, filename, downloadBucket }` for file
+ *   downloads — `filename` comes from Content-Disposition (`null` if
+ *   absent), `downloadBucket` from the X-Download-Bucket header (e.g.
+ *   'raw', '1h', '6h', '1d'; `null` if the endpoint didn't send it).
  *
  * @returns {Promise<*>} See `parseAs` for the return shape.
  * @throws {ApiError} On any non-2xx after the refresh-and-retry attempt.
@@ -347,7 +348,12 @@ export const mutationRequest = async (url, { method, body, token, parseAs = 'jso
   if (parseAs === 'blob') {
     const blob = await response.blob();
     const filename = filenameFromContentDisposition(response.headers.get('Content-Disposition'));
-    return { blob, filename };
+    // X-Download-Bucket reports whether the backend downsampled this export
+    // ('1h', '6h', '1d', …) vs returned raw rows ('raw'). Long ranges
+    // auto-bucket server-side for reliability; the caller surfaces this so
+    // the user knows the file is aggregated. Null when the header is absent.
+    const downloadBucket = response.headers.get('X-Download-Bucket');
+    return { blob, filename, downloadBucket };
   }
   return response.json();
 };

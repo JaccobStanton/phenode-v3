@@ -172,10 +172,14 @@ export const setDeviceEnvironmentVariables = (externalDeviceId, variables, acces
  * @param {string} fromIso - ISO 8601 start timestamp
  * @param {string} toIso - ISO 8601 end timestamp
  * @param {string} accessToken - Bearer token from useAuth()
+ * @param {boolean} [includeWirelessSensors=true] - when false, requests the
+ *   device CSV ONLY (no linked wireless-sensor CSVs bundled). Used by the
+ *   "Environmental Data" download type. Backend honors this once the
+ *   include_wireless_sensors flag lands; harmless no-op until then.
  * @returns {Promise<{ blob: Blob, filename: string|null }>}
  */
-export const downloadDeviceSensorData = (externalDeviceId, fromIso, toIso, accessToken) =>
-  mutationRequest(buildUrl(API.devices.sensorDataDownload(externalDeviceId, fromIso, toIso)), {
+export const downloadDeviceSensorData = (externalDeviceId, fromIso, toIso, accessToken, includeWirelessSensors = true) =>
+  mutationRequest(buildUrl(API.devices.sensorDataDownload(externalDeviceId, fromIso, toIso, includeWirelessSensors)), {
     method: 'POST',
     token: accessToken,
     parseAs: 'blob'

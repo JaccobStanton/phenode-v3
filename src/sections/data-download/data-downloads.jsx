@@ -280,6 +280,21 @@ const extensionFromBackendFilename = (filename, fallback = 'csv') => {
   return m ? m[1].toLowerCase() : fallback;
 };
 
+// Human-readable note for the X-Download-Bucket header. The backend
+// auto-downsamples long-range exports for reliability and reports the
+// interval it used ('raw', '5m', '1h', '6h', '1d', …). Returns an empty
+// string for raw/missing buckets (nothing to tell the user) and a short
+// "aggregated to …" sentence otherwise.
+const describeDownloadBucket = (bucket) => {
+  if (!bucket || bucket === 'raw') return '';
+  const m = /^(\d+)([mhd])$/.exec(bucket);
+  if (!m) return 'Data was aggregated for this long range.';
+  const n = Number(m[1]);
+  const unit = { m: 'minute', h: 'hour', d: 'day' }[m[2]];
+  const interval = `${n} ${unit}${n === 1 ? '' : 's'}`;
+  return `Long range — data was aggregated to ${interval} intervals.`;
+};
+
 // Shared input styling for both the single- and multi-select Autocompletes
 // below — keeps the neon control look in one place.
 const autocompleteInputSx = (disabled) => ({
@@ -543,11 +558,17 @@ export default function DataDownloads() {
     const typeSlug = TYPE_FILENAME_SLUG[selectedDataType] || 'data';
 
     setDownloading(true);
+    // Set by the blob endpoints from the X-Download-Bucket response header.
+    // Stays null for image downloads (not a time-series export). When the
+    // backend auto-downsamples a long range, this is the interval used (e.g.
+    // '1h', '6h', '1d') so we can tell the user the file is aggregated.
+    let downloadBucket = null;
     try {
       if (isWirelessDataType) {
         // One call, comma-separated ids → a single ZIP (one CSV per sensor).
         const sensorList = selectedWirelessSensors.map((sensor) => sensor.id).join(',');
-        const { blob, filename } = await downloadWirelessSensorData(sensorList, fromIso, toIso, accessToken);
+        const { blob, filename, downloadBucket: bucket } = await downloadWirelessSensorData(sensorList, fromIso, toIso, accessToken);
+        downloadBucket = bucket;
         const ext = extensionFromBackendFilename(filename, 'zip');
         triggerBlobDownload(blob, `wireless_sensors_${dateSlug}.${ext}`);
       } else if (isAllDataType) {
@@ -555,7 +576,8 @@ export default function DataDownloads() {
         // to auto-include the wireless sensors already linked to the device.
         const deviceId = selectedPheNode.id;
         const slug = labelToFilenameSlug(selectedPheNode.label || deviceId);
-        const { blob, filename } = await downloadAllDeviceData(deviceId, 'none', fromIso, toIso, accessToken);
+        const { blob, filename, downloadBucket: bucket } = await downloadAllDeviceData(deviceId, 'none', fromIso, toIso, accessToken);
+        downloadBucket = bucket;
         const ext = extensionFromBackendFilename(filename, 'zip');
         triggerBlobDownload(blob, `${slug}_${typeSlug}_${dateSlug}.${ext}`);
       } else {
@@ -567,7 +589,10 @@ export default function DataDownloads() {
         let result;
         let fallbackExt = 'csv';
         if (selectedDataType === 'Environmental Data') {
-          result = await downloadDeviceSensorData(deviceId, fromIso, toIso, accessToken);
+          // Environmental Data = the PheNode's own sensors only. Pass
+          // includeWirelessSensors=false so the backend doesn't bundle linked
+          // wireless sensors (those have their own "Wireless Sensor Data" type).
+          result = await downloadDeviceSensorData(deviceId, fromIso, toIso, accessToken, false);
         } else if (selectedDataType === 'System Diagnostics Data') {
           result = await downloadDeviceHealthData(deviceId, fromIso, toIso, accessToken);
         } else {
@@ -576,10 +601,15 @@ export default function DataDownloads() {
           fallbackExt = 'zip';
         }
 
+        downloadBucket = result.downloadBucket;
         const ext = extensionFromBackendFilename(result.filename, fallbackExt);
         triggerBlobDownload(result.blob, `${slug}_${typeSlug}_${dateSlug}.${ext}`);
       }
-      toast.success('Download started.');
+      // Long ranges are auto-aggregated server-side for reliability. Tell the
+      // user when the file came back downsampled rather than raw so a 6-month
+      // export reading "every hour" isn't mistaken for missing data.
+      const aggregationNote = describeDownloadBucket(downloadBucket);
+      toast.success(aggregationNote ? `Download started. ${aggregationNote}` : 'Download started.');
     } catch (err) {
       // 404 = no rows/images in the requested window — friendlier copy than
       // the generic failure so the user knows to widen the date range.

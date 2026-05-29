@@ -31,7 +31,6 @@ import AntIcon from 'components/AntIcon';
 import CheckCircleOutlined from '@ant-design/icons-svg/lib/asn/CheckCircleOutlined';
 import EyeOutlined from '@ant-design/icons-svg/lib/asn/EyeOutlined';
 import EyeInvisibleOutlined from '@ant-design/icons-svg/lib/asn/EyeInvisibleOutlined';
-import GoogleOutlined from '@ant-design/icons-svg/lib/asn/GoogleOutlined';
 import LockOutlined from '@ant-design/icons-svg/lib/asn/LockOutlined';
 import MinusCircleOutlined from '@ant-design/icons-svg/lib/asn/MinusCircleOutlined';
 import SaveOutlined from '@ant-design/icons-svg/lib/asn/SaveOutlined';
@@ -144,22 +143,20 @@ export default function ChangePasswordTab() {
   const toast = useToast();
   const { accessToken, user } = useAuth();
 
-  // signInMethod is a frontend-only marker set at login time
-  // (AuthLogin → 'password', AuthOAuthCallback → 'google'). When it's
-  // explicitly 'google', we lock the form and explain why — that user
-  // doesn't have a password to change.
+  // `user.hasPassword` comes from the JWT's `has_password` claim
+  // (per phenodeX/phenode_backend/core/security.py:create_jwt) —
+  // backend-signed, authoritative, can't be spoofed. False means
+  // the user signed in via an external identity provider and
+  // doesn't have a password to change here. We render a themed lock
+  // card instead of the form in that case.
   //
-  // TODO(backend has_password): replace this check with
-  //   `user?.hasPassword === false` once the backend adds a
-  //   has_password claim to the JWT (see SIGN_IN_METHOD_KEY comment
-  //   in AuthContext.jsx). The claim is signed and authoritative;
-  //   the localStorage marker we use here is only safe for UX gating.
-  //
-  // Lenient by default: anyone whose signInMethod is null/undefined
-  // (legacy localStorage from before this feature shipped) still sees
-  // the form. They'll get the right view the next time they sign out
-  // and back in.
-  const isOAuthOnlySession = user?.signInMethod === 'google';
+  // The claim reflects the user row at sign-in time, so an account
+  // that gains a password mid-session (Google user calling
+  // PUT /auth/password to set their first one) will keep
+  // hasPassword=false until their next token mint. Acceptable —
+  // the natural refresh cycle catches it within an hour, and the
+  // backend already handles the "no hash yet → set one" path.
+  const hasNoPassword = user?.hasPassword === false;
 
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -232,80 +229,52 @@ export default function ChangePasswordTab() {
   };
 
   // ---------------------------------------------------------------------------
-  // Locked branch — OAuth-only session.
+  // Locked branch — account has no password to change.
   //
-  // The user signed in with Google, so they don't have a password for
-  // us to change. Render a clearly-themed lock card instead of the
-  // form. Same `innerCardSx` surface as the rest of the page so the
-  // visual hierarchy stays consistent — only the content differs.
+  // The JWT's has_password claim is false, so the user signed in via
+  // an external identity provider and there's nothing for us to
+  // change here. Render a themed lock card instead of the form. Same
+  // `innerCardSx` surface as the rest of the page so the visual
+  // hierarchy stays consistent — only the content differs.
+  //
+  // Copy is provider-agnostic: the claim tells us the account has no
+  // password, but not which IdP minted the session. If a second
+  // provider (Microsoft / SSO / SAML / etc.) lands later, this card
+  // works as-is.
   // ---------------------------------------------------------------------------
-  if (isOAuthOnlySession) {
+  if (hasNoPassword) {
     return (
       <Stack sx={{ gap: 2.5 }}>
         <Box sx={innerCardSx}>
           <Stack alignItems="center" sx={{ py: 4, gap: 1.5, textAlign: 'center', maxWidth: 520, mx: 'auto' }}>
-            {/* Lock + provider chip — visually communicates "external
-                provider managed" at a glance before the user reads. */}
-            <Stack direction="row" alignItems="center" sx={{ gap: 1 }}>
-              <Box
-                sx={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: '50%',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--green)',
-                  backgroundColor: 'rgba(72, 247, 245, 0.08)',
-                  border: '1px solid var(--reflected-light)',
-                  fontSize: '1.2rem'
-                }}
-              >
-                <AntIcon icon={LockOutlined} />
-              </Box>
-              <Box
-                sx={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: '50%',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--blue)',
-                  backgroundColor: 'rgba(26, 118, 224, 0.08)',
-                  border: '1px solid var(--reflected-light)',
-                  fontSize: '1.2rem'
-                }}
-              >
-                <AntIcon icon={GoogleOutlined} />
-              </Box>
-            </Stack>
+            <Box
+              sx={{
+                width: 52,
+                height: 52,
+                borderRadius: '50%',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--green)',
+                backgroundColor: 'rgba(72, 247, 245, 0.08)',
+                border: '1px solid var(--reflected-light)',
+                fontSize: '1.35rem'
+              }}
+            >
+              <AntIcon icon={LockOutlined} />
+            </Box>
 
             <Typography variant="h6" sx={sectionTitleSx}>
               Password Change Not Available
             </Typography>
 
             <Typography sx={{ color: 'var(--blue)', fontSize: '0.9rem', lineHeight: 1.55, opacity: 0.9 }}>
-              You signed in with Google, so this account doesn't have a password to manage from here. Your sign-in
-              is handled by your Google account.
+              This account doesn't have a password to manage from here. Your sign-in is handled by an external
+              identity provider.
             </Typography>
 
             <Typography sx={{ color: 'var(--blue)', fontSize: '0.82rem', opacity: 0.75, mt: 1 }}>
-              To change the password on your Google account, visit{' '}
-              <Box
-                component="a"
-                href="https://myaccount.google.com/security"
-                target="_blank"
-                rel="noopener noreferrer"
-                sx={{
-                  color: 'var(--green)',
-                  textDecoration: 'none',
-                  '&:hover': { textDecoration: 'underline' }
-                }}
-              >
-                myaccount.google.com/security
-              </Box>
-              .
+              To update your sign-in credentials, visit your identity provider's account settings directly.
             </Typography>
           </Stack>
         </Box>

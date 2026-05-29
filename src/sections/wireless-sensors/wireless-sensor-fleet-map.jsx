@@ -426,6 +426,47 @@ function usePulse(period = 1500, fps = 20) {
   return t;
 }
 
+// PulsingHalos — renders the breathing halo rings in ISOLATION.
+//
+// usePulse updates state ~20×/sec. Previously it lived in the top-level
+// WirelessSensorFleetMap component, so every frame re-rendered the entire
+// map subtree (APIProvider, <Map>, all core markers, controllers, the
+// InfoWindow) 20×/sec — churn the user saw as the map "flashing /
+// reloading". Moving the pulse into this leaf means only the cheap halo
+// markers re-render each frame; everything else renders only when its own
+// data actually changes.
+//
+// `targets` is a stable array the parent memoizes WITHOUT the pulse value:
+// `{ key, lat, lng, fill, zIndex }` per halo. Visibility (which sensors get
+// a halo) is decided by the parent so this component stays purely visual.
+function PulsingHalos({ targets }) {
+  const pulseT = usePulse();
+  if (!targets.length) return null;
+  const scale = HALO_BASE_SCALE + pulseT * HALO_GROW;
+  const fillOpacity = HALO_BASE_OPACITY * (1 - pulseT);
+  return (
+    <>
+      {targets.map((t) => (
+        <Marker
+          key={t.key}
+          position={{ lat: t.lat, lng: t.lng }}
+          clickable={false}
+          zIndex={t.zIndex}
+          icon={{
+            path: CIRCLE_PATH,
+            scale,
+            fillColor: t.fill,
+            fillOpacity,
+            strokeColor: t.fill,
+            strokeOpacity: fillOpacity * 0.6,
+            strokeWeight: 1
+          }}
+        />
+      ))}
+    </>
+  );
+}
+
 // Selection-aware camera controller. Replaces the previous
 // SelectionCameraController + count-driven FitBoundsController split that
 // the PheNode map uses.
@@ -670,8 +711,6 @@ export default function WirelessSensorFleetMap({
   const [proximityEnabled, setProximityEnabled] = useState(false);
   const [phenodeOverlayEnabled, setPhenodeOverlayEnabled] = useState(false);
 
-  const pulseT = usePulse();
-
   // Plottable subset — sensors that have both lat AND lng. fitBounds
   // controller depends on a stable reference for its count comparison.
   const plottable = useMemo(() => (sensors ?? []).filter(hasValidSensorLocation), [sensors]);
@@ -761,6 +800,40 @@ export default function WirelessSensorFleetMap({
     [nearbySensors]
   );
 
+  // Halo targets — which pins get a pulsing ring, computed WITHOUT the pulse
+  // value so this list stays referentially stable across animation frames
+  // (the actual breathing is applied inside <PulsingHalos>). Declared here,
+  // above the loading/empty early-returns, so the hook order stays stable.
+  // Mirrors the marker visibility rule in the render: with Nearby OFF only
+  // the selected sensor renders; with it ON, every in-radius ("emphasized")
+  // sensor does. The parent PheNode overlay gets a halo when its toggle is on.
+  const haloTargets = useMemo(() => {
+    const out = [];
+    for (const s of plottable) {
+      const isSelected = s.externalSensorId === selectedSensorId;
+      if (!isSelected && !proximityEnabled) continue;
+      const isEmphasized = !proximityEnabled || nearbyIds.has(s.externalSensorId);
+      if (!isEmphasized) continue;
+      out.push({
+        key: s.externalSensorId,
+        lat: s.latitude,
+        lng: s.longitude,
+        fill: isSelected ? HALO_SELECTED_FILL : HALO_UNSELECTED_FILL,
+        zIndex: isSelected ? 998 : 0
+      });
+    }
+    if (phenodeOverlayEnabled && parentDevice && hasValidDeviceLocation(parentDevice)) {
+      out.push({
+        key: '__phenode_overlay__',
+        lat: parentDevice.latitude,
+        lng: parentDevice.longitude,
+        fill: PHENODE_HALO_FILL,
+        zIndex: 1500
+      });
+    }
+    return out;
+  }, [plottable, selectedSensorId, proximityEnabled, nearbyIds, phenodeOverlayEnabled, parentDevice]);
+
   // Display name for the active sensor (label || externalSensorId)
   // — used in the rename modal and the "Within X mi of …" caption on
   // the Nearby card. Falls back to a generic placeholder so a freshly
@@ -817,11 +890,6 @@ export default function WirelessSensorFleetMap({
   const totalCount = sensors?.length ?? 0;
   const plottableCount = plottable.length;
   const hiddenCount = totalCount - plottableCount;
-
-  // Halo icon configs — recomputed each pulse tick to drive the
-  // expanding-and-fading ring effect.
-  const haloScale = HALO_BASE_SCALE + pulseT * HALO_GROW;
-  const haloOpacity = HALO_BASE_OPACITY * (1 - pulseT);
 
   // Defensive default branches — same cascade as the PheNode map.
 
@@ -1030,13 +1098,15 @@ export default function WirelessSensorFleetMap({
                     />
                   </>
                 )}
+                {/* Pulsing halos render in isolation so the per-frame
+                    animation doesn't re-render the whole map. */}
+                <PulsingHalos targets={haloTargets} />
                 {plottable.map((s) => {
                   const isSelected = s.externalSensorId === selectedSensorId;
                   // Same visibility rule as PheNode map: render only the
                   // selected sensor by default, all in-radius sensors
                   // when Nearby is on.
                   if (!isSelected && !proximityEnabled) return null;
-                  const haloFill = isSelected ? HALO_SELECTED_FILL : HALO_UNSELECTED_FILL;
                   const isEmphasized = !proximityEnabled || nearbyIds.has(s.externalSensorId);
                   const baseCoreIcon = isSelected ? CORE_SELECTED_ICON : CORE_UNSELECTED_ICON;
                   const coreIcon = isEmphasized
@@ -1048,22 +1118,6 @@ export default function WirelessSensorFleetMap({
                       };
                   return (
                     <Fragment key={s.externalSensorId}>
-                      {isEmphasized && (
-                        <Marker
-                          position={{ lat: s.latitude, lng: s.longitude }}
-                          clickable={false}
-                          zIndex={isSelected ? 998 : 0}
-                          icon={{
-                            path: CIRCLE_PATH,
-                            scale: haloScale,
-                            fillColor: haloFill,
-                            fillOpacity: haloOpacity,
-                            strokeColor: haloFill,
-                            strokeOpacity: haloOpacity * 0.6,
-                            strokeWeight: 1
-                          }}
-                        />
-                      )}
                       <Marker
                         position={{ lat: s.latitude, lng: s.longitude }}
                         icon={coreIcon}
@@ -1090,29 +1144,13 @@ export default function WirelessSensorFleetMap({
                   pin in the cluster.
                 */}
                 {phenodeOverlayActive && (
-                  <>
-                    <Marker
-                      position={{ lat: parentDevice.latitude, lng: parentDevice.longitude }}
-                      clickable={false}
-                      zIndex={1500}
-                      icon={{
-                        path: CIRCLE_PATH,
-                        scale: HALO_BASE_SCALE + pulseT * HALO_GROW,
-                        fillColor: PHENODE_HALO_FILL,
-                        fillOpacity: HALO_BASE_OPACITY * (1 - pulseT),
-                        strokeColor: PHENODE_HALO_FILL,
-                        strokeOpacity: HALO_BASE_OPACITY * (1 - pulseT) * 0.6,
-                        strokeWeight: 1
-                      }}
-                    />
-                    <Marker
-                      position={{ lat: parentDevice.latitude, lng: parentDevice.longitude }}
-                      icon={PHENODE_PIN_ICON}
-                      zIndex={1600}
-                      onMouseOver={() => setIsHoveringPhenode(true)}
-                      onMouseOut={() => setIsHoveringPhenode(false)}
-                    />
-                  </>
+                  <Marker
+                    position={{ lat: parentDevice.latitude, lng: parentDevice.longitude }}
+                    icon={PHENODE_PIN_ICON}
+                    zIndex={1600}
+                    onMouseOver={() => setIsHoveringPhenode(true)}
+                    onMouseOut={() => setIsHoveringPhenode(false)}
+                  />
                 )}
 
                 {/*

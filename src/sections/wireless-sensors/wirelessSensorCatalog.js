@@ -42,14 +42,24 @@ export const WIRELESS_CATEGORY_IDS = {
 //   • Default single-series line                    → var(--blue)
 //   • Secondary / overlay line on the same chart    → var(--purple)
 //   • Light family (LUX)                            → yellow
-//   • Power family (battery, solar V, USB V, accel) → var(--red)
+//   • Battery / voltage / power charts              → diagnostics-red ramp,
+//     anchored on the System Diagnostics battery-voltage red (#f47568)
+//   • Accelerometer X / Y / Z                       → blue / purple / green
 //
 // When multiple sensors are overlaid on the same chart, the panel ignores
 // these and uses its own per-sensor palette (so each sensor gets one color
 // across every chart). These COLORS apply to the single-sensor render path.
 const PRIMARY = 'var(--blue)';
 const SECONDARY = 'var(--purple)';
-const POWER = 'var(--red)';
+const TERTIARY = 'var(--green)';
+// Power family — same diagnostics-red ramp as the device catalog so the
+// "nice red" carries across every battery/voltage/power chart. Battery
+// voltage (most common voltage) = the exact diagnostics red; the others are
+// slight variations of it. Keep in sync with measurementCatalog.js.
+const POWER_VOLTAGE = '#f47568'; // battery voltage — matches DiagnosticsChartsPanel
+const POWER_CHARGE = '#db5347'; // battery charge — deeper red
+const POWER_SOLAR = '#ef6253'; // solar voltage — mid red
+const POWER_USB = '#f8917f'; // USB voltage — lighter salmon
 const LIGHT_PRIMARY = '#fde047'; // bright yellow — LUX anchor
 
 const COLORS = {
@@ -60,11 +70,11 @@ const COLORS = {
   gas: PRIMARY,
   lux: LIGHT_PRIMARY,
   altitude: PRIMARY,
-  // Accelerometer axes — 3 distinct hues from the power family so X/Y/Z stay
-  // visually separable while still reading as "power & device" tone.
-  accelX: POWER,
-  accelY: '#ff8c49', // orange — pairs with the red/purple accel set
-  accelZ: SECONDARY,
+  // Accelerometer axes — blue / purple / green so X/Y/Z stay clearly
+  // separable (per Jake's spec).
+  accelX: PRIMARY, // var(--blue)
+  accelY: SECONDARY, // var(--purple)
+  accelZ: TERTIARY, // var(--green)
   soilMoisture: PRIMARY,
   soilMoistureSecondary: SECONDARY,
   soilTemp: PRIMARY,
@@ -73,10 +83,10 @@ const COLORS = {
   soilEcSecondary: SECONDARY,
   soilMatric: PRIMARY,
   soilMatricSecondary: SECONDARY,
-  batteryCharge: POWER,
-  batteryVoltage: POWER,
-  solarVoltage: POWER,
-  usbVoltage: POWER,
+  batteryCharge: POWER_CHARGE,
+  batteryVoltage: POWER_VOLTAGE,
+  solarVoltage: POWER_SOLAR,
+  usbVoltage: POWER_USB,
   // Depth ramp for the 4-line soil-profile charts (shallow → deep). Kept as a
   // blue-shade ramp so all four lines remain visually orderable.
   depth: ['#7dd3fc', '#38bdf8', '#0ea5e9', '#0369a1']

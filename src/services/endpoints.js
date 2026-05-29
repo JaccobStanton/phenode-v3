@@ -118,8 +118,15 @@ const API = {
     // ISO timestamps are URL-encoded because path segments are sent
     // as-is by the browser and ':' / '+' chars can confuse some proxies.
     // Source: phenodeX/phenode_backend/api/devices/routes.py:909
-    sensorDataDownload: (externalDeviceId, fromIso, toIso) =>
-      `/devices/${externalDeviceId}/sensor-data/${encodeURIComponent(fromIso)}/${encodeURIComponent(toIso)}`,
+    // `includeWirelessSensors=false` appends ?include_wireless_sensors=false so an
+    // "Environmental Data" export returns ONLY the device CSV. Default true keeps
+    // the URL byte-identical to before (backward compatible). FastAPI ignores the
+    // extra query param until the backend declares it, so passing false is a safe
+    // no-op today and becomes effective the moment the flag lands. See
+    // download-bugs-diagnosis.md (Bug 1).
+    sensorDataDownload: (externalDeviceId, fromIso, toIso, includeWirelessSensors = true) =>
+      `/devices/${externalDeviceId}/sensor-data/${encodeURIComponent(fromIso)}/${encodeURIComponent(toIso)}` +
+      (includeWirelessSensors ? '' : '?include_wireless_sensors=false'),
     // POST — server-generated diagnostics/health CSV download for a date
     // range. Same preference-application + filename behavior as
     // sensorDataDownload, but pulls the Notecard health series.

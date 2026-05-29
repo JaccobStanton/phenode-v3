@@ -772,7 +772,7 @@ export default function SensorMeasurements() {
     : isMapToggleHovered
       ? mapIconActive
       : mapIconInactive;
-  const mapToggleTooltip = isMapView ? 'Sensor Measurements' : 'Map View';
+  const mapToggleTooltip = isMapView ? 'Base Station Measurements' : 'Map View';
 
   // (searchParams + deviceFromUrl + rangeFromUrl + viewFromUrl already
   // resolved at the top of the component — see the URL-state block.
@@ -1091,7 +1091,7 @@ export default function SensorMeasurements() {
             }}
           >
             <Typography variant="h4" sx={{ color: 'var(--blue)' }}>
-              Sensor Measurements
+              Base Station Measurements
             </Typography>
             <Typography
               variant="subtitle1"

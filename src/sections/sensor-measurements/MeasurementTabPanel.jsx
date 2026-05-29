@@ -290,9 +290,10 @@ function renderChartBody(chart, rows, { from, to, xAxisTicks, axisFormat, height
       // `renderedAsMulti` keys off the actual rendered series count, NOT the
       // catalog declaration. If a chart declares two probes but only one has
       // data on this device, lines.length === 1 → render it like a single-
-      // series chart (area glow on, no legend) for visual parity with the
-      // other charts. With both lines, drop the area fill so overlapping
-      // translucent bands don't muddy the chart.
+      // series chart (no legend) for visual parity with the other charts.
+      // Area fill stays ON for every line so all charts carry the same subtle
+      // glow; multi-series charts just use a lower fill opacity (set in the sx
+      // below) so two overlapping translucent bands don't muddy the chart.
       series={lines.map((l, i) => {
         const renderedAsMulti = lines.length > 1;
         return {
@@ -300,7 +301,7 @@ function renderChartBody(chart, rows, { from, to, xAxisTicks, axisFormat, height
           data: l.values,
           label: renderedAsMulti ? l.label : undefined,
           color: l.color,
-          area: !renderedAsMulti,
+          area: true,
           showMark: chart.chartType === 'step',
           curve,
           connectNulls: true,
@@ -320,7 +321,9 @@ function renderChartBody(chart, rows, { from, to, xAxisTicks, axisFormat, height
       margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
       hideLegend={lines.length < 2}
       slotProps={lines.length > 1 ? { legend: { labelStyle: { fontSize: 11, fill: 'var(--green)' } } } : undefined}
-      sx={chartSx}
+      // Multi-series: drop the area fill opacity so two overlapping bands stay
+      // subtle while still giving the chart the same soft glow as single-series.
+      sx={lines.length > 1 ? { ...chartSx, '& .MuiAreaElement-root': { fillOpacity: 0.07 } } : chartSx}
     />
   );
 }

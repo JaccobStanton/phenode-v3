@@ -223,12 +223,7 @@ export default function AuthLogin() {
         // login() persists both tokens AND updates the AuthContext so
         // every consumer (Profile menu, future fetch hooks, route guards)
         // sees the new session without re-reading localStorage.
-        //
-        // Second arg records HOW we got here — 'password' for this
-        // form, 'google' from the OAuth callback. Used by
-        // ChangePasswordTab to decide whether to render the form or
-        // the "not available — OAuth account" lock card.
-        login(data, 'password');
+        login(data);
         // Pre-warm the device list before navigating. SWR's `preload`
         // kicks off the fetch (it doesn't await) and populates the
         // cache against the same key useMyDevices() will use on mount,
@@ -336,10 +331,12 @@ export default function AuthLogin() {
           <OutlinedInput
             id="email-login"
             name="email"
-            type="email"
+            // type="text" (not "email") so a plain username — which has no "@" —
+            // isn't rejected by the browser's built-in email-format validation.
+            type="text"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="Enter your email..."
+            placeholder="Enter your email or username..."
             fullWidth
             autoComplete="username"
             sx={blendedInputSx}

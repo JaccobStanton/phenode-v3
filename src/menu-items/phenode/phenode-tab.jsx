@@ -25,7 +25,7 @@ const pheNodeTab = {
     },
     {
       id: 'sensor-measurements',
-      title: 'Sensor Measurements',
+      title: 'Base Station',
       type: 'item',
       url: '/dashboard/sensor-measurements',
       iconInactive: realTimeIconInactive,

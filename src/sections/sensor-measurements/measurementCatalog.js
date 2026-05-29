@@ -74,18 +74,29 @@ export const TAB_IDS = {
 //   • Rain                                          → blue (it IS the default,
 //                                                     called out so future
 //                                                     edits don't tint it)
-//   • Light-family (LUX, PAR, solar radiation,
-//     lightning)                                    → yellow ramp
-//   • Power-family (battery, solar V, USB V, accel) → var(--red) (#ff484b)
+//   • Light-family (LUX, PAR, lightning)            → yellow ramp
+//   • Solar radiation (its own panel)               → orange (3rd light shade)
+//   • Battery / voltage / power charts              → diagnostics-red ramp,
+//     anchored on the System Diagnostics battery-voltage red (#f47568)
+//   • Accelerometer X / Y / Z                       → blue / purple / green
 //
 // The 4-line soil-profile "depth ramp" stays a blue-shade ramp so shallow →
 // deep is still readable on a single chart; the rest of soil is treated as
 // primary/secondary (Probe 1 = blue, Probe 2 = purple).
 const PRIMARY = 'var(--blue)';
 const SECONDARY = 'var(--purple)';
-const POWER = 'var(--red)';
+const TERTIARY = 'var(--green)';
+// Power family — anchored on the System Diagnostics battery-voltage red
+// (#f47568) so that "nice red" carries across every battery/voltage/power
+// chart. Battery voltage (the most common voltage reading) uses the exact
+// diagnostics red; the other power metrics use slight variations of it so
+// they read as one family while staying individually distinguishable.
+const POWER_VOLTAGE = '#f47568'; // battery voltage — matches DiagnosticsChartsPanel
+const POWER_CHARGE = '#db5347'; // battery charge — deeper red
+const POWER_SOLAR = '#ef6253'; // solar voltage — mid red
+const POWER_USB = '#f8917f'; // USB voltage — lighter salmon
 const LIGHT_PRIMARY = '#fde047'; // bright yellow — LUX/lightning anchor
-const LIGHT_SECONDARY = '#f59e0b'; // amber — pairs with the primary yellow
+const LIGHT_TERTIARY = '#fb923c'; // orange — solar radiation (its own panel)
 
 const COLORS = {
   temperature: PRIMARY,
@@ -107,7 +118,7 @@ const COLORS = {
   lightning: LIGHT_PRIMARY,
   lux: LIGHT_PRIMARY,
   par: LIGHT_PRIMARY,
-  solarRadiation: LIGHT_SECONDARY,
+  solarRadiation: LIGHT_TERTIARY,
   soilMoisture: PRIMARY,
   soilMoistureSecondary: SECONDARY,
   soilTemp: PRIMARY,
@@ -117,15 +128,16 @@ const COLORS = {
   soilMatric: PRIMARY,
   soilMatricSecondary: SECONDARY,
   altitude: PRIMARY,
-  // Accelerometer axes — 3 distinct hues from the power family so X/Y/Z stay
-  // visually separable while still reading as "power & device" tone.
-  accelX: POWER,
-  accelY: '#ff8c49', // orange (existing --orange token)
-  accelZ: SECONDARY, // purple — contrasts the warm accelX/Y
-  batteryCharge: POWER,
-  batteryVoltage: POWER,
-  solarVoltage: POWER,
-  usbVoltage: POWER,
+  // Accelerometer axes — blue / purple / green so X/Y/Z stay clearly
+  // separable (per Jake's spec).
+  accelX: PRIMARY, // var(--blue)
+  accelY: SECONDARY, // var(--purple)
+  accelZ: TERTIARY, // var(--green)
+  // Battery / voltage / power — diagnostics-red family (see POWER_* above).
+  batteryCharge: POWER_CHARGE,
+  batteryVoltage: POWER_VOLTAGE,
+  solarVoltage: POWER_SOLAR,
+  usbVoltage: POWER_USB,
   // Depth ramps for the 4-line soil-profile charts (shallow → deep). Kept as a
   // blue-shade ramp so all four lines remain visually orderable.
   depth: ['#7dd3fc', '#38bdf8', '#0ea5e9', '#0369a1']
@@ -434,23 +446,36 @@ export function buildMeasurementCatalog(displayPrefs) {
       availability: 'live'
     },
     {
-      // PAR/PPFD + Atmos 41 solar radiation share this panel as two lines once
-      // the backend exposes them. Neither field exists in a time-series
-      // projection today.
+      // PAR is the Apogee SQ-522 sensor only. Solar radiation (Atmos 41) is a
+      // DIFFERENT sensor and gets its own panel below — they are not the same
+      // measurement and should not share a chart.
       key: 'par_ppfd',
       title: 'PAR',
       info: 'Photosynthetic Photon Flux Density',
       source: 'device',
-      chartType: 'multiline',
-      unit: 'W/m²',
+      chartType: 'line',
+      primaryField: 'par_ppfd',
+      unit: 'µmol/m²/s',
       transform: identity,
       color: COLORS.par,
-      series: [
-        { field: 'par_ppfd', label: 'Apogee PAR', color: COLORS.par },
-        { field: 'solar_radiation', label: 'Atmos 41 (solar radiation)', color: COLORS.solarRadiation }
-      ],
       availability: 'live',
-      note: 'Atmos 41 solar_radiation is live (downloads.py:987); Apogee SQ-522 PAR field still pending — the chart shows whichever series has data.'
+      note: 'Apogee SQ-522 PAR. No customer has the PAR sensor yet (integrated, sold soon) — the chart shows data once a device reports par_ppfd.'
+    },
+    {
+      // Solar radiation ships standard with every Atmos 41 weather sensor, so
+      // unlike PAR this panel has live data today. Distinct orange so it reads
+      // as its own light measurement, separate from LUX/PAR's yellow.
+      key: 'solar_radiation',
+      title: 'Solar Radiation',
+      info: 'Atmos 41 shortwave solar radiation',
+      source: 'device',
+      chartType: 'line',
+      primaryField: 'solar_radiation',
+      unit: 'W/m²',
+      transform: identity,
+      color: COLORS.solarRadiation,
+      availability: 'live',
+      note: 'Atmos 41 solar_radiation is live (downloads.py:987).'
     }
   ];
 
