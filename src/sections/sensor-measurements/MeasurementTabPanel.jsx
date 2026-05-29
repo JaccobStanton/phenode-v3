@@ -21,7 +21,7 @@ import useDeviceMeasurements from 'hooks/data/useDeviceMeasurements';
 import useDisplayPreferences from 'hooks/useDisplayPreferences';
 import useWirelessSensorMeasurements from 'hooks/data/useWirelessSensorMeasurements';
 import { reflectedCardChromeSx, tooltipSlotProps } from 'themes/sx-tokens';
-import { axisTickNumberFor, formatAxisTick, formatTooltipDate, pollingIntervalForRange } from 'utils/chartTimeRanges';
+import { axisTickNumberFor, formatAxisTick, formatTooltipDate } from 'utils/chartTimeRanges';
 import { chartSx, makeYAxisFormatter, MeasurementChart } from 'sections/sensor-measurements/measurementChartCore';
 import { fieldProjectionsForCharts } from 'sections/sensor-measurements/measurementCatalog';
 
@@ -405,32 +405,17 @@ export default function MeasurementTabPanel({ charts, deviceId, wirelessSensorId
   const needDevice = deviceFields.length > 0;
   const needWireless = wirelessFields.length > 0;
 
-  // Disable the 60s SWR background poll when the user picks a long time
-  // range (>7 days). For long ranges, per-poll deltas aren't visible at
-  // the chart's resolution, and re-firing aggregation queries against
-  // millions of `sensor_data` rows every minute wastes DB cycles — the
-  // exact pattern that triggered the May 28, 2026 incident. Short ranges
-  // (≤7 days) get `undefined` here so the hook's own 60s default applies.
-  // See pollingIntervalForRange's JSDoc for the full rationale.
-  const refreshIntervalMs = pollingIntervalForRange(from, to);
-
   const {
     rows: deviceRows,
     isLoading: deviceLoading,
     error: deviceError
-  } = useDeviceMeasurements(needDevice ? deviceId : null, { from, to, fields: deviceFields, bucket: 'auto', refreshIntervalMs });
+  } = useDeviceMeasurements(needDevice ? deviceId : null, { from, to, fields: deviceFields, bucket: 'auto' });
 
   const {
     rows: wirelessRows,
     isLoading: wirelessLoading,
     error: wirelessError
-  } = useWirelessSensorMeasurements(needWireless ? wirelessSensorId : null, {
-    from,
-    to,
-    fields: wirelessFields,
-    bucket: 'auto',
-    refreshIntervalMs
-  });
+  } = useWirelessSensorMeasurements(needWireless ? wirelessSensorId : null, { from, to, fields: wirelessFields, bucket: 'auto' });
 
   const rowsFor = (chart) => (chart.source === 'wireless' ? wirelessRows : deviceRows);
 

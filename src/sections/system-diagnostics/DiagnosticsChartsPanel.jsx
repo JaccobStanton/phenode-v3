@@ -24,7 +24,7 @@ import { useToast } from 'providers/ToastProvider';
 import { downloadDeviceHealthData } from 'services/mutations';
 import triggerBlobDownload from 'utils/triggerBlobDownload';
 
-import { CHART_TIME_RANGE_LABELS, computeAxisTicks, computeChartWindow, pollingIntervalForRange } from 'utils/chartTimeRanges';
+import { CHART_TIME_RANGE_LABELS, computeAxisTicks, computeChartWindow } from 'utils/chartTimeRanges';
 
 import { MeasurementChart } from 'sections/sensor-measurements/measurementChartCore';
 
@@ -194,15 +194,6 @@ export default function DiagnosticsChartsPanel({ selectedPheNodeId, selectedDevi
   const { from, to, axisFormat } = useMemo(() => computeChartWindow(timeRange), [timeRange]);
   const xAxisTicks = useMemo(() => computeAxisTicks(from, to, axisFormat), [from, to, axisFormat]);
 
-  // Disable the 60s SWR background poll when the user picks a long time
-  // range (>7 days). For long ranges, per-poll deltas aren't visible at
-  // the chart's resolution, and re-firing aggregation queries against
-  // millions of `sensor_data` rows every minute wastes DB cycles — the
-  // exact pattern that triggered the May 28, 2026 incident. Short ranges
-  // (≤7 days) get `undefined` here so each hook's own 60s default applies.
-  // See pollingIntervalForRange's JSDoc for the full rationale.
-  const refreshIntervalMs = pollingIntervalForRange(from, to);
-
   // Two feeds back the six charts. Both hooks live INSIDE this lazy panel, so
   // the network requests don't fire until the panel mounts — that's the LCP
   // win the lazy split is here for. We pull `isLoading` + `isValidating` from
@@ -212,12 +203,12 @@ export default function DiagnosticsChartsPanel({ selectedPheNodeId, selectedDevi
     rows: healthRows,
     isLoading: healthLoading,
     isValidating: healthValidating
-  } = useDeviceHealth(selectedPheNodeId, { from, to, fields: HEALTH_CHART_FIELDS, bucket: 'auto', refreshIntervalMs });
+  } = useDeviceHealth(selectedPheNodeId, { from, to, fields: HEALTH_CHART_FIELDS, bucket: 'auto' });
   const {
     rows: envRows,
     isLoading: envLoading,
     isValidating: envValidating
-  } = useDeviceMeasurements(selectedPheNodeId, { from, to, fields: ENV_CHART_FIELDS, bucket: 'auto', refreshIntervalMs });
+  } = useDeviceMeasurements(selectedPheNodeId, { from, to, fields: ENV_CHART_FIELDS, bucket: 'auto' });
 
   // "User just changed the selection" tracker — feeds the toolbar loading
   // badge without flickering on the 60s SWR background poll. Mirrors
@@ -256,9 +247,9 @@ export default function DiagnosticsChartsPanel({ selectedPheNodeId, selectedDevi
   const chartConfigs = useMemo(() => buildChartConfigs(displayPrefs), [displayPrefs]);
 
   // Series built ONCE per (configs × rows) and reused by every render until
-  // the rows reference changes. The hooks' `compare: JSON.stringify` guard
-  // keeps the reference stable across byte-identical SWR polls, so 60s
-  // background polls cost zero series rebuilds in the no-op case.
+  // the rows reference changes. The hooks' cheap compare keeps the source
+  // reference stable across byte-identical SWR polls, so 60s background
+  // polls cost zero series rebuilds in the no-op case.
   const chartSeries = useMemo(
     () =>
       chartConfigs.map((cfg) => {
