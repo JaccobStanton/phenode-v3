@@ -24,7 +24,7 @@ import { useToast } from 'providers/ToastProvider';
 import { downloadDeviceHealthData } from 'services/mutations';
 import triggerBlobDownload from 'utils/triggerBlobDownload';
 
-import { CHART_TIME_RANGE_LABELS, computeAxisTicks, computeChartWindow } from 'utils/chartTimeRanges';
+import { CHART_TIME_RANGE_LABELS, computeAxisTicks, computeChartWindow, pollingIntervalForRange } from 'utils/chartTimeRanges';
 
 import { MeasurementChart } from 'sections/sensor-measurements/measurementChartCore';
 
@@ -145,7 +145,7 @@ function buildChartConfigs(displayPrefs) {
     },
     { key: 'rssi', source: 'health', title: 'Cellular RSSI', color: '#48f7f5', unit: 'dBm', transform: identity },
     { key: 'sinr', source: 'health', title: 'Cellular SNIR', color: '#7bdff2', unit: 'dB', transform: identity },
-    { key: 'notecard_voltage', source: 'health', title: 'Voltage (mV)', color: '#f4d04b', unit: 'mV', transform: vToMv },
+    { key: 'notecard_voltage', source: 'health', title: 'Modem Voltage (mV)', color: '#f4d04b', unit: 'mV', transform: vToMv },
     {
       key: 'battery_voltage',
       source: 'env',
@@ -194,6 +194,15 @@ export default function DiagnosticsChartsPanel({ selectedPheNodeId, selectedDevi
   const { from, to, axisFormat } = useMemo(() => computeChartWindow(timeRange), [timeRange]);
   const xAxisTicks = useMemo(() => computeAxisTicks(from, to, axisFormat), [from, to, axisFormat]);
 
+  // Disable the 60s SWR background poll when the user picks a long time
+  // range (>7 days). For long ranges, per-poll deltas aren't visible at
+  // the chart's resolution, and re-firing aggregation queries against
+  // millions of `sensor_data` rows every minute wastes DB cycles — the
+  // exact pattern that triggered the May 28, 2026 incident. Short ranges
+  // (≤7 days) get `undefined` here so each hook's own 60s default applies.
+  // See pollingIntervalForRange's JSDoc for the full rationale.
+  const refreshIntervalMs = pollingIntervalForRange(from, to);
+
   // Two feeds back the six charts. Both hooks live INSIDE this lazy panel, so
   // the network requests don't fire until the panel mounts — that's the LCP
   // win the lazy split is here for. We pull `isLoading` + `isValidating` from
@@ -203,12 +212,12 @@ export default function DiagnosticsChartsPanel({ selectedPheNodeId, selectedDevi
     rows: healthRows,
     isLoading: healthLoading,
     isValidating: healthValidating
-  } = useDeviceHealth(selectedPheNodeId, { from, to, fields: HEALTH_CHART_FIELDS, bucket: 'auto' });
+  } = useDeviceHealth(selectedPheNodeId, { from, to, fields: HEALTH_CHART_FIELDS, bucket: 'auto', refreshIntervalMs });
   const {
     rows: envRows,
     isLoading: envLoading,
     isValidating: envValidating
-  } = useDeviceMeasurements(selectedPheNodeId, { from, to, fields: ENV_CHART_FIELDS, bucket: 'auto' });
+  } = useDeviceMeasurements(selectedPheNodeId, { from, to, fields: ENV_CHART_FIELDS, bucket: 'auto', refreshIntervalMs });
 
   // "User just changed the selection" tracker — feeds the toolbar loading
   // badge without flickering on the 60s SWR background poll. Mirrors

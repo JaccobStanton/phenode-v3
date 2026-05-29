@@ -61,55 +61,98 @@ const ohmToKohm = (ohm) => ohm / 1000;
 // Tab ids — used by the URL ?tab= param and the panel switch. Exported so the
 // shell and the deep-link logic share the same vocabulary.
 export const TAB_IDS = {
+  ALL: 'all',
   WEATHER: 'weather',
   LIGHT: 'light',
   SOIL: 'soil',
   POWER: 'power'
 };
 
-// Palette — reuses the existing sensor-measurements stroke colors for visual
-// continuity, then extends with distinct hues for the new metrics. Secondary
-// / overlay series get a desaturated sibling so "primary vs Atmos" reads at a
-// glance without a legend lookup.
+// Palette — unified per Jake's chart-color spec (May 2026):
+//   • Default single-series line                    → var(--blue) (#1a76e0)
+//   • Secondary / overlay line on the same chart    → var(--purple) (#8955e2)
+//   • Rain                                          → blue (it IS the default,
+//                                                     called out so future
+//                                                     edits don't tint it)
+//   • Light-family (LUX, PAR, solar radiation,
+//     lightning)                                    → yellow ramp
+//   • Power-family (battery, solar V, USB V, accel) → var(--red) (#ff484b)
+//
+// The 4-line soil-profile "depth ramp" stays a blue-shade ramp so shallow →
+// deep is still readable on a single chart; the rest of soil is treated as
+// primary/secondary (Probe 1 = blue, Probe 2 = purple).
+const PRIMARY = 'var(--blue)';
+const SECONDARY = 'var(--purple)';
+const POWER = 'var(--red)';
+const LIGHT_PRIMARY = '#fde047'; // bright yellow — LUX/lightning anchor
+const LIGHT_SECONDARY = '#f59e0b'; // amber — pairs with the primary yellow
+
 const COLORS = {
-  temperature: '#48f7f5',
-  temperatureSecondary: '#2a8f8e',
-  humidity: '#c96cfc',
-  pressure: '#f47568',
-  gas: '#7dd3fc',
-  windSpeed: '#f4d04b',
-  windSpeedSecondary: '#9a812b',
-  windDirection: '#f4a04b',
-  windGust: '#f7e06b',
-  // Calypso line color — single shared cool-tone that contrasts the warm
-  // atmos palette across all three wind charts.
-  windCalypso: '#60a5fa',
-  rainfall: '#0043c2',
-  rainfallSecondary: '#3b6fd6',
-  gdd: '#56d364',
-  lightning: '#fbbf24',
-  lux: '#fde047',
-  par: '#a3e635',
-  solarRadiation: '#f59e0b',
-  soilMoisture: '#38bdf8',
-  soilMoistureSecondary: '#a78bfa',
-  soilTemp: '#fb7185',
-  soilTempSecondary: '#fbbf24',
-  soilEc: '#c084fc',
-  soilEcSecondary: '#34d399',
-  soilMatric: '#22d3ee',
-  soilMatricSecondary: '#fb923c',
-  altitude: '#94a3b8',
-  accel: '#f87171',
-  batteryCharge: '#34d399',
-  batteryVoltage: '#8539e0',
-  solarVoltage: '#fbbf24',
-  usbVoltage: '#60a5fa',
-  // Depth ramps for the 4-line soil-profile charts (shallow → deep).
+  temperature: PRIMARY,
+  temperatureSecondary: SECONDARY,
+  humidity: PRIMARY,
+  pressure: PRIMARY,
+  gas: PRIMARY,
+  windSpeed: PRIMARY,
+  windSpeedSecondary: SECONDARY,
+  windDirection: PRIMARY,
+  windGust: PRIMARY,
+  // Calypso is the secondary source on every wind chart (Atmos = primary blue,
+  // Calypso = secondary purple) so the two sources read consistently across
+  // wind speed / direction / gust.
+  windCalypso: SECONDARY,
+  rainfall: PRIMARY,
+  rainfallSecondary: SECONDARY,
+  gdd: PRIMARY,
+  lightning: LIGHT_PRIMARY,
+  lux: LIGHT_PRIMARY,
+  par: LIGHT_PRIMARY,
+  solarRadiation: LIGHT_SECONDARY,
+  soilMoisture: PRIMARY,
+  soilMoistureSecondary: SECONDARY,
+  soilTemp: PRIMARY,
+  soilTempSecondary: SECONDARY,
+  soilEc: PRIMARY,
+  soilEcSecondary: SECONDARY,
+  soilMatric: PRIMARY,
+  soilMatricSecondary: SECONDARY,
+  altitude: PRIMARY,
+  // Accelerometer axes — 3 distinct hues from the power family so X/Y/Z stay
+  // visually separable while still reading as "power & device" tone.
+  accelX: POWER,
+  accelY: '#ff8c49', // orange (existing --orange token)
+  accelZ: SECONDARY, // purple — contrasts the warm accelX/Y
+  batteryCharge: POWER,
+  batteryVoltage: POWER,
+  solarVoltage: POWER,
+  usbVoltage: POWER,
+  // Depth ramps for the 4-line soil-profile charts (shallow → deep). Kept as a
+  // blue-shade ramp so all four lines remain visually orderable.
   depth: ['#7dd3fc', '#38bdf8', '#0ea5e9', '#0369a1']
 };
 
 const DEPTH_LABELS = ['15 cm', '30 cm', '45 cm', '60 cm'];
+
+// ---------------------------------------------------------------------------
+// Wind-direction compass labels.
+//
+// Source of truth: the backend computes a 16-point compass string for each
+// wind source and exposes it as a sibling field on the device sensor-data
+// rows (downloads.py:1422 — DEVICE_COMPASS_SOURCE_FIELDS):
+//   • wind_direction          → wind_direction_compass
+//   • atmos_wind_direction    → atmos_wind_direction_compass
+//   • calypso_wind_direction  → calypso_wind_direction_compass
+//
+// The frontend uses those backend strings for the chart's tooltip. The Y-axis
+// ticks are anchored to a fixed 8-point compass at 0/45/90/…/315°, so we keep
+// a tiny static map for those tick labels and avoid recomputing the full
+// 16-point bucket logic on the client.
+// ---------------------------------------------------------------------------
+const COMPASS_TICKS = { 0: 'N', 45: 'NE', 90: 'E', 135: 'SE', 180: 'S', 225: 'SW', 270: 'W', 315: 'NW' };
+export const compassTickFormatter = (deg) => {
+  if (deg === null || deg === undefined) return '';
+  return COMPASS_TICKS[Number(deg)] ?? '';
+};
 
 // Resolve the unit-dependent label + transform for the families that respond
 // to display preferences. Returns { label, transform }.
@@ -279,11 +322,36 @@ export function buildMeasurementCatalog(displayPrefs) {
       title: 'Wind Direction',
       source: 'device',
       chartType: 'scatter',
-      unit: '°',
+      // Empty unit so the Y-axis tick reads as a bare compass heading (N, NE,
+      // SE, …), not "N °".
+      unit: '',
       transform: identity,
+      // Y-axis ticks: the 8-point compass at fixed degree positions. The
+      // scatter branch in MeasurementTabPanel uses this when present.
+      yAxisValueFormatter: compassTickFormatter,
+      // Tooltip: read the backend-derived compass string off the same row as
+      // the degree value. Sibling-field lookup → no client-side bucketing,
+      // so the tooltip can never drift from what the backend reports.
+      // Output: "NW (315°)".
+      pointValueFormatter: (deg, point) => {
+        if (deg === null || deg === undefined || !Number.isFinite(Number(deg))) return null;
+        const compass = point?.compass ?? '';
+        const rounded = Number(deg).toFixed(0);
+        return compass ? `${compass} (${rounded}°)` : `${rounded}°`;
+      },
       series: [
-        { field: 'atmos_wind_direction', label: 'Atmos', color: COLORS.windDirection },
-        { field: 'calypso_wind_direction', label: 'Calypso', color: COLORS.windCalypso }
+        {
+          field: 'atmos_wind_direction',
+          compassField: 'atmos_wind_direction_compass',
+          label: 'Atmos',
+          color: COLORS.windDirection
+        },
+        {
+          field: 'calypso_wind_direction',
+          compassField: 'calypso_wind_direction_compass',
+          label: 'Calypso',
+          color: COLORS.windCalypso
+        }
       ],
       availability: 'live'
     },
@@ -494,9 +562,9 @@ export function buildMeasurementCatalog(displayPrefs) {
       unit: accel.label,
       transform: accel.transform,
       series: [
-        { field: 'accelerationX', label: 'X', color: '#f87171', transform: accel.transform },
-        { field: 'accelerationY', label: 'Y', color: '#fbbf24', transform: accel.transform },
-        { field: 'accelerationZ', label: 'Z', color: '#60a5fa', transform: accel.transform }
+        { field: 'accelerationX', label: 'X', color: COLORS.accelX, transform: accel.transform },
+        { field: 'accelerationY', label: 'Y', color: COLORS.accelY, transform: accel.transform },
+        { field: 'accelerationZ', label: 'Z', color: COLORS.accelZ, transform: accel.transform }
       ],
       availability: 'live'
     },
@@ -551,7 +619,7 @@ export function buildMeasurementCatalog(displayPrefs) {
   ];
 
   return [
-    { id: TAB_IDS.WEATHER, label: 'Weather', charts: weather },
+    { id: TAB_IDS.WEATHER, label: 'Environment', charts: weather },
     { id: TAB_IDS.LIGHT, label: 'Light', charts: light },
     { id: TAB_IDS.SOIL, label: 'Soil', charts: soil },
     { id: TAB_IDS.POWER, label: 'Power & Device', charts: power }
@@ -569,7 +637,12 @@ export function fieldProjectionsForCharts(charts) {
     if (c.availability === 'needs-backend') continue;
     const add = c.source === 'wireless' ? (f) => wireless.add(f) : (f) => device.add(f);
     if (Array.isArray(c.series)) {
-      c.series.forEach((s) => s.field && add(s.field));
+      c.series.forEach((s) => {
+        if (s.field) add(s.field);
+        // Sibling fields (e.g. *_wind_direction_compass) — requested alongside
+        // the numeric series so the panel can render them in the tooltip.
+        if (s.compassField) add(s.compassField);
+      });
     } else if (c.primaryField) {
       add(c.primaryField);
       if (c.secondaryField) add(c.secondaryField);

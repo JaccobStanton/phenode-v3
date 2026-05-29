@@ -21,7 +21,7 @@ import useDeviceMeasurements from 'hooks/data/useDeviceMeasurements';
 import useDisplayPreferences from 'hooks/useDisplayPreferences';
 import useWirelessSensorMeasurements from 'hooks/data/useWirelessSensorMeasurements';
 import { reflectedCardChromeSx, tooltipSlotProps } from 'themes/sx-tokens';
-import { axisTickNumberFor, formatAxisTick, formatTooltipDate } from 'utils/chartTimeRanges';
+import { axisTickNumberFor, formatAxisTick, formatTooltipDate, pollingIntervalForRange } from 'utils/chartTimeRanges';
 import { chartSx, makeYAxisFormatter, MeasurementChart } from 'sections/sensor-measurements/measurementChartCore';
 import { fieldProjectionsForCharts } from 'sections/sensor-measurements/measurementCatalog';
 
@@ -140,7 +140,12 @@ function buildScatterSeries(rows, chart) {
       (rows ?? []).forEach((r, rIdx) => {
         const v = r.fields?.[f.field]?.avg;
         if (v === null || v === undefined) return;
-        points.push({ x: new Date(r.time), y: tf(v), id: `${sIdx}-${rIdx}` });
+        // Sibling-field lookup (e.g. compassField) — used by the wind-direction
+        // tooltip to read the backend-derived compass string off the same row
+        // as the degree value. Stays a plain string so it round-trips through
+        // MUI x-charts' point objects untouched.
+        const sibling = f.compassField ? (r.fields?.[f.compassField]?.avg ?? null) : null;
+        points.push({ x: new Date(r.time), y: tf(v), id: `${sIdx}-${rIdx}`, compass: sibling });
       });
       return { label: f.label, color: f.color ?? chart.color, points };
     })
@@ -183,6 +188,16 @@ function renderChartBody(chart, rows, { from, to, xAxisTicks, axisFormat, height
     const scatterLines = buildScatterSeries(rows, chart);
     if (!scatterLines.length) return <Box sx={emptyBodySx}>No data for this time range</Box>;
     const isMultiScatter = scatterLines.length > 1;
+    // When the catalog declares a custom formatter (e.g. wind direction's
+    // degrees → compass headings), use it for both the Y-axis ticks and the
+    // tooltip value. Falls back to the standard numeric/unit formatter for
+    // any future scatter chart that doesn't need translation.
+    const yAxisValueFormatter = chart.yAxisValueFormatter ?? makeYAxisFormatter(chart.unit);
+    // Catalog hook: pointValueFormatter receives (value, point) so it can read
+    // sibling fields (compass string, etc.) for richer tooltips. Default keeps
+    // the original numeric+unit shape for every other scatter.
+    const pointValueFormatter =
+      chart.pointValueFormatter ?? ((value) => (value == null ? null : `${Number(value).toFixed(0)}${chart.unit ? ` ${chart.unit}` : ''}`));
     return (
       <ScatterChart
         xAxis={[{ ...baseX, min: from, max: to }]}
@@ -191,8 +206,12 @@ function renderChartBody(chart, rows, { from, to, xAxisTicks, axisFormat, height
             width: 56,
             min: 0,
             max: 360,
+            // Snap ticks to the 8-point compass (every 45°) so the axis reads
+            // N, NE, E, SE, S, SW, W, NW evenly. tickInterval as a numeric
+            // array tells MUI x-charts to use exactly these values.
+            ...(chart.yAxisValueFormatter ? { tickInterval: [0, 45, 90, 135, 180, 225, 270, 315] } : null),
             tickLabelStyle: { fontSize: 11, fill: 'var(--green)' },
-            valueFormatter: makeYAxisFormatter(chart.unit)
+            valueFormatter: yAxisValueFormatter
           }
         ]}
         series={scatterLines.map((s, i) => ({
@@ -201,7 +220,10 @@ function renderChartBody(chart, rows, { from, to, xAxisTicks, axisFormat, height
           label: isMultiScatter ? s.label : undefined,
           color: s.color,
           markerSize: 3,
-          valueFormatter: (p) => (p == null ? null : `${Number(p.y).toFixed(0)}${chart.unit ? ` ${chart.unit}` : ''}`)
+          // Receives the scatter point ({ x, y, id, compass? }); forward the
+          // y value AND the point itself so catalog formatters can pull
+          // sibling fields (e.g. point.compass for wind direction).
+          valueFormatter: (p) => (p == null ? null : pointValueFormatter(p.y, p))
         }))}
         grid={{ horizontal: true, vertical: true }}
         height={height}
@@ -383,17 +405,32 @@ export default function MeasurementTabPanel({ charts, deviceId, wirelessSensorId
   const needDevice = deviceFields.length > 0;
   const needWireless = wirelessFields.length > 0;
 
+  // Disable the 60s SWR background poll when the user picks a long time
+  // range (>7 days). For long ranges, per-poll deltas aren't visible at
+  // the chart's resolution, and re-firing aggregation queries against
+  // millions of `sensor_data` rows every minute wastes DB cycles — the
+  // exact pattern that triggered the May 28, 2026 incident. Short ranges
+  // (≤7 days) get `undefined` here so the hook's own 60s default applies.
+  // See pollingIntervalForRange's JSDoc for the full rationale.
+  const refreshIntervalMs = pollingIntervalForRange(from, to);
+
   const {
     rows: deviceRows,
     isLoading: deviceLoading,
     error: deviceError
-  } = useDeviceMeasurements(needDevice ? deviceId : null, { from, to, fields: deviceFields, bucket: 'auto' });
+  } = useDeviceMeasurements(needDevice ? deviceId : null, { from, to, fields: deviceFields, bucket: 'auto', refreshIntervalMs });
 
   const {
     rows: wirelessRows,
     isLoading: wirelessLoading,
     error: wirelessError
-  } = useWirelessSensorMeasurements(needWireless ? wirelessSensorId : null, { from, to, fields: wirelessFields, bucket: 'auto' });
+  } = useWirelessSensorMeasurements(needWireless ? wirelessSensorId : null, {
+    from,
+    to,
+    fields: wirelessFields,
+    bucket: 'auto',
+    refreshIntervalMs
+  });
 
   const rowsFor = (chart) => (chart.source === 'wireless' ? wirelessRows : deviceRows);
 

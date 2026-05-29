@@ -136,6 +136,8 @@ function SunGlyph() {
 // PheNode fleet asset.
 function categoryIcon(tabId) {
   switch (tabId) {
+    case TAB_IDS.ALL:
+      return <AntIcon icon={AppstoreOutlined} style={{ color: 'var(--blue)' }} />;
     case TAB_IDS.WEATHER:
       return <AntIcon icon={CloudOutlined} style={{ color: 'var(--blue)' }} />;
     case TAB_IDS.LIGHT:
@@ -906,7 +908,17 @@ export default function SensorMeasurements() {
   // Charts for the currently-active tab. Every tab — including Weather — now
   // renders through the single catalog-driven MeasurementTabPanel, so the
   // whole page uses one renderer + one grid per tab.
-  const activeTabCharts = useMemo(() => measurementCatalog.find((t) => t.id === activeTab)?.charts ?? [], [activeTab, measurementCatalog]);
+  // 'all' is the synthetic flat-list view — concat every category's charts so
+  // the panel renders the union in one grid. Field projection (the SWR
+  // hook's `fields=` param) is computed from this same array, so picking
+  // 'All' costs one fetch carrying every catalog field instead of N tabs'
+  // worth of separate fetches.
+  const activeTabCharts = useMemo(() => {
+    if (activeTab === TAB_IDS.ALL) {
+      return measurementCatalog.flatMap((t) => t.charts ?? []);
+    }
+    return measurementCatalog.find((t) => t.id === activeTab)?.charts ?? [];
+  }, [activeTab, measurementCatalog]);
 
   // Formatted "Last Measurements Taken" string for the page header.
   // Uses the shared transform (returns "Never" for null,
@@ -1543,7 +1555,9 @@ export default function SensorMeasurements() {
                             {categoryIcon(selected)}
                           </Box>
                           <Box component="span" sx={{ color: 'var(--green)' }}>
-                            {measurementCatalog.find((tab) => tab.id === selected)?.label ?? 'Category'}
+                            {selected === TAB_IDS.ALL
+                              ? 'All'
+                              : (measurementCatalog.find((tab) => tab.id === selected)?.label ?? 'Category')}
                           </Box>
                         </Stack>
                       )}
@@ -1564,6 +1578,20 @@ export default function SensorMeasurements() {
                           {tab.label}
                         </MenuItem>
                       ))}
+                      <MenuItem
+                        key={TAB_IDS.ALL}
+                        value={TAB_IDS.ALL}
+                        sx={{
+                          color: 'var(--green)',
+                          '&:hover': { backgroundColor: 'rgba(72, 247, 245, 0.12)' },
+                          '&.Mui-selected': { backgroundColor: 'rgba(72, 247, 245, 0.18)' }
+                        }}
+                      >
+                        <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', mr: 1 }}>
+                          {categoryIcon(TAB_IDS.ALL)}
+                        </Box>
+                        All
+                      </MenuItem>
                     </Select>
                   </FormControl>
 
