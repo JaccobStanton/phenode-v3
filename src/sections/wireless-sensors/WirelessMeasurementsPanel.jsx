@@ -5,13 +5,8 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
-import FormControl from '@mui/material/FormControl';
 import IconButton from '@mui/material/IconButton';
-import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
 import Stack from '@mui/material/Stack';
-import ToggleButton from '@mui/material/ToggleButton';
-import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { LineChart } from '@mui/x-charts/LineChart';
@@ -22,7 +17,7 @@ import InfoCircleOutlined from '@ant-design/icons-svg/lib/asn/InfoCircleOutlined
 import ZoomInOutlined from '@ant-design/icons-svg/lib/asn/ZoomInOutlined';
 
 import useMultiWirelessSensorMeasurements from 'hooks/data/useMultiWirelessSensorMeasurements';
-import { neonControlSx, neonSelectMenuPaperProps, reflectedCardChromeSx, tooltipSlotProps } from 'themes/sx-tokens';
+import { reflectedCardChromeSx, tooltipSlotProps } from 'themes/sx-tokens';
 import { axisTickNumberFor, formatAxisTick, formatTooltipDate } from 'utils/chartTimeRanges';
 import { chartSx, makeYAxisFormatter, MeasurementChart } from 'sections/sensor-measurements/measurementChartCore';
 import {
@@ -76,7 +71,14 @@ const SENSOR_PALETTE = [
 ];
 
 function pickColor({ sensorIdx, seriesIdx, nSensors, nSeries, seriesColor, chartColor }) {
-  if (nSensors === 1 && nSeries === 1) return chartColor || SENSOR_PALETTE[0];
+  // Prefer the catalog-declared seriesColor whenever it exists — it carries
+  // the per-probe / per-axis stroke the catalog explicitly chose (e.g. Probe 1
+  // = var(--blue), Probe 2 = var(--purple)). Otherwise fall back to the
+  // chart-level color, then to the per-sensor palette. Without this, filtering
+  // a two-probe soil chart down to a single probe would lose the catalog
+  // color and snap to SENSOR_PALETTE[0] (cyan-green), so Probe 1 alone and
+  // Probe 2 alone both rendered in the same green stroke.
+  if (nSensors === 1 && nSeries === 1) return seriesColor || chartColor || SENSOR_PALETTE[0];
   if (nSensors === 1) return seriesColor || SENSOR_PALETTE[seriesIdx % SENSOR_PALETTE.length];
   if (nSeries === 1) return SENSOR_PALETTE[sensorIdx % SENSOR_PALETTE.length];
   return SENSOR_PALETTE[(sensorIdx * nSeries + seriesIdx) % SENSOR_PALETTE.length];
@@ -107,7 +109,14 @@ function buildMultiSensorLines(rowsBySensor, chart, sensorList, probeFilter = 'b
   const nSensors = sensorList.length;
   const nSeries = seriesDefs.length;
   const isMultiSensor = nSensors > 1;
-  const isMultiSeries = nSeries > 1;
+  // `isMultiSeriesOriginal` looks at the CATALOG (pre-filter) shape, not the
+  // post-filter shape. A two-probe soil chart that the user has filtered down
+  // to just Probe 1 still came from a multi-series catalog config, and the
+  // user expects the "Probe 1" tag to remain visible on the chart card. If we
+  // keyed off the post-filter count, the chart's only line would lose its
+  // probe label as soon as the user picked a specific probe — which is the
+  // exact bug Jake hit (Apr 2026 chart-toolbar refactor).
+  const isMultiSeriesOriginal = rawSeriesDefs.length > 1;
 
   // Per (sensor × series) line as a Map<isoTime, transformedValue>.
   const lineDescriptors = [];
@@ -125,9 +134,9 @@ function buildMultiSensorLines(rowsBySensor, chart, sensorList, probeFilter = 'b
       }
       if (!map.size) continue;
       let label;
-      if (isMultiSensor && isMultiSeries) label = `${sensor.label} · ${f.label || chart.title}`;
+      if (isMultiSensor && isMultiSeriesOriginal) label = `${sensor.label} · ${f.label || chart.title}`;
       else if (isMultiSensor) label = sensor.label;
-      else if (isMultiSeries) label = f.label;
+      else if (isMultiSeriesOriginal) label = f.label;
       else label = sensor.label || chart.title;
       const color = pickColor({
         sensorIdx: si,
@@ -190,9 +199,19 @@ function renderChartBody(chart, lines, times, { from, to, xAxisTicks, axisFormat
       ctx?.location === 'tooltip' ? formatTooltipDate(value, timezone) : formatAxisTick(value, axisFormat, timezone)
   };
 
+  // A chart is "originally multi-series" when the catalog declared more than
+  // one series for it (e.g. the two-probe soil charts). When the user has
+  // filtered down to a single line via the probe toggle, we still want the
+  // MUI legend to render so the in-chart "Probe 1" / "Probe 2" key stays
+  // visible. Falling through the single-line MeasurementChart branch below
+  // would drop that legend, leaving the user without a label.
+  const isOriginallyMulti = Array.isArray(chart.series) && chart.series.length > 1;
+
   // Single rendered line → use the shared MeasurementChart for pixel-parity
   // with the device-side single-series charts (area glow on, no legend).
-  if (lines.length === 1) {
+  // SKIPPED for originally-multi charts so the legend persists across
+  // probe-filter changes.
+  if (lines.length === 1 && !isOriginallyMulti) {
     const line = lines[0];
     // Filter out the nulls so MeasurementChart's null-free path renders the
     // area cleanly. The values array here is aligned to `times`, but since
@@ -340,6 +359,9 @@ const ChartCard = memo(function ChartCard({
  * @param {number[]|undefined} xAxisTicks
  * @param {'row'|'column'} layout
  * @param {string|null} timezone
+ * @param {string}  selectedCategory  Active category id (lifted to the parent
+ *                                    toolbar). Defaults to WEATHER if omitted.
+ * @param {string}  selectedProbe     'both' | '1' | '2'. Defaults to 'both'.
  */
 export default function WirelessMeasurementsPanel({
   wirelessSensors,
@@ -349,14 +371,10 @@ export default function WirelessMeasurementsPanel({
   axisFormat,
   xAxisTicks,
   layout = 'row',
-  timezone = null
+  timezone = null,
+  selectedCategory = WIRELESS_CATEGORY_IDS.WEATHER,
+  selectedProbe = 'both'
 }) {
-  const [selectedCategory, setSelectedCategory] = useState(WIRELESS_CATEGORY_IDS.WEATHER);
-  // Both / Probe 1 / Probe 2 toggle — only renders on Soil and All since those
-  // are the only categories that surface probe-keyed charts (the four
-  // two-probe soil families). Defaults to 'both' so first paint matches what
-  // the old per-chart probe toggle defaulted to.
-  const [selectedProbe, setSelectedProbe] = useState('both');
   const [enlargedKey, setEnlargedKey] = useState(null);
 
   const catalog = useMemo(() => buildWirelessSensorCatalog(displayPrefs), [displayPrefs]);
@@ -394,10 +412,6 @@ export default function WirelessMeasurementsPanel({
     }
     return out;
   }, [activeCharts, rowsBySensor, wirelessSensors, selectedProbe]);
-
-  // Probe toggle visibility — only on categories that contain probe-keyed
-  // charts. Hidden on Environment / Light / Power & Device.
-  const showProbeToggle = selectedCategory === WIRELESS_CATEGORY_IDS.SOIL || selectedCategory === WIRELESS_CATEGORY_IDS.ALL;
 
   const totalPoints = useMemo(() => {
     let n = 0;
@@ -467,77 +481,12 @@ export default function WirelessMeasurementsPanel({
 
   return (
     <>
-      {/* Category dropdown — single select, mirrors the time-range Select. */}
-      <Stack direction="row" spacing={1.5} sx={{ mb: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-        <Typography variant="caption" sx={{ color: 'var(--blue)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Category
-        </Typography>
-        <FormControl size="small" sx={{ minWidth: 200 }}>
-          <Select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            sx={{ ...neonControlSx, color: 'var(--green)' }}
-            MenuProps={{ PaperProps: neonSelectMenuPaperProps }}
-            inputProps={{ 'aria-label': 'Chart category' }}
-          >
-            {catalog.map((c) => (
-              <MenuItem key={c.id} value={c.id} sx={{ color: 'var(--green)' }}>
-                {c.label}
-              </MenuItem>
-            ))}
-            <MenuItem key={WIRELESS_CATEGORY_IDS.ALL} value={WIRELESS_CATEGORY_IDS.ALL} sx={{ color: 'var(--green)' }}>
-              All
-            </MenuItem>
-          </Select>
-        </FormControl>
-
-        {showProbeToggle && (
-          <>
-            <Typography variant="caption" sx={{ color: 'var(--blue)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Probe
-            </Typography>
-            <ToggleButtonGroup
-              value={selectedProbe}
-              exclusive
-              onChange={(_e, next) => {
-                if (next != null) setSelectedProbe(next);
-              }}
-              aria-label="probe filter"
-              sx={{
-                // Pill treatment that matches the device-side tab bar so the
-                // two surfaces share one control language for filter toggles.
-                '& .MuiToggleButton-root': {
-                  color: 'var(--blue)',
-                  textTransform: 'none',
-                  fontWeight: 500,
-                  minHeight: 34,
-                  px: 1.5,
-                  py: 0.25,
-                  borderRadius: 1,
-                  border: '1px solid #0e346a',
-                  backgroundColor: '#0b1f4d'
-                },
-                '& .MuiToggleButton-root:hover': { borderColor: 'var(--blue)', color: 'var(--green)' },
-                '& .MuiToggleButton-root.Mui-selected': {
-                  color: '#04122f',
-                  backgroundColor: 'var(--green)',
-                  borderColor: 'var(--green)',
-                  fontWeight: 600
-                },
-                '& .MuiToggleButton-root.Mui-selected:hover': {
-                  backgroundColor: 'var(--green)',
-                  color: '#04122f'
-                }
-              }}
-            >
-              <ToggleButton value="both">Both</ToggleButton>
-              <ToggleButton value="1">Probe 1</ToggleButton>
-              <ToggleButton value="2">Probe 2</ToggleButton>
-            </ToggleButtonGroup>
-          </>
-        )}
-      </Stack>
-
+      {/*
+        Category dropdown + Probe toggle live in the parent toolbar
+        (sensor-network.jsx) so they sit on the same row as the time-range
+        Select and the Download button. This panel just renders the chart grid
+        for the selectedCategory / selectedProbe combination it receives.
+      */}
       <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: columns }}>
         {activeCharts.map((chart) => {
           const { times, lines } = linesByChart[chart.key] || { times: [], lines: [] };

@@ -62,7 +62,11 @@ import soilProbeIconInactive from 'assets/toggle_buttons/Soil_Probe_Icon_Inactiv
 import AntIcon from 'components/AntIcon';
 import AppstoreOutlined from '@ant-design/icons-svg/lib/asn/AppstoreOutlined';
 import ClockCircleOutlined from '@ant-design/icons-svg/lib/asn/ClockCircleOutlined';
+import CloudOutlined from '@ant-design/icons-svg/lib/asn/CloudOutlined';
 import DownloadOutlined from '@ant-design/icons-svg/lib/asn/DownloadOutlined';
+import phenodeFleetIcon from 'assets/drawer-icons/PheNode_Fleet.svg';
+import soilProbeIcon from 'assets/toggle_buttons/Soil_Probe_Icon_Inactive.svg';
+import { WIRELESS_CATEGORY_IDS } from 'sections/wireless-sensors/wirelessSensorCatalog';
 
 import {
   glassSurfaceSx,
@@ -379,6 +383,70 @@ const formatGpsCoords = (lat, lng) => {
   return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 };
 
+// ---------------------------------------------------------------------------
+// Category dropdown plumbing — mirrors sensor-measurements.jsx so the
+// device-side and wireless-side category selectors share one visual language.
+// Each category in the wireless catalog gets the same icon family as its
+// equivalent on the device page (Environment → cloud, Light → sun, Soil →
+// soil probe, Power & Device → PheNode fleet, All → app grid).
+// ---------------------------------------------------------------------------
+function SunGlyph() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ color: 'var(--blue)' }}
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M19.07 4.93l-1.41 1.41M6.34 17.66l-1.41 1.41" />
+    </svg>
+  );
+}
+
+const CATEGORY_LABELS = {
+  [WIRELESS_CATEGORY_IDS.WEATHER]: 'Environment',
+  [WIRELESS_CATEGORY_IDS.LIGHT]: 'Light',
+  [WIRELESS_CATEGORY_IDS.SOIL]: 'Soil',
+  [WIRELESS_CATEGORY_IDS.POWER]: 'Power & Device',
+  [WIRELESS_CATEGORY_IDS.ALL]: 'All'
+};
+
+// Ordered list driving the dropdown's MenuItem render. Pulled to module
+// scope so it isn't recreated every render; "All" goes at the end so the
+// catalog's natural ordering reads first.
+const CATEGORY_OPTIONS = [
+  WIRELESS_CATEGORY_IDS.WEATHER,
+  WIRELESS_CATEGORY_IDS.LIGHT,
+  WIRELESS_CATEGORY_IDS.SOIL,
+  WIRELESS_CATEGORY_IDS.POWER,
+  WIRELESS_CATEGORY_IDS.ALL
+];
+
+function categoryIcon(categoryId) {
+  switch (categoryId) {
+    case WIRELESS_CATEGORY_IDS.ALL:
+      return <AntIcon icon={AppstoreOutlined} style={{ color: 'var(--blue)' }} />;
+    case WIRELESS_CATEGORY_IDS.WEATHER:
+      return <AntIcon icon={CloudOutlined} style={{ color: 'var(--blue)' }} />;
+    case WIRELESS_CATEGORY_IDS.LIGHT:
+      return <SunGlyph />;
+    case WIRELESS_CATEGORY_IDS.SOIL:
+      return <Box component="img" src={soilProbeIcon} alt="" sx={{ width: 18, height: 18 }} />;
+    case WIRELESS_CATEGORY_IDS.POWER:
+      return <Box component="img" src={phenodeFleetIcon} alt="" sx={{ width: 18, height: 18 }} />;
+    default:
+      return <AntIcon icon={AppstoreOutlined} style={{ color: 'var(--blue)' }} />;
+  }
+}
+
 // Altitude is meters on the wire (sensor.altitude on the WirelessSensor
 // model — see phenodeX/phenode_backend/db/models.py:124). The mock
 // previously displayed feet ("793.95ft"), so we convert here to keep the
@@ -506,11 +574,16 @@ export default function SensorNetwork() {
   const [customToTime, setCustomToTime] = useState(null);
   const isCustomRange = timeRange === CUSTOM_RANGE_LABEL;
 
-  // Probe-highlight toggle for the dual-probe soil charts. 'all' =
-  // both lines at full color; 1 / 2 = highlight that probe (the
-  // other dims via dimHexColor). Single-line charts (battery / lux /
-  // RSSI) ignore this state.
-  const [probeHighlight, setProbeHighlight] = useState('all');
+  // Chart-panel category + probe filter. Both live here (rather than inside
+  // WirelessMeasurementsPanel) so they can sit in the same toolbar row as
+  // the time-range select and the Download button. The probe toggle is only
+  // rendered on Soil / All (computed via `showProbeToggle` below) but the
+  // state value is preserved across category switches so flipping to Light
+  // and back to Soil restores the user's last probe pick.
+  const [selectedCategory, setSelectedCategory] = useState(WIRELESS_CATEGORY_IDS.WEATHER);
+  // Panel speaks 'both' | '1' | '2' for its probe filter.
+  const [selectedProbe, setSelectedProbe] = useState('both');
+  const showProbeToggle = selectedCategory === WIRELESS_CATEGORY_IDS.SOIL || selectedCategory === WIRELESS_CATEGORY_IDS.ALL;
 
   // Currently-enlarged chart key. null = closed; otherwise the
   // config.key of the chart being displayed in the Dialog.
@@ -1701,6 +1774,104 @@ export default function SensorNetwork() {
                         </Select>
                       </FormControl>
 
+                      {/*
+                        Category selector — mirrors the time-range Select's
+                        styling so the two controls read as one family, and
+                        matches the device-side category dropdown
+                        (sensor-measurements.jsx:1533) one-to-one. Lives next
+                        to the time-range select per Jake's chart-toolbar
+                        spec.
+                      */}
+                      <FormControl
+                        size="small"
+                        sx={{ minWidth: { xs: 0, sm: 200 }, width: { xs: '100%', sm: 200 }, flex: { xs: 1, sm: '0 0 auto' } }}
+                      >
+                        <Select
+                          value={selectedCategory}
+                          onChange={(event) => setSelectedCategory(event.target.value)}
+                          inputProps={{ 'aria-label': 'Chart category' }}
+                          sx={{
+                            color: 'var(--green)',
+                            border: '1px solid var(--reflected-light)',
+                            borderRadius: 1,
+                            backgroundColor: 'var(--drf)',
+                            boxShadow: '0 11px 19px 1px #0000002e',
+                            '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                            '& .MuiSelect-select': { color: 'var(--green)' },
+                            '& .MuiSelect-icon': { color: 'var(--blue)' }
+                          }}
+                          MenuProps={{ PaperProps: neonSelectMenuPaperProps }}
+                          renderValue={(selected) => (
+                            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                              <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                                {categoryIcon(selected)}
+                              </Box>
+                              <Box component="span" sx={{ color: 'var(--green)' }}>
+                                {CATEGORY_LABELS[selected] ?? 'Category'}
+                              </Box>
+                            </Stack>
+                          )}
+                        >
+                          {CATEGORY_OPTIONS.map((catId) => (
+                            <MenuItem
+                              key={catId}
+                              value={catId}
+                              sx={{
+                                color: 'var(--green)',
+                                '&:hover': { backgroundColor: 'rgba(72, 247, 245, 0.12)' },
+                                '&.Mui-selected': { backgroundColor: 'rgba(72, 247, 245, 0.18)' }
+                              }}
+                            >
+                              <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', mr: 1 }}>
+                                {categoryIcon(catId)}
+                              </Box>
+                              {CATEGORY_LABELS[catId]}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+
+                      {/* Download icon button — small, matches the
+                          sensor-measurements + diagnostics surfaces so all
+                          three chart toolbars share one Download affordance.
+                          Span wrapper keeps the tooltip visible while
+                          disabled. */}
+                      <Tooltip
+                        title={measurementRows?.length ? 'Download CSV for this range' : 'No data to download'}
+                        arrow={false}
+                        slotProps={tooltipSlotProps}
+                      >
+                        <Box component="span" sx={{ display: 'inline-flex', flexShrink: 0 }}>
+                          <IconButton
+                            aria-label="download csv for this range"
+                            onClick={handleDownload}
+                            disabled={!measurementRows?.length || downloading || !activeSensor?.externalSensorId}
+                            sx={{
+                              color: 'var(--blue)',
+                              border: '1px solid var(--reflected-light)',
+                              borderRadius: 1,
+                              backgroundColor: 'var(--drf)',
+                              boxShadow: '0 11px 19px 1px #0000002e',
+                              '&:hover': { color: 'var(--green)', borderColor: 'var(--green)', backgroundColor: 'var(--drf)' },
+                              // Disabled affordance matches the Data Downloads
+                              // page so "no data" reads the same across every
+                              // download surface in the app.
+                              '&.Mui-disabled': {
+                                color: 'var(--med-grey)',
+                                borderColor: 'var(--med-grey)',
+                                backgroundColor: '#01113d'
+                              }
+                            }}
+                          >
+                            {downloading ? (
+                              <CircularProgress size={16} sx={{ color: 'var(--green)' }} />
+                            ) : (
+                              <AntIcon icon={DownloadOutlined} />
+                            )}
+                          </IconButton>
+                        </Box>
+                      </Tooltip>
+
                       {isCustomRange && (
                         <Stack
                           direction={{ xs: 'column', sm: 'row' }}
@@ -1740,57 +1911,6 @@ export default function SensorNetwork() {
                         </Stack>
                       )}
 
-                      {/*
-                      Probe-highlight ToggleButtonGroup — affects the
-                      three dual-probe charts (Soil Temp / Moisture /
-                      Conductivity). 'all' renders both probes at
-                      equal weight; 1 / 2 dims the OTHER probe via
-                      dimHexColor. Single-line charts (Battery / Lux /
-                      RSSI) ignore this setting.
-                    */}
-                      <ToggleButtonGroup
-                        exclusive
-                        value={probeHighlight}
-                        onChange={(_, next) => {
-                          if (next) setProbeHighlight(next);
-                        }}
-                        size="small"
-                        sx={{
-                          '& .MuiToggleButton-root': {
-                            border: '1px solid var(--reflected-light) !important',
-                            color: 'var(--blue)',
-                            backgroundColor: 'rgba(0, 20, 61, 0.72)',
-                            textTransform: 'none',
-                            fontWeight: 600,
-                            fontSize: '0.72rem',
-                            // Tuned to match the time-range dropdown's
-                            // visible box size by eye — slightly
-                            // tighter than MUI's canonical
-                            // size="small" OutlinedInput inset
-                            // (8.5px / 14px) because the toggle
-                            // buttons' inner text ("Probe 1" /
-                            // "Probe 2") visually inflates the box
-                            // versus the dropdown's icon + single
-                            // label.
-                            px: '13px',
-                            py: '8px'
-                          },
-                          '& .MuiToggleButton-root:hover': {
-                            backgroundColor: 'rgba(0, 20, 61, 0.72) !important',
-                            backgroundImage: 'linear-gradient(rgba(72, 247, 245, 0.08), rgba(72, 247, 245, 0.08)) !important'
-                          },
-                          '& .Mui-selected': {
-                            color: 'var(--green) !important',
-                            backgroundImage: 'linear-gradient(rgba(72, 247, 245, 0.2), rgba(72, 247, 245, 0.2)) !important',
-                            textShadow: '0 0 6px rgba(72, 247, 245, 0.45)'
-                          }
-                        }}
-                      >
-                        <ToggleButton value="all">Both</ToggleButton>
-                        <ToggleButton value={1}>Probe 1</ToggleButton>
-                        <ToggleButton value={2}>Probe 2</ToggleButton>
-                      </ToggleButtonGroup>
-
                       {showSelectionLoading && (
                         <Stack
                           direction="row"
@@ -1822,52 +1942,53 @@ export default function SensorNetwork() {
                       )}
                     </Stack>
 
-                    <Tooltip
-                      title={measurementRows?.length ? 'Download CSV for this range' : 'No data to download'}
-                      arrow={false}
-                      slotProps={tooltipSlotProps}
-                    >
-                      <Box component="span" sx={{ display: 'inline-flex', flexShrink: 0 }}>
-                        <Button
-                          variant="outlined"
-                          startIcon={<AntIcon icon={DownloadOutlined} />}
-                          disabled={!measurementRows?.length || downloading || !activeSensor?.externalSensorId}
-                          onClick={handleDownload}
-                          sx={{
-                            textTransform: 'none',
-                            borderColor: 'var(--orange)',
-                            color: 'var(--green)',
+                    {/*
+                      Probe filter — flex-end right of the toolbar row. Only
+                      mounts on the Soil and All categories (the only ones
+                      that surface probe-keyed charts: the four two-probe
+                      soil families). The state itself (`selectedProbe`) is
+                      preserved across category switches so a flip to Light
+                      and back to Soil restores the user's last pick. The
+                      panel does the actual filtering — this is just the UI
+                      that drives it.
+                    */}
+                    {showProbeToggle && (
+                      <ToggleButtonGroup
+                        exclusive
+                        value={selectedProbe}
+                        onChange={(_, next) => {
+                          if (next != null) setSelectedProbe(next);
+                        }}
+                        size="small"
+                        aria-label="probe filter"
+                        sx={{
+                          alignSelf: { xs: 'flex-start', sm: 'center' },
+                          '& .MuiToggleButton-root': {
+                            border: '1px solid var(--reflected-light) !important',
+                            color: 'var(--blue)',
                             backgroundColor: 'rgba(0, 20, 61, 0.72)',
-                            boxShadow: '0 11px 19px 1px #0000002e',
-                            transition: 'none',
-                            '&:hover': {
-                              borderColor: 'var(--green)',
-                              boxShadow: '0 0 7px -5px var(--green)',
-                              color: 'var(--green)',
-                              textShadow: '0 1px 5px #007bff',
-                              backgroundColor: 'rgba(72, 247, 245, 0.08)'
-                            },
-                            // Disabled state matches the Download button
-                            // in the Data Downloads page (sections/
-                            // data-download/data-downloads.jsx:586-593)
-                            // so the "no data available" affordance is
-                            // consistent across the app's download
-                            // surfaces — grey text + grey border on a
-                            // flat dark-navy fill, no hover brightening.
-                            '&.Mui-disabled': {
-                              color: 'var(--med-grey)',
-                              borderColor: 'var(--med-grey)',
-                              backgroundColor: '#01113d'
-                            },
-                            '&.Mui-disabled:hover': {
-                              backgroundColor: '#01113d'
-                            }
-                          }}
-                        >
-                          {downloading ? 'Downloading…' : 'Download CSV'}
-                        </Button>
-                      </Box>
-                    </Tooltip>
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            fontSize: '0.72rem',
+                            px: '13px',
+                            py: '8px'
+                          },
+                          '& .MuiToggleButton-root:hover': {
+                            backgroundColor: 'rgba(0, 20, 61, 0.72) !important',
+                            backgroundImage: 'linear-gradient(rgba(72, 247, 245, 0.08), rgba(72, 247, 245, 0.08)) !important'
+                          },
+                          '& .Mui-selected': {
+                            color: 'var(--green) !important',
+                            backgroundImage: 'linear-gradient(rgba(72, 247, 245, 0.2), rgba(72, 247, 245, 0.2)) !important',
+                            textShadow: '0 0 6px rgba(72, 247, 245, 0.45)'
+                          }
+                        }}
+                      >
+                        <ToggleButton value="both">Both</ToggleButton>
+                        <ToggleButton value="1">Probe 1</ToggleButton>
+                        <ToggleButton value="2">Probe 2</ToggleButton>
+                      </ToggleButtonGroup>
+                    )}
                   </Stack>
                 </LocalizationProvider>
 
@@ -1891,6 +2012,8 @@ export default function SensorNetwork() {
                   xAxisTicks={xAxisTicks}
                   layout={chartLayout}
                   timezone={timezone}
+                  selectedCategory={selectedCategory}
+                  selectedProbe={selectedProbe}
                 />
               </Box>
             </Grid>

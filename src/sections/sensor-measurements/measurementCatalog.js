@@ -386,7 +386,11 @@ export function buildMeasurementCatalog(displayPrefs) {
       source: 'device',
       chartType: 'step', // one cumulative value per local day, plotted at the day's last reading
       primaryField: 'gdd',
-      unit: temp.label === '°C' ? '°C·day' : '°F·day',
+      // GDD is unitless to the user — the underlying number is in degree-days
+      // (°F·day or °C·day depending on the display preference), but per Jake
+      // the chart should just label the axis "GDD" rather than expose the
+      // unit. The numeric value itself stays as the backend computes it.
+      unit: 'GDD',
       transform: identity, // backend computes GDD; do not re-transform here
       color: COLORS.gdd,
       availability: 'live',
