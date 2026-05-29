@@ -2037,8 +2037,12 @@ export default function SensorNetwork() {
                         size="small"
                         aria-label="probe filter"
                         sx={{
-                          alignSelf: { xs: 'flex-start', sm: 'center' },
+                          // Mobile: stretch the 3 buttons across the full row
+                          // like the dropdowns above. Desktop: hug content.
+                          alignSelf: { xs: 'stretch', sm: 'center' },
+                          width: { xs: '100%', sm: 'auto' },
                           '& .MuiToggleButton-root': {
+                            flex: { xs: 1, sm: '0 0 auto' },
                             border: '1px solid var(--reflected-light) !important',
                             color: 'var(--blue)',
                             backgroundColor: 'rgba(0, 20, 61, 0.72)',

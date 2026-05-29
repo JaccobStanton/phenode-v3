@@ -8,6 +8,8 @@ import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import Stack from '@mui/material/Stack';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
@@ -652,6 +654,13 @@ export default function SensorMeasurements() {
   );
 
   const [chartLayout, setChartLayout] = useState('row');
+
+  // Soil-probe filter for the two-probe soil charts (Both / Probe 1 / Probe 2).
+  // Mirrors the wireless Sensor Network panel. Only surfaced on the All and
+  // Soil tabs (the only ones with probe-keyed charts); the value is preserved
+  // across tab switches so flipping away and back restores the user's pick.
+  const [selectedProbe, setSelectedProbe] = useState('both');
+  const showProbeToggle = activeTab === TAB_IDS.ALL || activeTab === TAB_IDS.SOIL;
 
   // Custom-range pickers — only consulted when `timeRange` equals the
   // CUSTOM_RANGE_LABEL sentinel. dayjs values (or null) because that's
@@ -1755,6 +1764,56 @@ export default function SensorMeasurements() {
                     </Stack>
                   )}
                 </Stack>
+
+                {/*
+                  Soil-probe filter — sits at the right edge of the toolbar
+                  (space-between) on desktop; stretches full-width across its
+                  own row on mobile. Only mounts on the All and Soil tabs (the
+                  only ones with probe-keyed soil charts). MeasurementTabPanel
+                  does the actual filtering from `selectedProbe`. Mirrors the
+                  Sensor Network panel's probe toggle.
+                */}
+                {showProbeToggle && (
+                  <ToggleButtonGroup
+                    exclusive
+                    value={selectedProbe}
+                    onChange={(_, next) => {
+                      if (next != null) setSelectedProbe(next);
+                    }}
+                    size="small"
+                    aria-label="soil probe filter"
+                    sx={{
+                      // Mobile: stretch the 3 buttons across the full row like
+                      // the dropdowns above. Desktop: hug content, right-aligned.
+                      alignSelf: { xs: 'stretch', sm: 'center' },
+                      width: { xs: '100%', sm: 'auto' },
+                      '& .MuiToggleButton-root': {
+                        flex: { xs: 1, sm: '0 0 auto' },
+                        border: '1px solid var(--reflected-light) !important',
+                        color: 'var(--blue)',
+                        backgroundColor: 'rgba(0, 20, 61, 0.72)',
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        fontSize: '0.72rem',
+                        px: '13px',
+                        py: '8px'
+                      },
+                      '& .MuiToggleButton-root:hover': {
+                        backgroundColor: 'rgba(0, 20, 61, 0.72) !important',
+                        backgroundImage: 'linear-gradient(rgba(72, 247, 245, 0.08), rgba(72, 247, 245, 0.08)) !important'
+                      },
+                      '& .Mui-selected': {
+                        color: 'var(--green) !important',
+                        backgroundImage: 'linear-gradient(rgba(72, 247, 245, 0.2), rgba(72, 247, 245, 0.2)) !important',
+                        textShadow: '0 0 6px rgba(72, 247, 245, 0.45)'
+                      }
+                    }}
+                  >
+                    <ToggleButton value="both">Both</ToggleButton>
+                    <ToggleButton value="1">Probe 1</ToggleButton>
+                    <ToggleButton value="2">Probe 2</ToggleButton>
+                  </ToggleButtonGroup>
+                )}
               </Stack>
             </LocalizationProvider>
 
@@ -1805,6 +1864,7 @@ export default function SensorMeasurements() {
                 axisFormat={axisFormat}
                 xAxisTicks={xAxisTicks}
                 layout={chartLayout}
+                selectedProbe={selectedProbe}
               />
             </Suspense>
           </Box>

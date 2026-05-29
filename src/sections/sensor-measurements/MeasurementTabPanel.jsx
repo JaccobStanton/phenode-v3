@@ -83,6 +83,18 @@ function buildSingleSeries(rows, field, transform) {
 // the first, `connectNulls: true` bridges that gap visually, and the null
 // formatter in renderChartBody hides the missing series cleanly from the
 // tooltip row list.
+// Soil-probe filter — drop the series whose field belongs to the OTHER probe
+// when the user picks Probe 1 / Probe 2. Keyed on the `_1` / `_2` field suffix
+// the device catalog uses for the two-probe soil families (soil_moisture_1/2,
+// soil_temperature_1/2, soil_ec_1/2, soil_matric_1/2). 'both' keeps everything;
+// charts without those suffixes (wind atmos/calypso, the 4-line depth ramps,
+// single-series) are unaffected. Mirrors WirelessMeasurementsPanel.applyProbeFilter.
+function applyProbeFilter(seriesDefs, probeFilter) {
+  if (probeFilter === '1') return seriesDefs.filter((s) => !s.field?.endsWith('_2'));
+  if (probeFilter === '2') return seriesDefs.filter((s) => !s.field?.endsWith('_1'));
+  return seriesDefs;
+}
+
 function buildAlignedSeries(rows, chart) {
   const fields =
     Array.isArray(chart.series) && chart.series.length
@@ -397,8 +409,20 @@ const CatalogCard = memo(function CatalogCard({
  * @param {string} axisFormat
  * @param {number[]|undefined} xAxisTicks
  * @param {'row'|'column'} layout
+ * @param {'both'|'1'|'2'} selectedProbe  Soil-probe filter for two-probe soil
+ *   charts. 'both' shows every series; '1'/'2' drops the other probe's series.
  */
-export default function MeasurementTabPanel({ charts, deviceId, wirelessSensorId, from, to, axisFormat, xAxisTicks, layout = 'row' }) {
+export default function MeasurementTabPanel({
+  charts,
+  deviceId,
+  wirelessSensorId,
+  from,
+  to,
+  axisFormat,
+  xAxisTicks,
+  layout = 'row',
+  selectedProbe = 'both'
+}) {
   const [enlargedKey, setEnlargedKey] = useState(null);
 
   // Chart axes + tooltips render in the user's Display preference timezone.
@@ -423,6 +447,17 @@ export default function MeasurementTabPanel({ charts, deviceId, wirelessSensorId
 
   const rowsFor = (chart) => (chart.source === 'wireless' ? wirelessRows : deviceRows);
 
+  // Probe-filtered view for RENDERING. The fetch projection above still uses
+  // the unfiltered `charts`, so toggling Both/Probe 1/Probe 2 just hides the
+  // other probe's line — it never refetches.
+  const displayCharts = useMemo(
+    () =>
+      selectedProbe === 'both'
+        ? charts
+        : (charts ?? []).map((c) => (Array.isArray(c.series) ? { ...c, series: applyProbeFilter(c.series, selectedProbe) } : c)),
+    [charts, selectedProbe]
+  );
+
   const pointCount = Math.max(deviceRows?.length ?? 0, wirelessRows?.length ?? 0);
   const glowFilterVar = pointCount > 500 ? 'url(#chart-glow-lite)' : 'url(#chart-glow-full)';
 
@@ -430,7 +465,7 @@ export default function MeasurementTabPanel({ charts, deviceId, wirelessSensorId
   const hardError = (needDevice && deviceError && !deviceRows) || (needWireless && wirelessError && !wirelessRows);
   const wirelessMissing = needWireless && !needDevice && !wirelessSensorId;
 
-  const enlargedChart = enlargedKey ? (charts.find((c) => c.key === enlargedKey) ?? null) : null;
+  const enlargedChart = enlargedKey ? (displayCharts.find((c) => c.key === enlargedKey) ?? null) : null;
 
   if (wirelessMissing) {
     return (
@@ -490,7 +525,7 @@ export default function MeasurementTabPanel({ charts, deviceId, wirelessSensorId
   return (
     <>
       <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: columns }}>
-        {charts.map((chart) => (
+        {displayCharts.map((chart) => (
           <CatalogCard
             key={chart.key}
             chart={chart}
