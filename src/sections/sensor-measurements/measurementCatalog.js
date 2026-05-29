@@ -69,7 +69,11 @@ export const TAB_IDS = {
 };
 
 // Palette — unified per Jake's chart-color spec (May 2026):
-//   • Default single-series line                    → var(--blue) (#1a76e0)
+//   • Default single-series line                    → var(--blue-on-dark)
+//     (#4287e8) — the brighter, dark-bg blue. Plain var(--blue) (#1a76e0)
+//     is too close to the navy chart background, so its line glow + area
+//     fill washed out (blue-on-blue); the on-dark variant glows like the
+//     purple / yellow / red lines do.
 //   • Secondary / overlay line on the same chart    → var(--purple) (#8955e2)
 //   • Rain                                          → blue (it IS the default,
 //                                                     called out so future
@@ -83,7 +87,7 @@ export const TAB_IDS = {
 // The 4-line soil-profile "depth ramp" stays a blue-shade ramp so shallow →
 // deep is still readable on a single chart; the rest of soil is treated as
 // primary/secondary (Probe 1 = blue, Probe 2 = purple).
-const PRIMARY = 'var(--blue)';
+const PRIMARY = 'var(--blue-on-dark)';
 const SECONDARY = 'var(--purple)';
 const TERTIARY = 'var(--green)';
 // Power family — anchored on the System Diagnostics battery-voltage red
@@ -112,7 +116,8 @@ const COLORS = {
   // Calypso = secondary purple) so the two sources read consistently across
   // wind speed / direction / gust.
   windCalypso: SECONDARY,
-  rainfall: PRIMARY,
+  // Rain reads as green (with the standard line glow) per Jake's spec.
+  rainfall: 'var(--green)',
   rainfallSecondary: SECONDARY,
   gdd: PRIMARY,
   lightning: LIGHT_PRIMARY,
@@ -321,36 +326,21 @@ export function buildMeasurementCatalog(displayPrefs) {
       transform: speed.transform,
       series: [
         { field: 'atmos_wind_speed', label: 'Atmos', color: COLORS.windSpeed, transform: speed.transform },
-        { field: 'calypso_wind_speed', label: 'Calypso', color: COLORS.windCalypso, transform: speed.transform }
+        { field: 'calypso_wind_speed', label: 'Primary', color: COLORS.windCalypso, transform: speed.transform }
       ],
       availability: 'live'
     },
     {
-      // Wind direction: scatter (line wraps badly across the 0°/360° seam).
-      // Two series so atmos vs Calypso are visually distinct dots; the panel's
-      // scatter branch iterates chart.series the same way the line/multiline
-      // branch does.
+      // Wind direction as a line graph, to match the other wind charts. Two
+      // lines — Atmos and the primary source — plotted as bearing in degrees.
+      // (A line can jump across the 0°/360° seam; rendered as a line per
+      // product preference.)
       key: 'wind_direction',
       title: 'Wind Direction',
       source: 'device',
-      chartType: 'scatter',
-      // Empty unit so the Y-axis tick reads as a bare compass heading (N, NE,
-      // SE, …), not "N °".
-      unit: '',
+      chartType: 'multiline',
+      unit: '°',
       transform: identity,
-      // Y-axis ticks: the 8-point compass at fixed degree positions. The
-      // scatter branch in MeasurementTabPanel uses this when present.
-      yAxisValueFormatter: compassTickFormatter,
-      // Tooltip: read the backend-derived compass string off the same row as
-      // the degree value. Sibling-field lookup → no client-side bucketing,
-      // so the tooltip can never drift from what the backend reports.
-      // Output: "NW (315°)".
-      pointValueFormatter: (deg, point) => {
-        if (deg === null || deg === undefined || !Number.isFinite(Number(deg))) return null;
-        const compass = point?.compass ?? '';
-        const rounded = Number(deg).toFixed(0);
-        return compass ? `${compass} (${rounded}°)` : `${rounded}°`;
-      },
       series: [
         {
           field: 'atmos_wind_direction',
@@ -361,7 +351,7 @@ export function buildMeasurementCatalog(displayPrefs) {
         {
           field: 'calypso_wind_direction',
           compassField: 'calypso_wind_direction_compass',
-          label: 'Calypso',
+          label: 'Primary',
           color: COLORS.windCalypso
         }
       ],
@@ -376,7 +366,7 @@ export function buildMeasurementCatalog(displayPrefs) {
       transform: speed.transform,
       series: [
         { field: 'atmos_wind_gust', label: 'Atmos', color: COLORS.windGust, transform: speed.transform },
-        { field: 'calypso_wind_gust', label: 'Calypso', color: COLORS.windCalypso, transform: speed.transform }
+        { field: 'calypso_wind_gust', label: 'Primary', color: COLORS.windCalypso, transform: speed.transform }
       ],
       availability: 'live'
     },

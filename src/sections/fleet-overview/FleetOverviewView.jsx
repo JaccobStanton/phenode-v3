@@ -922,10 +922,11 @@ export default function FleetOverviewView({
                     '&:hover .MuiOutlinedInput-notchedOutline, &.Mui-focused .MuiOutlinedInput-notchedOutline': {
                       border: 'none'
                     },
-                    // Typed text in var(--blue) so it matches the
-                    // placeholder.
+                    // Typed text in var(--green) (per Jake) — matches the
+                    // green input text used across the app's other search /
+                    // dropdown fields. Placeholder stays blue.
                     '& .MuiInputBase-input': {
-                      color: 'var(--blue)'
+                      color: 'var(--green)'
                     },
                     '& .MuiInputBase-input::placeholder': {
                       color: 'var(--blue)',

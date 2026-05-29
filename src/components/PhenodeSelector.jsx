@@ -177,7 +177,17 @@ export default function PhenodeSelector({
       <Autocomplete
         options={options}
         value={value}
-        onChange={(_, newValue) => onChange(newValue?.id ?? null)}
+        // reason === 'clear' fires when the user hits the ✕ (or backspaces the
+        // field empty) to TYPE a different device. We deliberately keep the
+        // current selection in that case: MUI still empties the input so the
+        // user can search, but the page's device doesn't change until they
+        // actually pick a new option. Without this, clearing dropped the
+        // explicit pick and the session's recency-fallback device immediately
+        // snapped back into the field — hijacking the search mid-type.
+        onChange={(_, newValue, reason) => {
+          if (reason === 'clear') return;
+          onChange(newValue?.id ?? null);
+        }}
         loading={isLoading}
         loadingText="Loading PheNodes…"
         noOptionsText="No PheNodes available"

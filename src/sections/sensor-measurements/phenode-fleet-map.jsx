@@ -656,6 +656,10 @@ function MessageCard({ children, isError }) {
   return (
     <Box
       sx={{
+        // width:100% so the empty/loading state fills the column the same way
+        // the live map does — without it the card collapses to less than full
+        // width inside the flex/grid parent.
+        width: '100%',
         height: MAP_HEIGHT_SX,
         borderRadius: 1,
         border: '1px solid var(--reflected-light)',
@@ -670,6 +674,7 @@ function MessageCard({ children, isError }) {
         variant={isError ? 'subtitle1' : 'body1'}
         sx={{
           color: isError ? 'var(--orange)' : 'var(--blue)',
+          fontStyle: isError ? 'normal' : 'italic',
           textAlign: 'center',
           px: 2,
           maxWidth: '80%'
@@ -911,7 +916,7 @@ export default function PheNodeFleetMap({ devices, selectedDeviceId, onSelectDev
   }
 
   if (totalCount === 0) {
-    return <MessageCard>No PheNodes assigned to this account yet.</MessageCard>;
+    return <MessageCard>Connect a PheNode to your account to view it on the map.</MessageCard>;
   }
 
   if (plottableCount === 0) {

@@ -552,6 +552,10 @@ function MessageCard({ children, isError }) {
   return (
     <Box
       sx={{
+        // width:100% so the empty/loading state fills the column the same way
+        // the live map does — without it the card collapses to less than full
+        // width inside the flex/grid parent.
+        width: '100%',
         height: MAP_HEIGHT_SX,
         borderRadius: 1,
         border: '1px solid var(--reflected-light)',
@@ -566,6 +570,7 @@ function MessageCard({ children, isError }) {
         variant={isError ? 'subtitle1' : 'body1'}
         sx={{
           color: isError ? 'var(--orange)' : 'var(--blue)',
+          fontStyle: isError ? 'normal' : 'italic',
           textAlign: 'center',
           px: 2,
           maxWidth: '80%'
@@ -669,7 +674,14 @@ export default function WirelessSensorFleetMap({
   // the parent to renameSensor + sensor-list mutate. Errors propagate
   // here; we surface them via the toast and keep the modal open.
   onRename,
-  isLoading
+  isLoading,
+  // Number of wireless sensors paired to the CURRENTLY-SELECTED PheNode
+  // (pre-resolved by the parent from devices[].wireless_sensors[]). When this
+  // is 0, the selected PheNode has no sensors to show, so we render the empty
+  // message instead of loading the map — even if other PheNodes on the
+  // account do have sensors. The map still plots account-wide once the
+  // selected PheNode has at least one sensor (Nearby is an account-wide tool).
+  connectedSensorCount = 0
 }) {
   const [mapStyleMode, setMapStyleMode] = useState('neon');
   const [renameInput, setRenameInput] = useState('');
@@ -910,8 +922,12 @@ export default function WirelessSensorFleetMap({
     );
   }
 
-  if (totalCount === 0) {
-    return <MessageCard>No wireless sensors assigned to this account yet.</MessageCard>;
+  // Scoped to the selected PheNode: if it has no paired wireless sensors,
+  // show the message rather than loading the (account-wide) map. Covers the
+  // account-wide "no sensors at all" case too, since that implies the
+  // selected PheNode has none.
+  if (connectedSensorCount === 0) {
+    return <MessageCard>Connect a wireless sensor to this PheNode to view it on the map.</MessageCard>;
   }
 
   if (plottableCount === 0) {

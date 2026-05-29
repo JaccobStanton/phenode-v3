@@ -321,9 +321,10 @@ function renderChartBody(chart, rows, { from, to, xAxisTicks, axisFormat, height
       margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
       hideLegend={lines.length < 2}
       slotProps={lines.length > 1 ? { legend: { labelStyle: { fontSize: 11, fill: 'var(--green)' } } } : undefined}
-      // Multi-series: drop the area fill opacity so two overlapping bands stay
-      // subtle while still giving the chart the same soft glow as single-series.
-      sx={lines.length > 1 ? { ...chartSx, '& .MuiAreaElement-root': { fillOpacity: 0.07 } } : chartSx}
+      // Multi-series: keep a visible area-fill glow on every line (matching the
+      // single-series look) but a touch lower than single's 0.16 so two
+      // overlapping bands don't muddy where they cross.
+      sx={lines.length > 1 ? { ...chartSx, '& .MuiAreaElement-root': { fillOpacity: 0.13 } } : chartSx}
     />
   );
 }

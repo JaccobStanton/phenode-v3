@@ -49,7 +49,10 @@ export const WIRELESS_CATEGORY_IDS = {
 // When multiple sensors are overlaid on the same chart, the panel ignores
 // these and uses its own per-sensor palette (so each sensor gets one color
 // across every chart). These COLORS apply to the single-sensor render path.
-const PRIMARY = 'var(--blue)';
+// var(--blue-on-dark) (#4287e8), not var(--blue) (#1a76e0): the darker blue
+// washes out against the navy chart background so its glow/area fill was
+// invisible. Keep in sync with measurementCatalog.js.
+const PRIMARY = 'var(--blue-on-dark)';
 const SECONDARY = 'var(--purple)';
 const TERTIARY = 'var(--green)';
 // Power family — same diagnostics-red ramp as the device catalog so the
@@ -155,30 +158,33 @@ export function buildWirelessSensorCatalog(displayPrefs) {
   // --- WEATHER -------------------------------------------------------------
   const weather = [
     {
-      // Ambient temperature has two possible source chips: the dedicated
-      // MCP9808 (when present) and the BME280's onboard temperature reading.
-      // Render both as series so the panel auto-shows whichever the sensor
-      // actually carries — buildMultiSensorLines filters out empty series, so
-      // on MCP-equipped sensors only the MCP line draws (with the area-glow
-      // treatment via the lines.length === 1 rule), on BME-only sensors only
-      // the BME line draws, and on the rare sensor with both reporting you
-      // get two lines.
+      // Ambient temperature has two possible sources: the dedicated
+      // high-resolution sensor (when present) and the standard sensor's
+      // onboard temperature reading. Render both as series so the panel
+      // auto-shows whichever the sensor actually carries —
+      // buildMultiSensorLines filters out empty series, so on
+      // high-resolution-equipped sensors only that line draws (with the
+      // area-glow treatment via the lines.length === 1 rule), on
+      // standard-only sensors only the standard line draws, and on the rare
+      // sensor with both reporting you get two lines. (Field names below are
+      // backend keys and stay as-is; only the user-facing labels are
+      // brand-neutral.)
       key: 'temperature_ambient',
       title: 'Ambient Temperature',
-      info: 'Onboard ambient temperature — MCP9808 if equipped, BME280 fallback',
+      info: 'Onboard ambient temperature — High Resolution if equipped, Standard fallback',
       chartType: 'multiline',
       unit: temp.label,
       transform: temp.transform,
       series: [
-        { field: 'temperatureMcp9808', label: 'MCP9808', color: COLORS.temperatureMcp, transform: temp.transform },
-        { field: 'temperatureBme', label: 'BME280', color: COLORS.temperatureBme, transform: temp.transform }
+        { field: 'temperatureMcp9808', label: 'High Resolution', color: COLORS.temperatureMcp, transform: temp.transform },
+        { field: 'temperatureBme', label: 'Standard', color: COLORS.temperatureBme, transform: temp.transform }
       ],
       availability: 'live'
     },
     {
       key: 'humidity_bme',
       title: 'Relative Humidity',
-      info: 'BME280 relative humidity',
+      info: 'Standard relative humidity',
       chartType: 'line',
       primaryField: 'humidityBme',
       unit: '%',
@@ -189,7 +195,7 @@ export function buildWirelessSensorCatalog(displayPrefs) {
     {
       key: 'pressure_bme',
       title: 'Air Pressure',
-      info: 'BME280 atmospheric pressure',
+      info: 'Standard atmospheric pressure',
       chartType: 'line',
       primaryField: 'pressureBme',
       unit: pressure.label,
@@ -200,7 +206,7 @@ export function buildWirelessSensorCatalog(displayPrefs) {
     {
       key: 'gas_resistance',
       title: 'Gas Resistance',
-      info: 'BME280 gas-resistance reading — proxy for air-quality VOC load',
+      info: 'Gas-resistance reading — proxy for air-quality VOC load',
       chartType: 'line',
       primaryField: 'gasResistanceBme',
       unit: resistance.label,
@@ -269,7 +275,7 @@ export function buildWirelessSensorCatalog(displayPrefs) {
     {
       key: 'soil_matric',
       title: 'Soil Matric Potential',
-      info: 'Teros 22 soil water potential',
+      info: 'Soil water potential',
       chartType: 'multiline',
       unit: 'kPa',
       transform: identity,
@@ -282,7 +288,7 @@ export function buildWirelessSensorCatalog(displayPrefs) {
     {
       key: 'soil_profile_moisture',
       title: 'Soil Profile Moisture',
-      info: '4-depth soil moisture profile (Teros 54 or equivalent)',
+      info: '4-depth soil moisture profile',
       chartType: 'multiline',
       unit: '%',
       transform: identity,
@@ -297,7 +303,7 @@ export function buildWirelessSensorCatalog(displayPrefs) {
     {
       key: 'soil_profile_temperature',
       title: 'Soil Profile Temperature',
-      info: '4-depth soil temperature profile (Teros 54 or equivalent)',
+      info: '4-depth soil temperature profile',
       chartType: 'multiline',
       unit: temp.label,
       transform: temp.transform,

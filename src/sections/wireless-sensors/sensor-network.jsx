@@ -1178,7 +1178,21 @@ export default function SensorNetwork() {
         are pixel-identical. See components/ChartGlowDefs.jsx.
       */}
       <ChartGlowDefs />
-      <MainCard content={false} sx={{ overflow: 'hidden', ...glassSurfaceSx, ...reflectedCardChromeSx }}>
+      <MainCard
+        content={false}
+        sx={{
+          // width:100% is load-bearing — the dashboard layout sets display:flex
+          // on the container holding this card but doesn't force it to grow, so
+          // by default the card sizes to its CONTENT width (flex: 0 1 auto).
+          // That made the card collapse inward whenever the map area showed a
+          // narrow empty-state message instead of the wide map. Pinning to 100%
+          // keeps it full width regardless of content. (Same fix as imaging.jsx.)
+          width: '100%',
+          overflow: 'hidden',
+          ...glassSurfaceSx,
+          ...reflectedCardChromeSx
+        }}
+      >
         <Box sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 2.5 } }}>
           <Stack
             direction={{ xs: 'column', md: 'row' }}
@@ -1223,7 +1237,12 @@ export default function SensorNetwork() {
               <Autocomplete
                 options={phenodeOptions}
                 value={phenodeValue}
-                onChange={(_, newValue) => {
+                onChange={(_, newValue, reason) => {
+                  // ✕ / backspace-to-empty fires 'clear' — keep the current
+                  // PheNode so the user can type a new search without the
+                  // session's recency-fallback device snapping back into the
+                  // field (MUI still empties the input for searching).
+                  if (reason === 'clear') return;
                   // Switching PheNode invalidates the sensor selection
                   // (different cohort). Reset to undefined so the
                   // auto-default effect repopulates with the new cohort's
@@ -1286,7 +1305,11 @@ export default function SensorNetwork() {
               <Autocomplete
                 options={sensorOptions}
                 value={sensorValue}
-                onChange={(_, newValue) => {
+                onChange={(_, newValue, reason) => {
+                  // ✕ / backspace-to-empty fires 'clear' — keep the current
+                  // sensor so the user can type a new search without the
+                  // auto-default sensor snapping back into the field.
+                  if (reason === 'clear') return;
                   // Manual sensor change — drop the deep-link `?sensor`
                   // param so a subsequent refresh doesn't rewind the
                   // user's pick to the URL-targeted sensor.
@@ -1390,6 +1413,10 @@ export default function SensorNetwork() {
                   // — passed in pre-resolved so the map doesn't have to
                   // know about devices[].wireless_sensors[] lookup.
                   parentDevice={activePhenode}
+                  // Sensors paired to the selected PheNode. When 0, the map
+                  // shows an empty-state message instead of loading (even if
+                  // other PheNodes on the account have sensors).
+                  connectedSensorCount={connectedSensorIds.size}
                   infoCardMode={infoCardMode}
                   setInfoCardMode={setInfoCardMode}
                   selectedSoilProbe={selectedSoilProbe}

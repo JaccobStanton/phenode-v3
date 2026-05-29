@@ -288,7 +288,7 @@ function renderChartBody(chart, lines, times, { from, to, xAxisTicks, axisFormat
       margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
       hideLegend={false}
       slotProps={{ legend: { labelStyle: { fontSize: 11, fill: 'var(--green)' } } }}
-      sx={lines.length > 1 ? { ...chartSx, '& .MuiAreaElement-root': { fillOpacity: 0.07 } } : chartSx}
+      sx={lines.length > 1 ? { ...chartSx, '& .MuiAreaElement-root': { fillOpacity: 0.13 } } : chartSx}
     />
   );
 }
