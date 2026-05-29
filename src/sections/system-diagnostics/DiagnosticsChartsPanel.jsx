@@ -300,14 +300,45 @@ export default function DiagnosticsChartsPanel({ selectedPheNodeId, selectedDevi
         <Typography variant="h5" sx={{ color: 'var(--blue)' }}>
           Diagnostics Over Time
         </Typography>
+        {/*
+          Title-row corner control. On desktop (md+) this slot holds the
+          orientation toggle; on mobile (xs) it holds the CSV download
+          IconButton instead. Two reasons for the swap:
+            1. Orientation has no meaning on mobile — the chart grid is
+               already forced to a single column at xs, so row/column
+               doesn't carry information.
+            2. Download IS meaningful on mobile and the toolbar version
+               below would otherwise crowd the time-range Select on a
+               narrow viewport. Hoisting it to the title corner clears
+               the toolbar and preserves the affordance.
+        */}
         <Tooltip title="Orientation" arrow={false} slotProps={tooltipSlotProps}>
           <IconButton
             aria-label="toggle chart layout"
             onClick={() => setChartLayout((prev) => (prev === 'column' ? 'row' : 'column'))}
-            sx={orientationButtonSx}
+            sx={{ ...orientationButtonSx, display: { xs: 'none', md: 'inline-flex' } }}
           >
             <AntIcon icon={AppstoreOutlined} />
           </IconButton>
+        </Tooltip>
+        <Tooltip
+          title={hasChartData ? 'Download data for this time period' : 'No data to download'}
+          arrow={false}
+          slotProps={tooltipSlotProps}
+        >
+          {/* Span wrapper keeps the tooltip working while the button is
+              disabled (MUI disables pointer events on the underlying
+              button, which would suppress the tooltip otherwise). */}
+          <Box component="span" sx={{ display: { xs: 'inline-flex', md: 'none' }, flexShrink: 0 }}>
+            <IconButton
+              aria-label="download csv for this range"
+              onClick={handleDownloadDiagnostics}
+              disabled={!hasChartData || downloading || !selectedPheNodeId}
+              sx={downloadButtonSx}
+            >
+              {downloading ? <CircularProgress size={16} sx={{ color: 'var(--green)' }} /> : <AntIcon icon={DownloadOutlined} />}
+            </IconButton>
+          </Box>
         </Tooltip>
       </Stack>
 
@@ -348,7 +379,14 @@ export default function DiagnosticsChartsPanel({ selectedPheNodeId, selectedDevi
           arrow={false}
           slotProps={tooltipSlotProps}
         >
-          <Box component="span" sx={{ display: 'inline-flex', flexShrink: 0 }}>
+          {/*
+            Toolbar download — desktop-only mirror of the title-row
+            mobile button above. Hiding via display (not unmounting)
+            keeps the handler/refs identical between breakpoints so
+            there's no "moved to a different node" focus jump if the
+            viewport resizes mid-session.
+          */}
+          <Box component="span" sx={{ display: { xs: 'none', md: 'inline-flex' }, flexShrink: 0 }}>
             <IconButton
               aria-label="download csv for this range"
               onClick={handleDownloadDiagnostics}

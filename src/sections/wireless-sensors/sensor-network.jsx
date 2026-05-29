@@ -1692,14 +1692,60 @@ export default function SensorNetwork() {
                   <Typography variant="h5" sx={{ color: 'var(--blue)' }}>
                     Measurements Over Time
                   </Typography>
+                  {/*
+                    Title-row corner control. Mirrors the sensor-measurements
+                    + system-diagnostics pattern:
+                      - Desktop (md+): orientation toggle. Row/column swap
+                        is meaningful when there's room for a multi-column
+                        chart grid.
+                      - Mobile (xs): CSV download. Orientation has no
+                        purpose at xs (the chart grid is already a single
+                        column), and the toolbar download below would
+                        otherwise crowd the category Select on a narrow
+                        viewport — hoisting it up here clears the toolbar.
+                  */}
                   <Tooltip title="Orientation" arrow={false} slotProps={tooltipSlotProps}>
                     <IconButton
                       aria-label="toggle sensor chart layout"
                       onClick={() => setChartLayout((prev) => (prev === 'column' ? 'row' : 'column'))}
-                      sx={orientationButtonSx}
+                      sx={{ ...orientationButtonSx, display: { xs: 'none', md: 'inline-flex' } }}
                     >
                       <AntIcon icon={AppstoreOutlined} />
                     </IconButton>
+                  </Tooltip>
+                  <Tooltip
+                    title={measurementRows?.length ? 'Download CSV for this range' : 'No data to download'}
+                    arrow={false}
+                    slotProps={tooltipSlotProps}
+                  >
+                    {/* Span wrapper keeps the tooltip working while the
+                        button is disabled. */}
+                    <Box component="span" sx={{ display: { xs: 'inline-flex', md: 'none' }, flexShrink: 0 }}>
+                      <IconButton
+                        aria-label="download csv for this range"
+                        onClick={handleDownload}
+                        disabled={!measurementRows?.length || downloading || !activeSensor?.externalSensorId}
+                        sx={{
+                          color: 'var(--blue)',
+                          border: '1px solid var(--reflected-light)',
+                          borderRadius: 1,
+                          backgroundColor: 'var(--drf)',
+                          boxShadow: '0 11px 19px 1px #0000002e',
+                          '&:hover': { color: 'var(--green)', borderColor: 'var(--green)', backgroundColor: 'var(--drf)' },
+                          '&.Mui-disabled': {
+                            color: 'var(--med-grey)',
+                            borderColor: 'var(--med-grey)',
+                            backgroundColor: '#01113d'
+                          }
+                        }}
+                      >
+                        {downloading ? (
+                          <CircularProgress size={16} sx={{ color: 'var(--green)' }} />
+                        ) : (
+                          <AntIcon icon={DownloadOutlined} />
+                        )}
+                      </IconButton>
+                    </Box>
                   </Tooltip>
                 </Stack>
 
@@ -1831,17 +1877,19 @@ export default function SensorNetwork() {
                         </Select>
                       </FormControl>
 
-                      {/* Download icon button — small, matches the
-                          sensor-measurements + diagnostics surfaces so all
-                          three chart toolbars share one Download affordance.
-                          Span wrapper keeps the tooltip visible while
-                          disabled. */}
+                      {/* Download icon button — desktop-only mirror of
+                          the title-row mobile button above. Same handler
+                          + disabled props in both spots; toggling via
+                          `display` (not unmount) keeps focus tied to a
+                          stable node if the viewport resizes mid-session.
+                          Hidden on xs because the title-row corner now
+                          carries the mobile download affordance. */}
                       <Tooltip
                         title={measurementRows?.length ? 'Download CSV for this range' : 'No data to download'}
                         arrow={false}
                         slotProps={tooltipSlotProps}
                       >
-                        <Box component="span" sx={{ display: 'inline-flex', flexShrink: 0 }}>
+                        <Box component="span" sx={{ display: { xs: 'none', md: 'inline-flex' }, flexShrink: 0 }}>
                           <IconButton
                             aria-label="download csv for this range"
                             onClick={handleDownload}

@@ -1397,15 +1397,52 @@ export default function SensorMeasurements() {
                 Measurements Over Time
               </Typography>
 
-              {/* Orientation toggle — kept in the title-row corner. */}
+              {/*
+                Title-row corner control. On desktop (md+) this slot
+                holds the orientation toggle; on mobile (xs) it holds
+                the CSV download IconButton instead.
+                  - Orientation is meaningless on mobile (the chart
+                    grid already renders a single column at xs), so the
+                    row/column swap carries no information.
+                  - Download IS meaningful on mobile, and the toolbar
+                    version below would otherwise crowd the category
+                    Select on a narrow viewport. Hoisting it up here
+                    clears the toolbar and keeps the affordance one
+                    tap away.
+              */}
               <Tooltip title="Orientation" arrow={false} slotProps={tooltipSlotProps}>
                 <IconButton
                   aria-label="toggle sensor chart layout"
                   onClick={() => setChartLayout((prev) => (prev === 'column' ? 'row' : 'column'))}
-                  sx={orientationButtonSx}
+                  sx={{ ...orientationButtonSx, display: { xs: 'none', md: 'inline-flex' } }}
                 >
                   <AntIcon icon={AppstoreOutlined} />
                 </IconButton>
+              </Tooltip>
+              <Tooltip
+                title={measurementRows?.length ? 'Download data for this time period' : 'No data to download'}
+                arrow={false}
+                slotProps={tooltipSlotProps}
+              >
+                {/* Span wrapper keeps the tooltip working while the
+                    button is disabled. */}
+                <Box component="span" sx={{ display: { xs: 'inline-flex', md: 'none' }, flexShrink: 0 }}>
+                  <IconButton
+                    aria-label="download csv for this range"
+                    onClick={handleDownload}
+                    disabled={!measurementRows?.length || downloading || !activeDevice}
+                    sx={{
+                      color: 'var(--blue)',
+                      border: '1px solid var(--reflected-light)',
+                      borderRadius: 1,
+                      backgroundColor: 'var(--drf)',
+                      boxShadow: '0 11px 19px 1px #0000002e',
+                      '&:hover': { color: 'var(--green)', borderColor: 'var(--green)', backgroundColor: 'var(--drf)' }
+                    }}
+                  >
+                    {downloading ? <CircularProgress size={16} sx={{ color: 'var(--green)' }} /> : <AntIcon icon={DownloadOutlined} />}
+                  </IconButton>
+                </Box>
               </Tooltip>
             </Stack>
 
@@ -1595,14 +1632,19 @@ export default function SensorMeasurements() {
                     </Select>
                   </FormControl>
 
-                  {/* Download CSV — sits next to the category dropdown. Span
-                      wrapper keeps the tooltip working while disabled. */}
+                  {/* Download CSV — sits next to the category dropdown
+                      on desktop. Hidden on xs because the title-row
+                      Stack above hosts a mirror of this button for
+                      mobile (where the toolbar version would crowd the
+                      category Select). Hiding via display rather than
+                      unmounting keeps focus tied to a stable node if
+                      the viewport resizes mid-session. */}
                   <Tooltip
                     title={measurementRows?.length ? 'Download data for this time period' : 'No data to download'}
                     arrow={false}
                     slotProps={tooltipSlotProps}
                   >
-                    <Box component="span" sx={{ display: 'inline-flex', flexShrink: 0 }}>
+                    <Box component="span" sx={{ display: { xs: 'none', md: 'inline-flex' }, flexShrink: 0 }}>
                       <IconButton
                         aria-label="download csv for this range"
                         onClick={handleDownload}

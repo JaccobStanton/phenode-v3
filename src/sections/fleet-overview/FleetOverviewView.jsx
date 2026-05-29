@@ -5,6 +5,10 @@ import Card from '@mui/material/Card';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 import OutlinedInput from '@mui/material/OutlinedInput';
 import Pagination from '@mui/material/Pagination';
 import Stack from '@mui/material/Stack';
@@ -14,7 +18,9 @@ import Typography from '@mui/material/Typography';
 
 import AntIcon from 'components/AntIcon';
 import CheckCircleOutlined from '@ant-design/icons-svg/lib/asn/CheckCircleOutlined';
+import CheckOutlined from '@ant-design/icons-svg/lib/asn/CheckOutlined';
 import IdcardOutlined from '@ant-design/icons-svg/lib/asn/IdcardOutlined';
+import MoreOutlined from '@ant-design/icons-svg/lib/asn/MoreOutlined';
 import SearchOutlined from '@ant-design/icons-svg/lib/asn/SearchOutlined';
 import SortAscendingOutlined from '@ant-design/icons-svg/lib/asn/SortAscendingOutlined';
 
@@ -22,6 +28,12 @@ import ConfirmRenameModal from 'components/ConfirmRenameModal';
 import EditableLabel from 'components/EditableLabel';
 import MainCard from 'components/MainCard';
 import { useToast } from 'providers/ToastProvider';
+// Menu chrome tokens (paper + item) — used by the mobile filter
+// overflow menu rendered below the kebab IconButton. Shared with the
+// rest of the app's neon-on-navy dropdowns so the menu reads as part
+// of the same vocabulary as PhenodeSelector / sensor-network's
+// PheNode picker / etc.
+import { neonMenuItemSx, neonMenuPaperSx } from 'themes/sx-tokens';
 
 // Fleet-overview pages use a slightly different glass surface (more saturated background)
 // and a thinner box-outline-blue border than the rest of the app, so these tokens stay local.
@@ -444,6 +456,14 @@ export default function FleetOverviewView({
   // and the page-change reset effect can read/write scrollTop.
   const scrollContainerRef = useRef(null);
 
+  // Anchor element for the mobile filter overflow menu (the "kebab"
+  // three-dot button that collapses the Sort / Status / MAC toggles
+  // into a single dropdown on narrow viewports). `null` means closed.
+  // Kept here rather than threaded through props so the menu's open/
+  // close state is colocated with the filter values it actually drives.
+  const [filterMenuAnchor, setFilterMenuAnchor] = useState(null);
+  const isFilterMenuOpen = Boolean(filterMenuAnchor);
+
   // Rename flow state. `null` when no rename is in flight; otherwise
   // `{ externalId, oldName, newName }` carrying everything the
   // ConfirmRenameModal needs to render. Single piece of state instead
@@ -719,56 +739,38 @@ export default function FleetOverviewView({
               // the label sits above as visual context for the dropdown.
               alignItems: 'flex-end',
               justifyContent: 'space-between',
-              // `flexWrap: 'wrap'` is here to fix a layout bug on narrow
-              // viewports (~412px / Lighthouse mobile profile). When the
-              // PheNode scope selector is present (sensor-fleet only),
-              // the combined width of [scopeSelector + search icon +
-              // search input + sort + status + MAC] exceeds the viewport.
-              // Without wrap, `justify-content: space-between` shoved the
-              // two sub-stacks to opposite ends and their CONTENTS
-              // visually overlapped in the middle — the audit captured
-              // the sort button (x=205–245) sitting under the search
-              // button (x=241–281) on a 412px screen, leaving the search
-              // IconButton with only 8×40 of unobscured clickable area
-              // (WCAG 2.5.8 needs 24×24). With wrap on, the left
-              // sub-stack's `width: { xs: '100%' }` pushes the right
-              // sub-stack to a second row on narrow viewports, but on
-              // wider screens everything still fits on one row exactly
-              // as before. Cheap correction that only engages when
-              // needed.
-              flexWrap: 'wrap'
+              // `flexWrap: 'nowrap'` — the toolbar must stay on a single
+              // row at every breakpoint. On mobile, the Sort/Status/MAC
+              // ToggleButtons collapse to a single 3-dot kebab IconButton
+              // (see right-side Stack below), which means the toolbar's
+              // total natural width fits a ~360px viewport without help
+              // from wrapping. The previous `flexWrap: 'wrap'` + 100%-
+              // width-on-xs treatment was there to avoid the search
+              // input's expansion overlapping the three filter buttons;
+              // with the filter chrome collapsed, there's nothing for
+              // the search to overlap anymore. Keeping the row pinned
+              // means the search bar grows inline up to its maxWidth
+              // and stops next to the right-aligned kebab/buttons —
+              // matching the product direction "search shouldn't push
+              // buttons below it to the next line."
+              flexWrap: 'nowrap',
+              minWidth: 0
             }}
           >
             <Stack
               direction="row"
               spacing={1}
-              // `flex: '0 0 100%'` on mobile is what actually makes the
-              // parent's `flexWrap: 'wrap'` engage. With `flex: 1`
-              // (=`flex: 1 1 0%`) the flex algorithm thinks this stack
-              // wants 0 width as its basis and "fits" alongside the
-              // right stack on the same row, even when their natural
-              // content widths overlap. Forcing the flex-basis to 100%
-              // makes the wrap line break for real, dropping the right
-              // sub-stack onto a second row on narrow viewports.
-              // `width: 100%` alone doesn't do it because `flex: 1`
-              // sets `flex-basis: 0`, which overrides width for the
-              // flex algorithm's hypothetical-main-size calc.
-              //
-              // GATING ON `isSearchOpen`: the original overlap bug only
-              // occurs when the search input is expanded (closed-state
-              // is just a 40px IconButton + optional scope selector,
-              // which fits alongside the right-side controls on a 414px
-              // viewport without overlapping). When `isSearchOpen` is
-              // false we drop the 100%-width / hard-wrap rules so the
-              // right sub-stack (Sort / Status / MAC toggles) stays on
-              // the same row as the search icon at every breakpoint —
-              // no needless second row for an empty toolbar. When the
-              // user expands the search, the rules re-engage and the
-              // right stack drops to row 2 to give the input room.
+              // Left sub-stack — holds the optional scope selector, the
+              // search-icon affordance, and the expanding search input.
+              // `flex: '1 1 auto'` lets the input grow into whatever
+              // horizontal room is available before bumping into the
+              // right sub-stack; `minWidth: 0` is required so flex
+              // children can shrink below their content-width when the
+              // viewport is narrow (without it, long PheNode labels in
+              // the scope selector would force the toolbar to overflow).
               sx={{
                 alignItems: 'flex-end',
-                width: isSearchOpen ? { xs: '100%', sm: 'auto' } : 'auto',
-                flex: isSearchOpen ? { xs: '0 0 100%', sm: '0 1 auto' } : '0 1 auto',
+                flex: '1 1 auto',
                 minWidth: 0
               }}
             >
@@ -808,9 +810,21 @@ export default function FleetOverviewView({
 
               <Box
                 sx={{
-                  width: isSearchOpen ? { xs: '100%', sm: 260 } : 0,
-                  maxWidth: { sm: 260 },
+                  // Search input grows into the available toolbar space
+                  // up to a ceiling rather than forcing 100% width on a
+                  // breakpoint. `flexGrow: 1` lets it claim whatever
+                  // horizontal room is free in the left sub-stack; the
+                  // sub-stack's own flex limit + the right sub-stack's
+                  // `flexShrink: 0` mean the search bar will stop the
+                  // moment it touches the right-aligned filter chrome,
+                  // never pushing those buttons to a second row.
+                  //
+                  // Closed state pins width to 0 + flexGrow 0 so the
+                  // collapsed icon button doesn't leave a phantom gap.
+                  width: isSearchOpen ? 'auto' : 0,
+                  maxWidth: 260,
                   flexGrow: isSearchOpen ? 1 : 0,
+                  flexShrink: 1,
                   minWidth: 0,
                   opacity: isSearchOpen ? 1 : 0,
                   overflow: 'hidden',
@@ -922,7 +936,53 @@ export default function FleetOverviewView({
               </Box>
             </Stack>
 
-            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'flex-end', flexShrink: 0 }}>
+            {/*
+              Mobile-only kebab. Collapses the three filter ToggleButtons
+              (Sort / Status / MAC) into a single 3-dot affordance so the
+              toolbar fits on a 360–414px viewport without wrapping. The
+              Menu rendered below opens from this button.
+            */}
+            <Tooltip title="Filters" arrow={false} slotProps={tooltipSlotProps}>
+              <IconButton
+                aria-label="open filter menu"
+                aria-haspopup="true"
+                aria-expanded={isFilterMenuOpen ? 'true' : undefined}
+                onClick={(event) => setFilterMenuAnchor(event.currentTarget)}
+                sx={{
+                  display: { xs: 'inline-flex', sm: 'none' },
+                  flexShrink: 0,
+                  width: 40,
+                  height: 40,
+                  ...controlBaseSx,
+                  '&:hover': {
+                    borderColor: 'var(--green)',
+                    color: 'var(--green)',
+                    backgroundColor: 'rgba(0, 17, 48, 0.03)',
+                    backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03))'
+                  },
+                  ...(isFilterMenuOpen && {
+                    borderColor: 'var(--green)',
+                    color: 'var(--green)'
+                  })
+                }}
+              >
+                <AntIcon icon={MoreOutlined} />
+              </IconButton>
+            </Tooltip>
+
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{
+                // Three ToggleButton chrome is hidden on xs in favor of
+                // the kebab above; the same buttons reappear at sm+ where
+                // the toolbar has room to lay them out side-by-side.
+                display: { xs: 'none', sm: 'flex' },
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                flexShrink: 0
+              }}
+            >
               <Tooltip title="Sort Alphabetically" arrow={false} slotProps={tooltipSlotProps}>
                 <ToggleButton
                   value="alpha"
@@ -1027,6 +1087,63 @@ export default function FleetOverviewView({
                 </ToggleButton>
               </Tooltip>
             </Stack>
+
+            {/*
+              Mobile filter menu — the dropdown opened by the kebab
+              IconButton above. Each item invokes the same state setter
+              its corresponding ToggleButton would on desktop, so the
+              two affordances are interchangeable at the data layer.
+              A check icon on the left signals which filters are
+              currently engaged; the trailing text on the Status item
+              shows where in the cycle the user currently sits.
+            */}
+            <Menu
+              anchorEl={filterMenuAnchor}
+              open={isFilterMenuOpen}
+              onClose={() => setFilterMenuAnchor(null)}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+              slotProps={{ paper: { sx: { ...neonMenuPaperSx, minWidth: 200, mt: 0.5 } } }}
+            >
+              <MenuItem
+                onClick={() => {
+                  setSortMode((previous) => (previous === 'alpha' ? '' : 'alpha'));
+                  setFilterMenuAnchor(null);
+                }}
+                sx={neonMenuItemSx}
+              >
+                <ListItemIcon sx={{ color: 'var(--green)', minWidth: 28 }}>
+                  {sortMode === 'alpha' ? <AntIcon icon={CheckOutlined} /> : <AntIcon icon={SortAscendingOutlined} />}
+                </ListItemIcon>
+                <ListItemText primary="Sort A–Z" />
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  cycleStatusFilter();
+                  setFilterMenuAnchor(null);
+                }}
+                sx={neonMenuItemSx}
+              >
+                <ListItemIcon sx={{ color: 'var(--green)', minWidth: 28 }}>
+                  {statusFilter ? <AntIcon icon={CheckOutlined} /> : <AntIcon icon={CheckCircleOutlined} />}
+                </ListItemIcon>
+                <ListItemText
+                  primary={`Status: ${STATUS_LABELS[statusFilter] === 'Status' ? 'All' : STATUS_LABELS[statusFilter]}`}
+                />
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  setShowMacAddress((previous) => !previous);
+                  setFilterMenuAnchor(null);
+                }}
+                sx={neonMenuItemSx}
+              >
+                <ListItemIcon sx={{ color: 'var(--green)', minWidth: 28 }}>
+                  {showMacAddress ? <AntIcon icon={CheckOutlined} /> : <AntIcon icon={IdcardOutlined} />}
+                </ListItemIcon>
+                <ListItemText primary={showMacAddress ? `Show ${entityNounSingular} Name` : 'Show MAC Address'} />
+              </MenuItem>
+            </Menu>
           </Stack>
 
           {/*
@@ -1075,10 +1192,16 @@ export default function FleetOverviewView({
                 // branch was already using, just applied universally.
                 height: 'calc(100vh - 280px)',
                 overflowY: 'auto',
-                // overflowX hidden on every breakpoint — the cards no
-                // longer have a fixed minWidth that overflows mobile
-                // viewports, so there's nothing to scroll horizontally.
-                overflowX: 'hidden',
+                // Horizontal scroll re-enabled on every breakpoint. The
+                // cards carry their original 5-column metric grid +
+                // 3/9 left-right split at every viewport (instead of
+                // collapsing the grid on narrow screens), so on mobile
+                // the inner content sled (see `minWidth: 860` below)
+                // overflows the scroll container's right edge and the
+                // user can swipe across to read the rest of each row.
+                // Per product direction: "expand the card out" rather
+                // than smush the metric grid to two columns.
+                overflowX: 'auto',
                 pb: 1,
                 // Shift the scrollbar gutter ~8px to the right.
                 //
@@ -1136,14 +1259,17 @@ export default function FleetOverviewView({
               }}
             >
               {/*
-            Inner content wrapper — used to be a fixed-width sled
-            (860/920px) that forced horizontal scroll on mobile so the
-            5-column metric grid could fit. Now that the metric grid
-            collapses to 2 columns on xs and 3 on sm, the cards fit any
-            viewport and this wrapper just transparently fills the
-            scroll container's width.
+            Inner content sled — re-pinned to a fixed minWidth so the
+            cards keep their full desktop layout on narrow viewports.
+            860px is wide enough to fit the 25/75 title-vs-metric-grid
+            split with the 5-column metric grid comfortably; the scroll
+            container above (overflowX: 'auto') lets the user swipe
+            right to read the columns that don't fit on a phone screen.
+            On md+ viewports the parent is already wider than 860, so
+            the minWidth is inert and the cards stretch to fill the
+            available width as before.
           */}
-              <Box>
+              <Box sx={{ minWidth: 860 }}>
                 <Stack
                   sx={{
                     display: 'flex',
@@ -1276,17 +1402,22 @@ export default function FleetOverviewView({
                     vertically centers the left column against the
                     taller metric grid.
                   */}
-                        <Grid container spacing={{ xs: 1.5, md: 2 }} sx={{ alignItems: 'center' }}>
-                          <Grid size={{ xs: 12, md: 3 }} sx={{ minWidth: 0 }}>
+                        <Grid container spacing={2} sx={{ alignItems: 'center' }}>
+                          {/*
+                            Fixed 3/9 split at every breakpoint — the
+                            outer scroll container handles overflow on
+                            mobile so the card never collapses to a
+                            single column the way it used to.
+                          */}
+                          <Grid size={3} sx={{ minWidth: 0 }}>
                             <Stack
-                              direction={{ xs: 'row', md: 'column' }}
-                              spacing={{ xs: 1.5, md: 1.25 }}
+                              direction="column"
+                              spacing={1.25}
                               sx={{
-                                // Mobile (row): top-align since the right side
-                                // is two lines tall.
-                                // Desktop (column): stretch so children fill
-                                // the column's full width.
-                                alignItems: { xs: 'flex-start', md: 'stretch' },
+                                // Stretch children to fill the 25%-wide
+                                // left column at every breakpoint, same
+                                // as the original desktop behavior.
+                                alignItems: 'stretch',
                                 minWidth: 0
                               }}
                             >
@@ -1319,9 +1450,11 @@ export default function FleetOverviewView({
                                 containerSx={{
                                   // Layout-affecting props go on the outer
                                   // wrapper so the label participates in the
-                                  // parent flex/column the same way the bare
-                                  // Typography did.
-                                  flex: { xs: 1, md: 'unset' },
+                                  // parent column flow the same way the bare
+                                  // Typography did. No breakpoint-specific
+                                  // flex here anymore — the card uses the
+                                  // desktop column layout at every viewport,
+                                  // with horizontal scroll covering mobile.
                                   minWidth: 0
                                 }}
                                 typographySx={{
@@ -1333,11 +1466,12 @@ export default function FleetOverviewView({
                               <Stack
                                 spacing={0}
                                 sx={{
-                                  // Mobile: right-align both lines so they sit
-                                  // flush with the card's right edge.
-                                  // Desktop: left-align as in the original
-                                  // (caption + date sit under the siteName).
-                                  alignItems: { xs: 'flex-end', md: 'flex-start' },
+                                  // Caption + date sit under the siteName on
+                                  // every breakpoint. The card no longer
+                                  // collapses into a row layout on mobile —
+                                  // the parent scroll container provides the
+                                  // horizontal-scroll affordance instead.
+                                  alignItems: 'flex-start',
                                   flexShrink: 0,
                                   minWidth: 0
                                 }}
@@ -1374,21 +1508,20 @@ export default function FleetOverviewView({
                             </Stack>
                           </Grid>
 
-                          <Grid size={{ xs: 12, md: 9 }}>
+                          <Grid size={9}>
                             {/*
-                        Metric grid columns step down on smaller viewports:
-                          xs — 2 columns
-                          sm — 3 columns
-                          md+ — 5 columns (original)
+                        Metric grid stays at 5 columns at every
+                        breakpoint. Narrower viewports show the same
+                        grid but the parent scroll container clips it
+                        and lets the user swipe horizontally to read
+                        the columns that don't fit on screen — per
+                        product direction "expand the card out instead
+                        of smushing it."
                       */}
                             <Box
                               sx={{
                                 display: 'grid',
-                                gridTemplateColumns: {
-                                  xs: 'repeat(2, minmax(0, 1fr))',
-                                  sm: 'repeat(3, minmax(0, 1fr))',
-                                  md: 'repeat(5, minmax(0, 1fr))'
-                                },
+                                gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
                                 gap: { xs: 1.25, sm: 1.5, lg: 2 },
                                 justifyItems: 'stretch'
                               }}

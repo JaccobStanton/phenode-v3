@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import FleetOverviewView from 'sections/fleet-overview/FleetOverviewView';
-import PhenodeSelector from 'components/PhenodeSelector';
+import PhenodeSelector, { COMPACT_FIELD_WIDTH } from 'components/PhenodeSelector';
 import { useSelection } from 'contexts/SelectionContext';
 import useAuth from 'hooks/useAuth';
 import useMyDevices from 'hooks/data/useMyDevices';
@@ -174,6 +174,11 @@ export default function SensorFleetOverview() {
           selectedDeviceId={selectedPhenodeId}
           onChange={(id) => selectPheNode?.(id ?? null)}
           isLoading={devicesLoading}
+          // Compact width — the wireless-sensor fleet shares its toolbar
+          // row with the search input + the 3-dot filter overflow on
+          // mobile. The standalone widened FIELD_WIDTH was pushing the
+          // right-side chrome off the visible toolbar at xs.
+          width={COMPACT_FIELD_WIDTH}
         />
       }
       emptyMessage={emptyMessage}

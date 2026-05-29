@@ -40,7 +40,23 @@ import { neonControlSx, neonMenuItemSx, neonMenuPaperSx } from 'themes/sx-tokens
 // Field width — wide enough to comfortably display longer PheNode
 // labels without immediate truncation, while still leaving room for
 // the search icon + input that sit to its right in the toolbar row.
-const FIELD_WIDTH = { xs: 200, sm: 260 };
+//
+// Widened on every breakpoint after the mobile audit — at xs=200/sm=260
+// the field truncated common labels like "Greenhouse 3 — North Bay" with
+// an ellipsis the moment the dropdown was closed, forcing users to open
+// the menu just to read which device they had selected. The new floor
+// (xs=280) lets the typical 20–24 char label render in full on a 412px
+// viewport; sm+ widens further so the dropdown can grow with the
+// available toolbar room.
+const FIELD_WIDTH = { xs: 280, sm: 320, md: 340 };
+
+// Narrower default for callers that share the toolbar row with other
+// controls (notably the wireless-sensor fleet's scope-selector slot,
+// where the dropdown lives alongside the search + filter chrome and
+// 280px on xs pushed the right-side controls off the visible toolbar).
+// Exported so opinionated callers can opt back into the compact size
+// without re-declaring the breakpoint shape inline.
+export const COMPACT_FIELD_WIDTH = { xs: 200, sm: 260 };
 
 // Inline TextField sx — mirror of the rename input pattern in
 // sensor-network.jsx:136-156. Suppresses the notched outline (the
@@ -94,7 +110,13 @@ export default function PhenodeSelector({
   // the sensor-measurements page, where the placeholder text alone
   // ("Select PheNode...") communicates the affordance and the
   // surrounding title row provides the context.
-  label = 'Showing sensors connected to:'
+  label = 'Showing sensors connected to:',
+  // Optional width override. Defaults to the wide FIELD_WIDTH used on
+  // standalone toolbars (Imaging, Sensor Measurements, System
+  // Diagnostics, etc). The wireless-sensor fleet page passes
+  // COMPACT_FIELD_WIDTH because the dropdown shares its row with the
+  // search input + filter buttons and needs to stay narrow on mobile.
+  width = FIELD_WIDTH
 }) {
   // Autocomplete works best with object options carrying both an `id`
   // (for equality) and a `label` (for display). Mapping device list
@@ -160,7 +182,7 @@ export default function PhenodeSelector({
         loadingText="Loading PheNodes…"
         noOptionsText="No PheNodes available"
         isOptionEqualToValue={(opt, val) => opt?.id === val?.id}
-        sx={{ width: FIELD_WIDTH }}
+        sx={{ width }}
         renderInput={(params) => (
           <TextField
             {...params}
@@ -183,5 +205,9 @@ PhenodeSelector.propTypes = {
   selectedDeviceId: PropTypes.string,
   onChange: PropTypes.func.isRequired,
   isLoading: PropTypes.bool,
-  label: PropTypes.string
+  label: PropTypes.string,
+  // Accept any sx-shaped value (number, string, or a per-breakpoint
+  // object) so callers can pass either FIELD_WIDTH-style maps or a
+  // fixed number.
+  width: PropTypes.oneOfType([PropTypes.number, PropTypes.string, PropTypes.object])
 };
