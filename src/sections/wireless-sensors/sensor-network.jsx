@@ -612,10 +612,10 @@ export default function SensorNetwork() {
   const [selectedProbe, setSelectedProbe] = useState('both');
   const showProbeToggle = selectedCategory === WIRELESS_CATEGORY_IDS.SOIL || selectedCategory === WIRELESS_CATEGORY_IDS.ALL;
 
-  // Onboard ambient-temperature sensor filter (Both / High Resolution /
-  // Standard). The temperature chart overlays the high-resolution sensor and
-  // the standard sensor; this picks which line(s) show. Mirrors the device
-  // page's source toggle: shown on Environment + All (Light is single-source).
+  // Onboard ambient-temperature sensor filter (Both / Primary / Aux). The
+  // temperature chart overlays the MCP9808 (Primary) and BME688 (Aux) sensors;
+  // this picks which line(s) show. Mirrors the device page's source toggle:
+  // shown on Environment + All (Light is single-source).
   const [selectedSource, setSelectedSource] = useState('both');
   const showSourceToggle =
     selectedCategory === WIRELESS_CATEGORY_IDS.WEATHER || selectedCategory === WIRELESS_CATEGORY_IDS.ALL;
@@ -2053,9 +2053,9 @@ export default function SensorNetwork() {
                     </Stack>
 
                     {/*
-                      Filter toggles — temp-sensor source (Both/High
-                      Resolution/Standard) and/or soil probe (Both/Probe 1/
-                      Probe 2), depending on the category. Source shows on
+                      Filter toggles — temp-sensor source (Both/Primary/Aux)
+                      and/or soil probe (Both/Probe 1/Probe 2), depending on
+                      the category. Source shows on
                       Environment + All, soil on Soil + All. On the All
                       category both render with "Temp:" / "Soil:" captions,
                       source LEFT of soil with a small gap on desktop and
@@ -2086,8 +2086,8 @@ export default function SensorNetwork() {
                               sx={filterToggleSx}
                             >
                               <ToggleButton value="both">Both</ToggleButton>
-                              <ToggleButton value="high">High Resolution</ToggleButton>
-                              <ToggleButton value="standard">Standard</ToggleButton>
+                              <ToggleButton value="primary">Primary</ToggleButton>
+                              <ToggleButton value="aux">Aux</ToggleButton>
                             </ToggleButtonGroup>
                           </Stack>
                         )}

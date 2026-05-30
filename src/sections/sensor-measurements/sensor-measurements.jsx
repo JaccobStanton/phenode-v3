@@ -540,6 +540,48 @@ function formatWindDirectionFull(degrees) {
 // need additional guards here. `displayPrefs` is the memoized object from
 // useDisplayPreferences(). `latest` is the per-field latest-value object
 // computed in the component from measurementRows (empty when no data).
+
+// =============================================================================
+// computeCircleValueScale — graceful font-size shrink for long readings.
+// =============================================================================
+//
+// The circles render their main value (e.g., "65.66°F") at a large display
+// fontSize tuned to look prominent against the surrounding labels. Typical
+// readings — 5-7 digit numerics plus a short unit — fit the ~250 px content
+// width of the 315 px circle comfortably. But the design has to handle
+// outliers gracefully:
+//
+//   "65.66°F"      ─  7 chars  ✓ comfortable
+//   "62.75 mm"     ─  8 chars  ✓ comfortable
+//   "100.00 mph"   ─ 10 chars  → wraps to a second line at full size
+//   "-9999.00 m/s" ─ 12 chars  → wraps badly (real error state from sensors
+//                                  that report -9999 as a no-data sentinel)
+//
+// A wrap looks bad on the dashboard because it pushes the label and sub-label
+// down asymmetrically and breaks visual rhythm between the three circles.
+// Scaling the font down for longer strings keeps the value on one line and
+// keeps the layout stable.
+//
+// Formula: full size up to 8 chars, then `Math.max(0.6, 8 / length)`. The
+// 0.6 floor keeps even worst-case (20-char) strings legible — below that
+// the text becomes too small to read at a glance.
+//
+//   length ≤ 8 → 1.00 (no scaling, full design size)
+//   length = 9 → 0.89
+//   length = 10 → 0.80
+//   length = 11 → 0.73
+//   length = 12 → 0.67
+//   length = 14 → 0.60 (floor)
+//
+// Applied as a CSS custom property `--value-scale` on the Typography's
+// style prop; the sx fontSize uses `calc(...rem * var(--value-scale, 1))`
+// per breakpoint so the responsive sizes scale together.
+function computeCircleValueScale(text) {
+  const length = String(text ?? '').length;
+  if (length <= 8) return 1;
+  return Math.max(0.6, 8 / length);
+}
+
 function buildCircleMetrics(device, displayPrefs, latest) {
   const tempUnit = displayPrefs?.tempUnit ?? 'F';
   const speedUnit = displayPrefs?.speedUnit ?? 'ms';
@@ -1369,11 +1411,35 @@ export default function SensorMeasurements() {
                         // document landmark, and the dashboard layout
                         // already sets the real page <h1>.
                         component="p"
+                        // Length-aware font-size scale. The CSS
+                        // variable `--value-scale` multiplies into the
+                        // breakpoint fontSize values below so a long
+                        // reading (e.g. "-9999.00 m/s") shrinks to
+                        // fit on one line, while typical readings
+                        // (e.g. "65.66°F") stay at the full design
+                        // size. See computeCircleValueScale at module
+                        // scope for the formula + thresholds.
+                        //
+                        // `whiteSpace: 'nowrap'` is the safety net —
+                        // if a value ever exceeds what the scale can
+                        // accommodate (>20 chars, scale floor 0.6),
+                        // the text stays on one line and the circle's
+                        // overflow:hidden quietly clips rather than
+                        // pushing the label and sub-label down. In
+                        // practice the scale always handles real-world
+                        // readings; this is just a belt-and-braces
+                        // guard against a malformed value upstream.
+                        style={{ '--value-scale': computeCircleValueScale(metric.value) }}
                         sx={{
                           color: 'var(--green)',
                           lineHeight: 1,
                           fontWeight: 300,
-                          fontSize: { xs: '3.2rem', sm: '3.4rem', md: '3.7rem' },
+                          fontSize: {
+                            xs: 'calc(3.2rem * var(--value-scale, 1))',
+                            sm: 'calc(3.4rem * var(--value-scale, 1))',
+                            md: 'calc(3.7rem * var(--value-scale, 1))'
+                          },
+                          whiteSpace: 'nowrap',
                           textShadow: '0 1px 9px #1a75e0c9',
                           // Remove default <p> margin so the visual
                           // spacing stays exactly as it did before.

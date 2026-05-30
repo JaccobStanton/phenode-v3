@@ -100,15 +100,15 @@ function applyProbeFilter(seriesDefs, probeFilter) {
 }
 
 // Temp-sensor source filter — keep only the chosen onboard sensor's line when
-// the user picks High Resolution / Standard. Keyed on the series LABELS the
-// ambient-temperature chart uses ('High Resolution' = MCP9808, 'Standard' =
-// BME280). 'both' keeps everything; charts without those labels (soil probes,
-// single-source) are untouched, and we never blank a chart if nothing matches.
+// the user picks Primary / Aux. Keyed on the series LABELS the ambient-
+// temperature chart uses ('Primary' = MCP9808, 'Aux' = BME688, per the sensor-
+// hierarchy sheet). 'both' keeps everything; charts without those labels (soil
+// probes, single-source) are untouched, and we never blank a chart if nothing matches.
 function applySourceFilter(seriesDefs, sourceFilter) {
   if (sourceFilter === 'both') return seriesDefs;
-  const hasSourceLabels = seriesDefs.some((s) => s.label === 'High Resolution' || s.label === 'Standard');
+  const hasSourceLabels = seriesDefs.some((s) => s.label === 'Primary' || s.label === 'Aux');
   if (!hasSourceLabels) return seriesDefs;
-  const wanted = sourceFilter === 'high' ? 'High Resolution' : 'Standard';
+  const wanted = sourceFilter === 'primary' ? 'Primary' : 'Aux';
   const filtered = seriesDefs.filter((s) => s.label === wanted);
   return filtered.length ? filtered : seriesDefs;
 }

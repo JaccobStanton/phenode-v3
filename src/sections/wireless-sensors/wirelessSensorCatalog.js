@@ -171,13 +171,14 @@ export function buildWirelessSensorCatalog(displayPrefs) {
       // brand-neutral.)
       key: 'temperature_ambient',
       title: 'Ambient Temperature',
-      info: 'Onboard ambient temperature — High Resolution if equipped, Standard fallback',
+      info: 'Onboard ambient temperature — MCP9808 (Primary) with BME688 (Aux) fallback',
       chartType: 'multiline',
       unit: temp.label,
       transform: temp.transform,
+      // Per the sensor-hierarchy sheet: MCP9808 = Primary, BME688 = Aux.
       series: [
-        { field: 'temperatureMcp9808', label: 'High Resolution', color: COLORS.temperatureMcp, transform: temp.transform },
-        { field: 'temperatureBme', label: 'Standard', color: COLORS.temperatureBme, transform: temp.transform }
+        { field: 'temperatureMcp9808', label: 'Primary', color: COLORS.temperatureMcp, transform: temp.transform },
+        { field: 'temperatureBme', label: 'Aux', color: COLORS.temperatureBme, transform: temp.transform }
       ],
       availability: 'live'
     },
