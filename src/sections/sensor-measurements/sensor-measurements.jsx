@@ -1905,6 +1905,9 @@ export default function SensorMeasurements() {
                           <ToggleButton value="both">Both</ToggleButton>
                           <ToggleButton value="primary">Primary</ToggleButton>
                           <ToggleButton value="alternate">Alternate</ToggleButton>
+                          {/* Aux only isolates the temperature chart's BME688
+                              line; charts without an Aux series ignore it. */}
+                          <ToggleButton value="aux">Aux</ToggleButton>
                         </ToggleButtonGroup>
                       </Stack>
                     )}

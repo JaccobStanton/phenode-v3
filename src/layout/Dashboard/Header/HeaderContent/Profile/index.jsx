@@ -216,6 +216,11 @@ export default function Profile({ embedded = false, onOpenSupport, onOpenPrivacy
           <Avatar
             alt="profile user"
             src={avatar1}
+            // `loading="lazy"` is forwarded to the inner <img>. Above-the-
+            // fold renders eagerly anyway; offscreen instances (drawer
+            // menus, popovers) defer their fetch. Lighthouse flagged the
+            // marble icon at 180 KiB on /dashboard/download-preferences.
+            imgProps={{ loading: 'lazy' }}
             sx={{ width: 32, height: 32, flexShrink: 0, bgcolor: 'transparent', color: 'inherit' }}
           />
           <Stack sx={{ minWidth: 0, flex: 1 }}>
@@ -236,11 +241,7 @@ export default function Profile({ embedded = false, onOpenSupport, onOpenPrivacy
             </Typography>
           </Stack>
           <Tooltip title="Logout" arrow={false} slotProps={projectTooltipSlotProps}>
-            <IconButton
-              onClick={handleLogout}
-              aria-label="Log out"
-              sx={{ flexShrink: 0, ...logoutIconButtonSx }}
-            >
+            <IconButton onClick={handleLogout} aria-label="Log out" sx={{ flexShrink: 0, ...logoutIconButtonSx }}>
               <AntIcon icon={LogoutOutlined} />
             </IconButton>
           </Tooltip>
@@ -248,13 +249,7 @@ export default function Profile({ embedded = false, onOpenSupport, onOpenPrivacy
       </CardContent>
 
       <Box sx={{ borderBottom: '1px solid var(--reflected-light)' }}>
-        <Tabs
-          variant="fullWidth"
-          value={value}
-          onChange={handleChange}
-          aria-label="profile tabs"
-          sx={profileTabsSx}
-        >
+        <Tabs variant="fullWidth" value={value} onChange={handleChange} aria-label="profile tabs" sx={profileTabsSx}>
           <Tab
             sx={{
               display: 'flex',
@@ -361,6 +356,7 @@ export default function Profile({ embedded = false, onOpenSupport, onOpenPrivacy
             alt="profile user"
             src={avatar1}
             size="sm"
+            imgProps={{ loading: 'lazy' }}
             sx={{
               bgcolor: 'transparent',
               color: 'inherit',

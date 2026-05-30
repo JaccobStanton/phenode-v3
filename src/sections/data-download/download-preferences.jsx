@@ -167,7 +167,15 @@ function normalizeForm(form) {
   };
 }
 
-function PreferenceBox({ title, children }) {
+// `id` is wired to the title `<Typography>` so the child Select /
+// Autocomplete can reference it via `aria-labelledby` — Lighthouse
+// previously scored these inputs 0/100 for "ARIA input fields do not
+// have accessible names" because the visible title wasn't programmatically
+// linked to the control. `component="p"` overrides the MUI subtitle1
+// default of `h6`, which would otherwise create the
+// "heading-order skipped from h4 → h6" violation since the page-level
+// title is `<Typography variant="h4">` and there's no h5 in between.
+function PreferenceBox({ id, title, children }) {
   return (
     <Card
       sx={{
@@ -180,7 +188,7 @@ function PreferenceBox({ title, children }) {
       }}
     >
       <Stack spacing={1.25}>
-        <Typography variant="subtitle1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
+        <Typography id={id} component="p" variant="subtitle1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
           {title}
         </Typography>
         {children}
@@ -192,7 +200,7 @@ function PreferenceBox({ title, children }) {
 export default function DownloadPreferences() {
   const { accessToken } = useAuth();
   const toast = useToast();
-  const { preferences, isLoading, error, mutate } = useUserPreferences();
+  const { preferences, error, mutate } = useUserPreferences();
 
   // Full IANA timezone list, computed once per mount.
   const timezones = useMemo(() => getAllTimezones(), []);
@@ -238,10 +246,12 @@ export default function DownloadPreferences() {
 
   const isDirty = JSON.stringify(normalizeForm(currentForm)) !== JSON.stringify(normalizeForm(loadedForm));
 
-  // Block initial render of the form until the first preferences payload
-  // resolves, so we never flash defaults the user could save over their
-  // real, not-yet-loaded values.
-  const isInitialLoad = isLoading && !preferences;
+  // Render the form chrome immediately and let useEffect hydrate values
+  // when preferences resolve — gating the body on `isLoading` previously
+  // pushed LCP to 3.7s (Lighthouse, 2026-05-30). The Save button stays
+  // disabled while `!preferences` so an early submit can't write defaults
+  // over an unloaded row. `loadFailed` becomes an inline banner above
+  // the form rather than replacing it.
   const loadFailed = error && !preferences;
 
   const handleUpdate = async () => {
@@ -350,260 +360,289 @@ export default function DownloadPreferences() {
         </Stack>
       </Box>
 
-      {isInitialLoad ? (
-        <Stack alignItems="center" sx={{ py: 6, gap: 1.5 }}>
-          <CircularProgress sx={{ color: 'var(--green)' }} size={28} />
-          <Typography sx={{ color: 'var(--blue)', fontSize: '0.9rem' }}>Loading your preferences…</Typography>
-        </Stack>
-      ) : loadFailed ? (
-        <Stack alignItems="center" sx={{ py: 6, gap: 1 }}>
-          <Typography sx={{ color: 'var(--orange)', fontWeight: 600 }}>We couldn&apos;t load your preferences.</Typography>
-          <Typography sx={{ color: 'var(--blue)', fontSize: '0.85rem', opacity: 0.85 }}>
-            Try refreshing the page. If this keeps happening, contact support.
-          </Typography>
-        </Stack>
-      ) : (
-        <Box sx={{ p: { xs: 2, sm: 3 } }}>
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
-              <PreferenceBox title="In the case of error values...">
-                <FormControl size="small">
-                  <Select
-                    value={errorValuesStrategy}
-                    onChange={(event) => setErrorValuesStrategy(event.target.value)}
-                    MenuProps={{
-                      PaperProps: { sx: neonMenuPaperSx },
-                      MenuListProps: {
-                        sx: {
-                          p: 0.5,
-                          '& .MuiMenuItem-root': { ...neonMenuItemSx }
-                        }
-                      }
-                    }}
-                    sx={preferenceSelectSx}
-                  >
-                    <MenuItem value="Leave error" sx={neonMenuItemSx}>
-                      Leave error
-                    </MenuItem>
-                    <MenuItem value="Replace with zero" sx={neonMenuItemSx}>
-                      Replace with zero
-                    </MenuItem>
-                    <MenuItem value="Flag with custom value" sx={neonMenuItemSx}>
-                      Flag with custom value
-                    </MenuItem>
-                  </Select>
-                </FormControl>
-
-                {showErrorCustomInput && (
-                  <TextField
-                    size="small"
-                    placeholder="Enter custom value"
-                    value={errorCustomValue}
-                    onChange={(event) => setErrorCustomValue(event.target.value)}
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        ...neonControlSx,
-                        '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
-                      },
-                      '& .MuiInputBase-input': {
-                        color: 'var(--green)',
-                        '&::placeholder': { color: 'var(--green)', opacity: 1 }
-                      }
-                    }}
-                  />
-                )}
-              </PreferenceBox>
-            </Grid>
-
-            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
-              <PreferenceBox title="Desired number of decimal places...">
-                <FormControl size="small">
-                  <Select
-                    value={decimalPlacesDigits}
-                    onChange={(event) => setDecimalPlacesDigits(event.target.value)}
-                    MenuProps={{
-                      PaperProps: { sx: neonMenuPaperSx },
-                      MenuListProps: {
-                        sx: {
-                          p: 0.5,
-                          '& .MuiMenuItem-root': { ...neonMenuItemSx }
-                        }
-                      }
-                    }}
-                    sx={preferenceSelectSx}
-                  >
-                    <MenuItem value="1" sx={neonMenuItemSx}>
-                      1
-                    </MenuItem>
-                    <MenuItem value="2" sx={neonMenuItemSx}>
-                      2
-                    </MenuItem>
-                    <MenuItem value="3" sx={neonMenuItemSx}>
-                      3
-                    </MenuItem>
-                    <MenuItem value="4" sx={neonMenuItemSx}>
-                      4
-                    </MenuItem>
-                    <MenuItem value="No limit" sx={neonMenuItemSx}>
-                      No limit
-                    </MenuItem>
-                  </Select>
-                </FormControl>
-              </PreferenceBox>
-            </Grid>
-
-            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
-              <PreferenceBox title="In the case of blank cells...">
-                <FormControl size="small">
-                  <Select
-                    value={blankCellsStrategy}
-                    onChange={(event) => setBlankCellsStrategy(event.target.value)}
-                    MenuProps={{
-                      PaperProps: { sx: neonMenuPaperSx },
-                      MenuListProps: {
-                        sx: {
-                          p: 0.5,
-                          '& .MuiMenuItem-root': { ...neonMenuItemSx }
-                        }
-                      }
-                    }}
-                    sx={preferenceSelectSx}
-                  >
-                    <MenuItem value="Replace with zero" sx={neonMenuItemSx}>
-                      Replace with zero
-                    </MenuItem>
-                    <MenuItem value="Leave cell blank" sx={neonMenuItemSx}>
-                      Leave cell blank
-                    </MenuItem>
-                    <MenuItem value="Flag with custom value" sx={neonMenuItemSx}>
-                      Flag with custom value
-                    </MenuItem>
-                  </Select>
-                </FormControl>
-
-                {showBlankCustomInput && (
-                  <TextField
-                    size="small"
-                    placeholder="Enter custom value"
-                    value={blankCustomValue}
-                    onChange={(event) => setBlankCustomValue(event.target.value)}
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        ...neonControlSx,
-                        '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
-                      },
-                      '& .MuiInputBase-input': {
-                        color: 'var(--green)',
-                        '&::placeholder': { color: 'var(--green)', opacity: 1 }
-                      }
-                    }}
-                  />
-                )}
-              </PreferenceBox>
-            </Grid>
-
-            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
-              <PreferenceBox title="Time zone for CSV download timestamps...">
-                <Autocomplete
-                  options={[USE_DISPLAY_TZ_VALUE, ...timezones]}
-                  getOptionLabel={(opt) => (opt === USE_DISPLAY_TZ_VALUE ? USE_DISPLAY_TZ_LABEL : opt)}
-                  isOptionEqualToValue={(a, b) => a === b}
-                  value={timeZone}
-                  // Autocomplete passes `null` when cleared; we keep the
-                  // sentinel as the canonical "no explicit zone" value so
-                  // the dirty-compare and the save-time null serialization
-                  // both stay simple.
-                  onChange={(_e, next) => setTimeZone(next ?? USE_DISPLAY_TZ_VALUE)}
-                  disableClearable
-                  autoHighlight
-                  renderInput={(params) => <TextField {...params} placeholder={USE_DISPLAY_TZ_LABEL} size="small" sx={timezoneInputSx} />}
-                  slotProps={{
-                    paper: { sx: { ...neonMenuPaperSx, maxHeight: 360 } },
-                    listbox: {
+      {/* Form chrome renders on first commit — Lighthouse flagged the
+          previous SWR-load gate as the cause of LCP=3.7s (the help
+          caption inside the timezone PreferenceBox was the LCP element
+          and didn't paint until /user-preferences resolved). Now the
+          static surface paints immediately, the controls hydrate via the
+          useEffect once preferences load, and the Save button stays
+          disabled until then so the user can't write defaults over an
+          unloaded row. The load-failed state degrades to an inline
+          banner above the form rather than replacing it. */}
+      <Box sx={{ p: { xs: 2, sm: 3 } }}>
+        {loadFailed && (
+          <Box
+            role="alert"
+            sx={{
+              mb: 2,
+              p: 1.25,
+              border: '1px solid var(--orange)',
+              borderRadius: 1,
+              backgroundColor: 'rgba(255, 165, 0, 0.08)'
+            }}
+          >
+            <Typography sx={{ color: 'var(--orange)', fontWeight: 600, fontSize: '0.85rem' }}>
+              We couldn&apos;t load your preferences.
+            </Typography>
+            <Typography sx={{ color: 'var(--blue)', fontSize: '0.78rem', opacity: 0.85 }}>
+              Showing defaults. Try refreshing the page — if this keeps happening, contact support.
+            </Typography>
+          </Box>
+        )}
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+            <PreferenceBox id="pref-error-values-label" title="In the case of error values...">
+              <FormControl size="small">
+                <Select
+                  // `aria-labelledby` on <Select> lands on the role-less
+                  // MuiInputBase-root wrapper — Lighthouse flagged that as
+                  // a prohibited ARIA attr on 2026-05-30 because the
+                  // wrapper has no role. SelectDisplayProps targets the
+                  // inner <div role="combobox"> directly, which is the
+                  // element axe-core / Lighthouse checks for a name.
+                  SelectDisplayProps={{ 'aria-labelledby': 'pref-error-values-label' }}
+                  value={errorValuesStrategy}
+                  onChange={(event) => setErrorValuesStrategy(event.target.value)}
+                  MenuProps={{
+                    PaperProps: { sx: neonMenuPaperSx },
+                    MenuListProps: {
                       sx: {
                         p: 0.5,
-                        '& .MuiAutocomplete-option': { ...neonMenuItemSx, fontSize: '0.85rem' }
+                        '& .MuiMenuItem-root': { ...neonMenuItemSx }
                       }
                     }
                   }}
-                />
-                <Typography variant="caption" sx={{ color: 'var(--blue)', fontSize: '0.72rem', lineHeight: 1.4 }}>
-                  Applies only to timestamps in CSV downloads. The app&apos;s charts, sensor cards, and map use the Display Timezone you set
-                  on Account Settings. Pick a specific zone here to override that default for downloads, or leave on &quot;Match my Display
-                  Timezone&quot; to keep them in sync.
-                </Typography>
-              </PreferenceBox>
-            </Grid>
+                  sx={preferenceSelectSx}
+                >
+                  <MenuItem value="Leave error" sx={neonMenuItemSx}>
+                    Leave error
+                  </MenuItem>
+                  <MenuItem value="Replace with zero" sx={neonMenuItemSx}>
+                    Replace with zero
+                  </MenuItem>
+                  <MenuItem value="Flag with custom value" sx={neonMenuItemSx}>
+                    Flag with custom value
+                  </MenuItem>
+                </Select>
+              </FormControl>
 
-            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
-              <PreferenceBox title="In the case of hyphens...">
-                <FormControl size="small">
-                  <Select
-                    value={hyphensStrategy}
-                    onChange={(event) => setHyphensStrategy(event.target.value)}
-                    MenuProps={{
-                      PaperProps: { sx: neonMenuPaperSx },
-                      MenuListProps: {
-                        sx: {
-                          p: 0.5,
-                          '& .MuiMenuItem-root': { ...neonMenuItemSx }
-                        }
-                      }
-                    }}
-                    sx={preferenceSelectSx}
-                  >
-                    <MenuItem value="Leave hyphen" sx={neonMenuItemSx}>
-                      Leave hyphen
-                    </MenuItem>
-                    <MenuItem value="Replace with underscore" sx={neonMenuItemSx}>
-                      Replace with underscore
-                    </MenuItem>
-                    <MenuItem value="Delete hyphen" sx={neonMenuItemSx}>
-                      Delete hyphen
-                    </MenuItem>
-                  </Select>
-                </FormControl>
-              </PreferenceBox>
-            </Grid>
+              {showErrorCustomInput && (
+                <TextField
+                  size="small"
+                  placeholder="Enter custom value"
+                  value={errorCustomValue}
+                  onChange={(event) => setErrorCustomValue(event.target.value)}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      ...neonControlSx,
+                      '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
+                    },
+                    '& .MuiInputBase-input': {
+                      color: 'var(--green)',
+                      '&::placeholder': { color: 'var(--green)', opacity: 1 }
+                    }
+                  }}
+                />
+              )}
+            </PreferenceBox>
           </Grid>
 
-          <Box sx={{ mt: 2.5, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1.5 }}>
-            {isDirty && !saving && (
-              <Typography sx={{ fontSize: '0.78rem', color: 'var(--orange)', fontStyle: 'italic' }}>You have unsaved changes.</Typography>
-            )}
-            <Button
-              variant="outlined"
-              onClick={handleUpdate}
-              disabled={!isDirty || saving}
-              startIcon={saving ? <CircularProgress size={14} sx={{ color: 'inherit' }} /> : null}
-              sx={{
-                borderColor: 'var(--blue)',
+          <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+            <PreferenceBox id="pref-decimal-places-label" title="Desired number of decimal places...">
+              <FormControl size="small">
+                <Select
+                  SelectDisplayProps={{ 'aria-labelledby': 'pref-decimal-places-label' }}
+                  value={decimalPlacesDigits}
+                  onChange={(event) => setDecimalPlacesDigits(event.target.value)}
+                  MenuProps={{
+                    PaperProps: { sx: neonMenuPaperSx },
+                    MenuListProps: {
+                      sx: {
+                        p: 0.5,
+                        '& .MuiMenuItem-root': { ...neonMenuItemSx }
+                      }
+                    }
+                  }}
+                  sx={preferenceSelectSx}
+                >
+                  <MenuItem value="1" sx={neonMenuItemSx}>
+                    1
+                  </MenuItem>
+                  <MenuItem value="2" sx={neonMenuItemSx}>
+                    2
+                  </MenuItem>
+                  <MenuItem value="3" sx={neonMenuItemSx}>
+                    3
+                  </MenuItem>
+                  <MenuItem value="4" sx={neonMenuItemSx}>
+                    4
+                  </MenuItem>
+                  <MenuItem value="No limit" sx={neonMenuItemSx}>
+                    No limit
+                  </MenuItem>
+                </Select>
+              </FormControl>
+            </PreferenceBox>
+          </Grid>
+
+          <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+            <PreferenceBox id="pref-blank-cells-label" title="In the case of blank cells...">
+              <FormControl size="small">
+                <Select
+                  SelectDisplayProps={{ 'aria-labelledby': 'pref-blank-cells-label' }}
+                  value={blankCellsStrategy}
+                  onChange={(event) => setBlankCellsStrategy(event.target.value)}
+                  MenuProps={{
+                    PaperProps: { sx: neonMenuPaperSx },
+                    MenuListProps: {
+                      sx: {
+                        p: 0.5,
+                        '& .MuiMenuItem-root': { ...neonMenuItemSx }
+                      }
+                    }
+                  }}
+                  sx={preferenceSelectSx}
+                >
+                  <MenuItem value="Replace with zero" sx={neonMenuItemSx}>
+                    Replace with zero
+                  </MenuItem>
+                  <MenuItem value="Leave cell blank" sx={neonMenuItemSx}>
+                    Leave cell blank
+                  </MenuItem>
+                  <MenuItem value="Flag with custom value" sx={neonMenuItemSx}>
+                    Flag with custom value
+                  </MenuItem>
+                </Select>
+              </FormControl>
+
+              {showBlankCustomInput && (
+                <TextField
+                  size="small"
+                  placeholder="Enter custom value"
+                  value={blankCustomValue}
+                  onChange={(event) => setBlankCustomValue(event.target.value)}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      ...neonControlSx,
+                      '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
+                    },
+                    '& .MuiInputBase-input': {
+                      color: 'var(--green)',
+                      '&::placeholder': { color: 'var(--green)', opacity: 1 }
+                    }
+                  }}
+                />
+              )}
+            </PreferenceBox>
+          </Grid>
+
+          <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+            <PreferenceBox id="pref-timezone-label" title="Time zone for CSV download timestamps...">
+              <Autocomplete
+                aria-labelledby="pref-timezone-label"
+                options={[USE_DISPLAY_TZ_VALUE, ...timezones]}
+                getOptionLabel={(opt) => (opt === USE_DISPLAY_TZ_VALUE ? USE_DISPLAY_TZ_LABEL : opt)}
+                isOptionEqualToValue={(a, b) => a === b}
+                value={timeZone}
+                // Autocomplete passes `null` when cleared; we keep the
+                // sentinel as the canonical "no explicit zone" value so
+                // the dirty-compare and the save-time null serialization
+                // both stay simple.
+                onChange={(_e, next) => setTimeZone(next ?? USE_DISPLAY_TZ_VALUE)}
+                disableClearable
+                autoHighlight
+                renderInput={(params) => <TextField {...params} placeholder={USE_DISPLAY_TZ_LABEL} size="small" sx={timezoneInputSx} />}
+                slotProps={{
+                  paper: { sx: { ...neonMenuPaperSx, maxHeight: 360 } },
+                  listbox: {
+                    sx: {
+                      p: 0.5,
+                      '& .MuiAutocomplete-option': { ...neonMenuItemSx, fontSize: '0.85rem' }
+                    }
+                  }
+                }}
+              />
+              <Typography variant="caption" sx={{ color: 'var(--blue)', fontSize: '0.75rem', lineHeight: 1.4 }}>
+                Applies only to timestamps in CSV downloads. The app&apos;s charts, sensor cards, and map use the Display Timezone you set
+                on Account Settings. Pick a specific zone here to override that default for downloads, or leave on &quot;Match my Display
+                Timezone&quot; to keep them in sync.
+              </Typography>
+            </PreferenceBox>
+          </Grid>
+
+          <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+            <PreferenceBox id="pref-hyphens-label" title="In the case of hyphens...">
+              <FormControl size="small">
+                <Select
+                  SelectDisplayProps={{ 'aria-labelledby': 'pref-hyphens-label' }}
+                  value={hyphensStrategy}
+                  onChange={(event) => setHyphensStrategy(event.target.value)}
+                  MenuProps={{
+                    PaperProps: { sx: neonMenuPaperSx },
+                    MenuListProps: {
+                      sx: {
+                        p: 0.5,
+                        '& .MuiMenuItem-root': { ...neonMenuItemSx }
+                      }
+                    }
+                  }}
+                  sx={preferenceSelectSx}
+                >
+                  <MenuItem value="Leave hyphen" sx={neonMenuItemSx}>
+                    Leave hyphen
+                  </MenuItem>
+                  <MenuItem value="Replace with underscore" sx={neonMenuItemSx}>
+                    Replace with underscore
+                  </MenuItem>
+                  <MenuItem value="Delete hyphen" sx={neonMenuItemSx}>
+                    Delete hyphen
+                  </MenuItem>
+                </Select>
+              </FormControl>
+            </PreferenceBox>
+          </Grid>
+        </Grid>
+
+        <Box sx={{ mt: 2.5, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1.5 }}>
+          {isDirty && !saving && (
+            <Typography sx={{ fontSize: '0.78rem', color: 'var(--orange)', fontStyle: 'italic' }}>You have unsaved changes.</Typography>
+          )}
+          <Button
+            variant="outlined"
+            onClick={handleUpdate}
+            // !preferences guards against the user saving defaults
+            // before the SWR fetch resolves. handleUpdate also early-
+            // returns on this condition, but disabling the control is
+            // the better UX signal.
+            disabled={!isDirty || saving || !preferences}
+            startIcon={saving ? <CircularProgress size={14} sx={{ color: 'inherit' }} /> : null}
+            sx={{
+              borderColor: 'var(--blue)',
+              color: 'var(--green)',
+              backgroundColor: 'rgba(0, 20, 61, 0.72)',
+              boxShadow: '0 11px 19px 1px #0000002e',
+              transition: 'none',
+              '&.Mui-disabled': {
+                color: 'var(--med-grey)',
+                borderColor: 'var(--med-grey)',
+                backgroundColor: '#01113d'
+              },
+              '&.Mui-disabled:hover': {
+                backgroundColor: '#01113d'
+              },
+              '&:hover': {
+                borderColor: 'var(--green)',
+                boxShadow: '0 0 7px -5px var(--green)',
                 color: 'var(--green)',
-                backgroundColor: 'rgba(0, 20, 61, 0.72)',
-                boxShadow: '0 11px 19px 1px #0000002e',
-                transition: 'none',
-                '&.Mui-disabled': {
-                  color: 'var(--med-grey)',
-                  borderColor: 'var(--med-grey)',
-                  backgroundColor: '#01113d'
-                },
-                '&.Mui-disabled:hover': {
-                  backgroundColor: '#01113d'
-                },
-                '&:hover': {
-                  borderColor: 'var(--green)',
-                  boxShadow: '0 0 7px -5px var(--green)',
-                  color: 'var(--green)',
-                  textShadow: '0 1px 5px #007bff',
-                  backgroundColor: 'rgba(72, 247, 245, 0.08)'
-                }
-              }}
-            >
-              {saving ? 'Updating…' : 'Update Preferences'}
-            </Button>
-          </Box>
+                textShadow: '0 1px 5px #007bff',
+                backgroundColor: 'rgba(72, 247, 245, 0.08)'
+              }
+            }}
+          >
+            {saving ? 'Updating…' : 'Update Preferences'}
+          </Button>
         </Box>
-      )}
+      </Box>
     </MainCard>
   );
 }

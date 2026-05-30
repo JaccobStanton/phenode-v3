@@ -186,7 +186,40 @@ const ROUTES = [
   // The `range` URL param landed on this page alongside this audit entry
   // (replaces a local useState so the audit can deep-link to a range).
   { path: '/dashboard/system-diagnostics', name: 'system-diagnostics' },
-  { path: '/dashboard/system-diagnostics?range=Last%205%20years', name: 'system-diagnostics-long-range' }
+  { path: '/dashboard/system-diagnostics?range=Last%205%20years', name: 'system-diagnostics-long-range' },
+  // ─────────────────────────────────────────────────────────────────
+  // data-download — single audit variant. The page is form-only (no
+  // chart panel, no map, no time-range param), so there's no
+  // long-range / map variant to deep-link into. The cold-mount
+  // measurement covers the steady-state cost: two SWR fetches
+  // (useMyDevices + useMyWirelessSensors), two MUI Autocompletes,
+  // two DatePickers, and the Download button. Watching this number
+  // tells us whether the date-picker styling parity with imaging
+  // and the fleet-pattern wireless cohort filter stay cheap as the
+  // user's device / sensor fleet grows.
+  { path: '/dashboard/data-download', name: 'data-download' },
+  // ─────────────────────────────────────────────────────────────────
+  // download-preferences — single variant. This page has no URL-driven
+  // state to deep-link into; it's a CSV-export preferences form (five
+  // dropdowns + a save button) and the steady-state cost is what
+  // matters.
+  //
+  // What this audit captures:
+  //
+  //   - Initial render after the SWR fetch of /user-preferences
+  //     resolves and the form hydrates from stored prefs.
+  //   - Mounted-but-closed Autocomplete with the full IANA timezone
+  //     list (~430 entries from `Intl.supportedValuesOf('timeZone')`)
+  //     held in its `options` array. This is the heaviest single
+  //     piece of state on the page; a regression where the options
+  //     array or its slotProps become unstable references would
+  //     surface in TBT / INP here before anywhere else.
+  //
+  // Lighthouse measures page load, not interactions, so the worst-
+  // case "open the timezone dropdown and render 430 list items"
+  // stays out of these numbers. Track that separately in the Chrome
+  // DevTools Performance tab if it ever feels slow.
+  { path: '/dashboard/download-preferences', name: 'download-preferences' }
 ];
 
 // localStorage keys the V3 frontend uses for the JWT pair. Mirror of

@@ -95,16 +95,18 @@ function applyProbeFilter(seriesDefs, probeFilter) {
   return seriesDefs;
 }
 
-// Device-source filter — drop the OTHER source's line when the user picks
-// Primary / Alternate. Keyed on the 'Primary' / 'Alternate' series labels the
-// multi-sensor charts use (temperature, wind speed/direction/gust). 'both'
+// Device-source filter — keep only the chosen source's line(s) when the user
+// picks Primary / Alternate / Aux. Keyed on the series labels the multi-sensor
+// charts use (temperature has all three; wind has Primary/Alternate). 'both'
 // keeps everything; charts that don't use those labels (soil probes, single-
-// source) are left untouched, and we never blank a chart if nothing matches.
+// source) are left untouched, and we never blank a chart if nothing matches —
+// so e.g. picking "Aux" on a chart that has no Aux line shows it unchanged.
+const SOURCE_LABEL_BY_FILTER = { primary: 'Primary', alternate: 'Alternate', aux: 'Aux' };
 function applySourceFilter(seriesDefs, sourceFilter) {
-  if (sourceFilter === 'both') return seriesDefs;
-  const hasSourceLabels = seriesDefs.some((s) => s.label === 'Primary' || s.label === 'Alternate');
+  const wanted = SOURCE_LABEL_BY_FILTER[sourceFilter];
+  if (!wanted) return seriesDefs;
+  const hasSourceLabels = seriesDefs.some((s) => s.label === 'Primary' || s.label === 'Alternate' || s.label === 'Aux');
   if (!hasSourceLabels) return seriesDefs;
-  const wanted = sourceFilter === 'primary' ? 'Primary' : 'Alternate';
   const filtered = seriesDefs.filter((s) => s.label === wanted);
   return filtered.length ? filtered : seriesDefs;
 }

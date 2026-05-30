@@ -260,10 +260,10 @@ export function buildMeasurementCatalog(displayPrefs) {
   // In the All view these weather charts lead, then Light/Soil/Power follow.
   const weather = [
     {
-      // Same measurement from two sources shares one graph (per Jake): the
-      // primary air-temp source and the secondary (Atmos 22) plot as two lines
-      // on a single "Ambient Temperature" chart. buildAlignedSeries renders a
-      // single line when only one source has data.
+      // Per the sensor-hierarchy sheet, temperature overlays three sources on
+      // one chart: Primary = wireless MCP9808, Alternate = Atmos, Aux = wireless
+      // BME688. buildAlignedSeries renders only the series that actually have
+      // data, so devices missing a source just show fewer lines.
       key: 'temperature',
       title: 'Ambient Temperature',
       source: 'device',
@@ -271,21 +271,25 @@ export function buildMeasurementCatalog(displayPrefs) {
       unit: temp.label,
       transform: temp.transform,
       series: [
-        { field: 'temperature', label: 'Primary', color: COLORS.temperature, transform: temp.transform },
-        { field: 'temperature_secondary', label: 'Alternate', color: COLORS.temperatureSecondary, transform: temp.transform }
+        { field: 'temperature_mcp9808', label: 'Primary', color: COLORS.temperature, transform: temp.transform },
+        { field: 'temperature', label: 'Alternate', color: COLORS.temperatureSecondary, transform: temp.transform },
+        { field: 'temperature_bme', label: 'Aux', color: TERTIARY, transform: temp.transform }
       ],
       availability: 'live'
     },
     {
-      // Rainfall: Pronamic is primary; Atmos rain is the secondary overlay.
+      // Rainfall: Primary = Pronamic rain gauge, Alternate = Atmos 41 rain
+      // (now distinct backend fields). Single line on devices with only one.
       key: 'rainfall',
       title: 'Rainfall',
       source: 'device',
-      chartType: 'line',
-      primaryField: 'rainfall',
+      chartType: 'multiline',
       unit: rainfall.label,
       transform: rainfall.transform,
-      color: COLORS.rainfall,
+      series: [
+        { field: 'rainfall_pronamic', label: 'Primary', color: COLORS.rainfall, transform: rainfall.transform },
+        { field: 'rainfall_atmos', label: 'Alternate', color: COLORS.rainfallSecondary, transform: rainfall.transform }
+      ],
       availability: 'live'
     },
     {
@@ -307,25 +311,31 @@ export function buildMeasurementCatalog(displayPrefs) {
       availability: 'live'
     },
     {
+      // Primary = wireless BME688, Alternate = Atmos (per the hierarchy sheet).
       key: 'humidity',
       title: 'Relative Humidity',
       source: 'device',
-      chartType: 'line',
-      primaryField: 'humidity',
+      chartType: 'multiline',
       unit: '%',
       transform: identity,
-      color: COLORS.humidity,
+      series: [
+        { field: 'humidity_bme', label: 'Primary', color: COLORS.humidity },
+        { field: 'humidity', label: 'Alternate', color: SECONDARY }
+      ],
       availability: 'live'
     },
     {
+      // Primary = wireless BME688, Alternate = Atmos (per the hierarchy sheet).
       key: 'pressure',
       title: 'Air Pressure',
       source: 'device',
-      chartType: 'line',
-      primaryField: 'pressure',
+      chartType: 'multiline',
       unit: pressure.label,
       transform: pressure.transform,
-      color: COLORS.pressure,
+      series: [
+        { field: 'pressure_bme', label: 'Primary', color: COLORS.pressure, transform: pressure.transform },
+        { field: 'pressure', label: 'Alternate', color: SECONDARY, transform: pressure.transform }
+      ],
       availability: 'live'
     },
     {
@@ -431,20 +441,25 @@ export function buildMeasurementCatalog(displayPrefs) {
       note: 'Apogee SQ-522 PAR. No customer has the PAR sensor yet (integrated, sold soon) — the chart shows data once a device reports par_ppfd.'
     },
     {
-      // Solar radiation ships standard with every Atmos 41 weather sensor, so
-      // unlike PAR this panel has live data today. Distinct orange so it reads
-      // as its own light measurement, separate from LUX/PAR's yellow.
+      // Per the sensor-hierarchy sheet: Primary = Campbell CS320, Alternate =
+      // Atmos 41. Backend now exposes both (solar_radiation_campbell via the
+      // linked wireless sensor, solar_radiation_atmos from the Atmos buses).
+      // Primary keeps the established solar orange; Alternate is purple to match
+      // the Alternate convention used by temp/humidity/pressure/wind/rainfall.
       key: 'solar_radiation',
       title: 'Solar Radiation',
-      info: 'Atmos 41 shortwave solar radiation',
+      info: 'Primary Campbell CS320, Alternate Atmos 41 shortwave solar radiation',
       source: 'device',
-      chartType: 'line',
-      primaryField: 'solar_radiation',
+      chartType: 'multiline',
+      series: [
+        { field: 'solar_radiation_campbell', label: 'Primary', color: COLORS.solarRadiation },
+        { field: 'solar_radiation_atmos', label: 'Alternate', color: SECONDARY }
+      ],
       unit: 'W/m²',
       transform: identity,
       color: COLORS.solarRadiation,
       availability: 'live',
-      note: 'Atmos 41 solar_radiation is live (downloads.py:987).'
+      note: 'Primary = solar_radiation_campbell (CS320, linked wireless), Alternate = solar_radiation_atmos (Atmos 41).'
     },
     {
       // Lightning lives under Light (moved from Weather per Jake). Same yellow

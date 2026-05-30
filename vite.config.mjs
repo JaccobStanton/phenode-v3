@@ -3,6 +3,23 @@ import react from '@vitejs/plugin-react';
 import jsconfigPaths from 'vite-jsconfig-paths';
 import path from 'path';
 
+// `rollup-plugin-visualizer` is loaded LAZILY via dynamic import below so
+// that:
+//
+//   - Normal builds (`vite build`, `make audit`, CI) don't fail when the
+//     package isn't installed — it's a devDependency, but contributors
+//     who never run the analyzer never need to wait for it during
+//     `npm install` and shouldn't be blocked if the install hasn't been
+//     run since it was added to package.json.
+//   - `npm run analyze` (which sets ANALYZE=true) is the single place
+//     that pulls the plugin in.
+//
+// A static `import { visualizer } from 'rollup-plugin-visualizer'` at the
+// top of this file would resolve at config-load time regardless of the
+// env var and crash with ERR_MODULE_NOT_FOUND when the package isn't
+// installed. The dynamic import inside the `defineConfig` callback
+// resolves only when ANALYZE=true.
+
 /**
  * Build-only plugin: take the emitted entry CSS file, inline it as a
  * <style> tag inside index.html, and delete the now-orphan .css from
@@ -29,19 +46,16 @@ function inlineEntryCss() {
       // the index.html link points at.
       order: 'post',
       handler(html, ctx) {
-        return html.replace(
-          /<link rel="stylesheet"[^>]*href="([^"]+\.css)"[^>]*>/g,
-          (match, href) => {
-            const cssRel = href.replace(/^\//, '');
-            const bundleEntry = ctx.bundle && ctx.bundle[cssRel];
-            if (bundleEntry && bundleEntry.source) {
-              return `<style>${bundleEntry.source}</style>`;
-            }
-            // Couldn't find the CSS in the bundle — leave the link tag
-            // alone rather than break the page.
-            return match;
+        return html.replace(/<link rel="stylesheet"[^>]*href="([^"]+\.css)"[^>]*>/g, (match, href) => {
+          const cssRel = href.replace(/^\//, '');
+          const bundleEntry = ctx.bundle && ctx.bundle[cssRel];
+          if (bundleEntry && bundleEntry.source) {
+            return `<style>${bundleEntry.source}</style>`;
           }
-        );
+          // Couldn't find the CSS in the bundle — leave the link tag
+          // alone rather than break the page.
+          return match;
+        });
       }
     }
     // Why we *don't* also delete the now-orphan CSS files from the
@@ -56,10 +70,24 @@ function inlineEntryCss() {
   };
 }
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(async ({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const API_URL = env.VITE_APP_BASE_NAME || '/';
   const PORT = 3000;
+
+  // Bundle treemap — only loaded when ANALYZE=true. The dynamic import
+  // means the `rollup-plugin-visualizer` package is unnecessary for every
+  // other build path.
+  const analyzerPlugin =
+    process.env.ANALYZE === 'true'
+      ? (await import('rollup-plugin-visualizer')).visualizer({
+          filename: 'dist/bundle-analysis.html',
+          template: 'treemap',
+          gzipSize: true,
+          brotliSize: true,
+          open: false
+        })
+      : null;
 
   return {
     base: API_URL,
@@ -81,7 +109,7 @@ export default defineConfig(({ mode }) => {
         // Add more aliases as needed
       }
     },
-    plugins: [react(), jsconfigPaths(), inlineEntryCss()],
+    plugins: [react(), jsconfigPaths(), inlineEntryCss(), analyzerPlugin].filter(Boolean),
     build: {
       chunkSizeWarningLimit: 1000,
       sourcemap: true,

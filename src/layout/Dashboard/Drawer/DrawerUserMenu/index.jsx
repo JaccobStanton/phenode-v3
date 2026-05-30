@@ -241,6 +241,10 @@ export default function DrawerUserMenu() {
           alt="profile user"
           src={avatar1}
           size="sm"
+          // Forwards loading="lazy" to the inner <img>. Defers the offscreen
+          // fetch in the popper instance; the drawer-bottom trigger renders
+          // eagerly anyway because it's in the initial viewport.
+          imgProps={{ loading: 'lazy' }}
           sx={{
             bgcolor: 'transparent',
             color: 'inherit',
@@ -327,6 +331,7 @@ export default function DrawerUserMenu() {
           alt="profile user"
           src={avatar1}
           size="sm"
+          imgProps={{ loading: 'lazy' }}
           sx={{
             bgcolor: 'transparent',
             color: 'inherit',
