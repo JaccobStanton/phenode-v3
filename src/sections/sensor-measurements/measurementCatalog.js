@@ -253,6 +253,11 @@ export function buildMeasurementCatalog(displayPrefs) {
   const altitude = resolveUnit('altitude', displayPrefs);
 
   // --- WEATHER -------------------------------------------------------------
+  // Chart order (per Jake's layout ticket) maps to the 3-column grid as:
+  //   Row 1: Temperature, Rainfall, Wind Speed
+  //   Row 2: Humidity, Air Pressure, Wind Gust
+  //   Row 3: GDD, Gas Resistance, Wind Direction
+  // In the All view these weather charts lead, then Light/Soil/Power follow.
   const weather = [
     {
       // Same measurement from two sources shares one graph (per Jake): the
@@ -268,6 +273,36 @@ export function buildMeasurementCatalog(displayPrefs) {
       series: [
         { field: 'temperature', label: 'Primary', color: COLORS.temperature, transform: temp.transform },
         { field: 'temperature_secondary', label: 'Alternate', color: COLORS.temperatureSecondary, transform: temp.transform }
+      ],
+      availability: 'live'
+    },
+    {
+      // Rainfall: Pronamic is primary; Atmos rain is the secondary overlay.
+      key: 'rainfall',
+      title: 'Rainfall',
+      source: 'device',
+      chartType: 'line',
+      primaryField: 'rainfall',
+      unit: rainfall.label,
+      transform: rainfall.transform,
+      color: COLORS.rainfall,
+      availability: 'live'
+    },
+    {
+      // Wind speed: two distinct sources rendered as two lines (matches the
+      // old GUI's "atmos22 + calypso" overlay). `atmos_wind_speed` scans
+      // bus1..bus8 only (downloads.py:1125-1135); `calypso_wind_speed` is
+      // Calypso-only (downloads.py:1136). Devices with only one source show
+      // a single line because buildAlignedSeries filters out empty series.
+      key: 'wind_speed',
+      title: 'Wind Speed',
+      source: 'device',
+      chartType: 'multiline',
+      unit: speed.label,
+      transform: speed.transform,
+      series: [
+        { field: 'calypso_wind_speed', label: 'Primary', color: COLORS.windSpeed, transform: speed.transform },
+        { field: 'atmos_wind_speed', label: 'Alternate', color: COLORS.windCalypso, transform: speed.transform }
       ],
       availability: 'live'
     },
@@ -294,6 +329,35 @@ export function buildMeasurementCatalog(displayPrefs) {
       availability: 'live'
     },
     {
+      key: 'wind_gust',
+      title: 'Wind Gust',
+      source: 'device',
+      chartType: 'multiline',
+      unit: speed.label,
+      transform: speed.transform,
+      series: [
+        { field: 'calypso_wind_gust', label: 'Primary', color: COLORS.windGust, transform: speed.transform },
+        { field: 'atmos_wind_gust', label: 'Alternate', color: COLORS.windCalypso, transform: speed.transform }
+      ],
+      availability: 'live'
+    },
+    {
+      key: 'gdd',
+      title: 'Growing Degree Days',
+      source: 'device',
+      chartType: 'step', // one cumulative value per local day, plotted at the day's last reading
+      primaryField: 'gdd',
+      // GDD is unitless to the user — the underlying number is in degree-days
+      // (°F·day or °C·day depending on the display preference), but per Jake
+      // the chart should just label the axis "GDD" rather than expose the
+      // unit. The numeric value itself stays as the backend computes it.
+      unit: 'GDD',
+      transform: identity, // backend computes GDD; do not re-transform here
+      color: COLORS.gdd,
+      availability: 'live',
+      note: 'Backend computes one cumulative GDD value per local day (downloads.py:788-874).'
+    },
+    {
       key: 'gas_resistance',
       title: 'Gas Resistance',
       source: 'device',
@@ -302,24 +366,6 @@ export function buildMeasurementCatalog(displayPrefs) {
       unit: resistance.label,
       transform: resistance.transform,
       color: COLORS.gas,
-      availability: 'live'
-    },
-    {
-      // Wind speed: two distinct sources rendered as two lines (matches the
-      // old GUI's "atmos22 + calypso" overlay). `atmos_wind_speed` scans
-      // bus1..bus8 only (downloads.py:1125-1135); `calypso_wind_speed` is
-      // Calypso-only (downloads.py:1136). Devices with only one source show
-      // a single line because buildAlignedSeries filters out empty series.
-      key: 'wind_speed',
-      title: 'Wind Speed',
-      source: 'device',
-      chartType: 'multiline',
-      unit: speed.label,
-      transform: speed.transform,
-      series: [
-        { field: 'calypso_wind_speed', label: 'Primary', color: COLORS.windSpeed, transform: speed.transform },
-        { field: 'atmos_wind_speed', label: 'Alternate', color: COLORS.windCalypso, transform: speed.transform }
-      ],
       availability: 'live'
     },
     {
@@ -352,47 +398,6 @@ export function buildMeasurementCatalog(displayPrefs) {
         }
       ],
       availability: 'live'
-    },
-    {
-      key: 'wind_gust',
-      title: 'Wind Gust',
-      source: 'device',
-      chartType: 'multiline',
-      unit: speed.label,
-      transform: speed.transform,
-      series: [
-        { field: 'calypso_wind_gust', label: 'Primary', color: COLORS.windGust, transform: speed.transform },
-        { field: 'atmos_wind_gust', label: 'Alternate', color: COLORS.windCalypso, transform: speed.transform }
-      ],
-      availability: 'live'
-    },
-    {
-      // Rainfall: Pronamic is primary; Atmos rain is the secondary overlay.
-      key: 'rainfall',
-      title: 'Rainfall',
-      source: 'device',
-      chartType: 'line',
-      primaryField: 'rainfall',
-      unit: rainfall.label,
-      transform: rainfall.transform,
-      color: COLORS.rainfall,
-      availability: 'live'
-    },
-    {
-      key: 'gdd',
-      title: 'Growing Degree Days',
-      source: 'device',
-      chartType: 'step', // one cumulative value per local day, plotted at the day's last reading
-      primaryField: 'gdd',
-      // GDD is unitless to the user — the underlying number is in degree-days
-      // (°F·day or °C·day depending on the display preference), but per Jake
-      // the chart should just label the axis "GDD" rather than expose the
-      // unit. The numeric value itself stays as the backend computes it.
-      unit: 'GDD',
-      transform: identity, // backend computes GDD; do not re-transform here
-      color: COLORS.gdd,
-      availability: 'live',
-      note: 'Backend computes one cumulative GDD value per local day (downloads.py:788-874).'
     }
   ];
 
