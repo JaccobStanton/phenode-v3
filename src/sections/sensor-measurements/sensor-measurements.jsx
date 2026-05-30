@@ -587,6 +587,33 @@ function buildCircleMetrics(device, displayPrefs, latest) {
   ];
 }
 
+// Shared sx for the toolbar's 3-button filter toggles (device source + soil
+// probe) so both look identical. Mobile: each toggle's buttons stretch full
+// width; desktop: hug content. The wrapping Stack handles row/column layout.
+const filterToggleSx = {
+  width: { xs: '100%', sm: 'auto' },
+  '& .MuiToggleButton-root': {
+    flex: { xs: 1, sm: '0 0 auto' },
+    border: '1px solid var(--reflected-light) !important',
+    color: 'var(--blue)',
+    backgroundColor: 'rgba(0, 20, 61, 0.72)',
+    textTransform: 'none',
+    fontWeight: 600,
+    fontSize: '0.72rem',
+    px: '13px',
+    py: '8px'
+  },
+  '& .MuiToggleButton-root:hover': {
+    backgroundColor: 'rgba(0, 20, 61, 0.72) !important',
+    backgroundImage: 'linear-gradient(rgba(72, 247, 245, 0.08), rgba(72, 247, 245, 0.08)) !important'
+  },
+  '& .Mui-selected': {
+    color: 'var(--green) !important',
+    backgroundImage: 'linear-gradient(rgba(72, 247, 245, 0.2), rgba(72, 247, 245, 0.2)) !important',
+    textShadow: '0 0 6px rgba(72, 247, 245, 0.45)'
+  }
+};
+
 export default function SensorMeasurements() {
   // URL search params drive the state shape: ?device=, ?range=, ?view=.
   // Keeping the URL as the single source of truth makes every meaningful
@@ -661,6 +688,15 @@ export default function SensorMeasurements() {
   // across tab switches so flipping away and back restores the user's pick.
   const [selectedProbe, setSelectedProbe] = useState('both');
   const showProbeToggle = activeTab === TAB_IDS.ALL || activeTab === TAB_IDS.SOIL;
+
+  // Device-source filter (Both / Primary / Alternate) for the multi-sensor
+  // charts that overlay a primary + alternate source (temperature, wind
+  // speed/direction/gust). Surfaced on All, Environment, and Light — the same
+  // 3-button control as the soil-probe toggle; single-source charts ignore it.
+  const [selectedSource, setSelectedSource] = useState('both');
+  // Shown on All + Environment only — the Light charts are all single-source,
+  // so the Both/Primary/Alternate toggle has nothing to filter there.
+  const showSourceToggle = activeTab === TAB_IDS.ALL || activeTab === TAB_IDS.WEATHER;
 
   // Custom-range pickers — only consulted when `timeRange` equals the
   // CUSTOM_RANGE_LABEL sentinel. dayjs values (or null) because that's
@@ -1766,53 +1802,70 @@ export default function SensorMeasurements() {
                 </Stack>
 
                 {/*
-                  Soil-probe filter — sits at the right edge of the toolbar
-                  (space-between) on desktop; stretches full-width across its
-                  own row on mobile. Only mounts on the All and Soil tabs (the
-                  only ones with probe-keyed soil charts). MeasurementTabPanel
-                  does the actual filtering from `selectedProbe`. Mirrors the
-                  Sensor Network panel's probe toggle.
+                  Filter toggles — device source (Both/Primary/Alternate)
+                  and/or soil probe (Both/Probe 1/Probe 2), depending on the
+                  active tab. Wrapped in one Stack so on desktop they sit at
+                  the right edge with the source toggle LEFT of the soil toggle
+                  and a small gap; on mobile they stack full-width, source
+                  ABOVE soil. MeasurementTabPanel does the actual filtering.
                 */}
-                {showProbeToggle && (
-                  <ToggleButtonGroup
-                    exclusive
-                    value={selectedProbe}
-                    onChange={(_, next) => {
-                      if (next != null) setSelectedProbe(next);
-                    }}
-                    size="small"
-                    aria-label="soil probe filter"
-                    sx={{
-                      // Mobile: stretch the 3 buttons across the full row like
-                      // the dropdowns above. Desktop: hug content, right-aligned.
-                      alignSelf: { xs: 'stretch', sm: 'center' },
-                      width: { xs: '100%', sm: 'auto' },
-                      '& .MuiToggleButton-root': {
-                        flex: { xs: 1, sm: '0 0 auto' },
-                        border: '1px solid var(--reflected-light) !important',
-                        color: 'var(--blue)',
-                        backgroundColor: 'rgba(0, 20, 61, 0.72)',
-                        textTransform: 'none',
-                        fontWeight: 600,
-                        fontSize: '0.72rem',
-                        px: '13px',
-                        py: '8px'
-                      },
-                      '& .MuiToggleButton-root:hover': {
-                        backgroundColor: 'rgba(0, 20, 61, 0.72) !important',
-                        backgroundImage: 'linear-gradient(rgba(72, 247, 245, 0.08), rgba(72, 247, 245, 0.08)) !important'
-                      },
-                      '& .Mui-selected': {
-                        color: 'var(--green) !important',
-                        backgroundImage: 'linear-gradient(rgba(72, 247, 245, 0.2), rgba(72, 247, 245, 0.2)) !important',
-                        textShadow: '0 0 6px rgba(72, 247, 245, 0.45)'
-                      }
-                    }}
+                {(showSourceToggle || showProbeToggle) && (
+                  <Stack
+                    direction={{ xs: 'column', sm: 'row' }}
+                    spacing={1}
+                    sx={{ alignSelf: { xs: 'stretch', sm: 'center' }, width: { xs: '100%', sm: 'auto' } }}
                   >
-                    <ToggleButton value="both">Both</ToggleButton>
-                    <ToggleButton value="1">Probe 1</ToggleButton>
-                    <ToggleButton value="2">Probe 2</ToggleButton>
-                  </ToggleButtonGroup>
+                    {showSourceToggle && (
+                      <Stack spacing={0.5} sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                        {/* "Device:" / "Soil:" captions only when BOTH toggles
+                            are shown (the All tab) — they disambiguate the two
+                            otherwise-identical controls. On single-toggle tabs
+                            the label is unnecessary and omitted. */}
+                        {showSourceToggle && showProbeToggle && (
+                          <Typography sx={{ color: 'var(--blue)', fontSize: '0.72rem', fontWeight: 600, lineHeight: 1 }}>
+                            Device:
+                          </Typography>
+                        )}
+                        <ToggleButtonGroup
+                          exclusive
+                          value={selectedSource}
+                          onChange={(_, next) => {
+                            if (next != null) setSelectedSource(next);
+                          }}
+                          size="small"
+                          aria-label="sensor source filter"
+                          sx={filterToggleSx}
+                        >
+                          <ToggleButton value="both">Both</ToggleButton>
+                          <ToggleButton value="primary">Primary</ToggleButton>
+                          <ToggleButton value="alternate">Alternate</ToggleButton>
+                        </ToggleButtonGroup>
+                      </Stack>
+                    )}
+                    {showProbeToggle && (
+                      <Stack spacing={0.5} sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                        {showSourceToggle && showProbeToggle && (
+                          <Typography sx={{ color: 'var(--blue)', fontSize: '0.72rem', fontWeight: 600, lineHeight: 1 }}>
+                            Soil:
+                          </Typography>
+                        )}
+                        <ToggleButtonGroup
+                          exclusive
+                          value={selectedProbe}
+                          onChange={(_, next) => {
+                            if (next != null) setSelectedProbe(next);
+                          }}
+                          size="small"
+                          aria-label="soil probe filter"
+                          sx={filterToggleSx}
+                        >
+                          <ToggleButton value="both">Both</ToggleButton>
+                          <ToggleButton value="1">Probe 1</ToggleButton>
+                          <ToggleButton value="2">Probe 2</ToggleButton>
+                        </ToggleButtonGroup>
+                      </Stack>
+                    )}
+                  </Stack>
                 )}
               </Stack>
             </LocalizationProvider>
@@ -1865,6 +1918,7 @@ export default function SensorMeasurements() {
                 xAxisTicks={xAxisTicks}
                 layout={chartLayout}
                 selectedProbe={selectedProbe}
+                selectedSource={selectedSource}
               />
             </Suspense>
           </Box>

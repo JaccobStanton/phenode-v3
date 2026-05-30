@@ -85,11 +85,6 @@ const toFinite = (value) => {
 const HEALTH_CHART_FIELDS = ['notecard_temp', 'rssi', 'sinr', 'notecard_voltage', 'wifi_rssi'];
 const ENV_CHART_FIELDS = ['battery_voltage'];
 
-// Lite-glow kicks in when a chart's point count crosses this threshold — the
-// full-radius blur (4px stdDeviation) overlaps into noise at dense point
-// counts; the lite variant (1px) keeps the same visual identity at a fraction
-// of the paint cost. Matches sensor-measurements' threshold.
-const LITE_GLOW_THRESHOLD = 500;
 
 // Chart card surface — gradient + custom border. Module-scope, one shared
 // reference (otherwise every parent render creates a fresh sx literal and MUI
@@ -446,8 +441,9 @@ export default function DiagnosticsChartsPanel({ selectedPheNodeId, selectedDevi
 
           // CSS variables driving the shared chartSx:
           //   --chart-line-color → hover-indicator stroke + theming hooks.
-          //   --chart-glow-filter → swap to lite-glow at high point counts.
-          const glowFilter = data.length > LITE_GLOW_THRESHOLD ? 'url(#chart-glow-lite)' : 'url(#chart-glow-full)';
+          //   --chart-glow-filter → full-strength glow, matching the device +
+          //     wireless measurement charts so every line glows identically.
+          const glowFilter = 'url(#chart-glow-full)';
 
           return (
             <Box

@@ -255,28 +255,20 @@ export function buildMeasurementCatalog(displayPrefs) {
   // --- WEATHER -------------------------------------------------------------
   const weather = [
     {
+      // Same measurement from two sources shares one graph (per Jake): the
+      // primary air-temp source and the secondary (Atmos 22) plot as two lines
+      // on a single "Ambient Temperature" chart. buildAlignedSeries renders a
+      // single line when only one source has data.
       key: 'temperature',
       title: 'Ambient Temperature',
       source: 'device',
-      chartType: 'line',
-      primaryField: 'temperature',
+      chartType: 'multiline',
       unit: temp.label,
       transform: temp.transform,
-      color: COLORS.temperature,
-      availability: 'live'
-    },
-    {
-      // Atmos 22 secondary temp: backend currently COALESCES all air-temp
-      // sources into the single `temperature` field (downloads.py:878), so a
-      // distinct secondary line needs a dedicated backend field.
-      key: 'temperature_secondary',
-      title: 'Ambient Temperature (Atmos 22)',
-      source: 'device',
-      chartType: 'line',
-      primaryField: 'temperature_secondary',
-      unit: temp.label,
-      transform: temp.transform,
-      color: COLORS.temperatureSecondary,
+      series: [
+        { field: 'temperature', label: 'Primary', color: COLORS.temperature, transform: temp.transform },
+        { field: 'temperature_secondary', label: 'Alternate', color: COLORS.temperatureSecondary, transform: temp.transform }
+      ],
       availability: 'live'
     },
     {

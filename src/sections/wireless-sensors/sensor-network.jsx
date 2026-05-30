@@ -504,6 +504,33 @@ const buildSoilReadings = (sensorDetail, selectedSoilProbe, tempUnit = 'F') => {
   ];
 };
 
+// Shared sx for the toolbar's 3-button filter toggles (temp-sensor source +
+// soil probe) so both look identical. Mobile: buttons stretch full width;
+// desktop: hug content. The wrapping Stack handles row/column + alignment.
+const filterToggleSx = {
+  width: { xs: '100%', sm: 'auto' },
+  '& .MuiToggleButton-root': {
+    flex: { xs: 1, sm: '0 0 auto' },
+    border: '1px solid var(--reflected-light) !important',
+    color: 'var(--blue)',
+    backgroundColor: 'rgba(0, 20, 61, 0.72)',
+    textTransform: 'none',
+    fontWeight: 600,
+    fontSize: '0.72rem',
+    px: '13px',
+    py: '8px'
+  },
+  '& .MuiToggleButton-root:hover': {
+    backgroundColor: 'rgba(0, 20, 61, 0.72) !important',
+    backgroundImage: 'linear-gradient(rgba(72, 247, 245, 0.08), rgba(72, 247, 245, 0.08)) !important'
+  },
+  '& .Mui-selected': {
+    color: 'var(--green) !important',
+    backgroundImage: 'linear-gradient(rgba(72, 247, 245, 0.2), rgba(72, 247, 245, 0.2)) !important',
+    textShadow: '0 0 6px rgba(72, 247, 245, 0.45)'
+  }
+};
+
 export default function SensorNetwork() {
   // useSearchParams owns the URL read/write side of every URL-driven
   // piece of state on this page (`?sensor=` for the active sensor,
@@ -584,6 +611,14 @@ export default function SensorNetwork() {
   // Panel speaks 'both' | '1' | '2' for its probe filter.
   const [selectedProbe, setSelectedProbe] = useState('both');
   const showProbeToggle = selectedCategory === WIRELESS_CATEGORY_IDS.SOIL || selectedCategory === WIRELESS_CATEGORY_IDS.ALL;
+
+  // Onboard ambient-temperature sensor filter (Both / High Resolution /
+  // Standard). The temperature chart overlays the high-resolution sensor and
+  // the standard sensor; this picks which line(s) show. Mirrors the device
+  // page's source toggle: shown on Environment + All (Light is single-source).
+  const [selectedSource, setSelectedSource] = useState('both');
+  const showSourceToggle =
+    selectedCategory === WIRELESS_CATEGORY_IDS.WEATHER || selectedCategory === WIRELESS_CATEGORY_IDS.ALL;
 
   // Currently-enlarged chart key. null = closed; otherwise the
   // config.key of the chart being displayed in the Dialog.
@@ -2018,55 +2053,68 @@ export default function SensorNetwork() {
                     </Stack>
 
                     {/*
-                      Probe filter — flex-end right of the toolbar row. Only
-                      mounts on the Soil and All categories (the only ones
-                      that surface probe-keyed charts: the four two-probe
-                      soil families). The state itself (`selectedProbe`) is
-                      preserved across category switches so a flip to Light
-                      and back to Soil restores the user's last pick. The
-                      panel does the actual filtering — this is just the UI
-                      that drives it.
+                      Filter toggles — temp-sensor source (Both/High
+                      Resolution/Standard) and/or soil probe (Both/Probe 1/
+                      Probe 2), depending on the category. Source shows on
+                      Environment + All, soil on Soil + All. On the All
+                      category both render with "Temp:" / "Soil:" captions,
+                      source LEFT of soil with a small gap on desktop and
+                      stacked full-width (source above soil) on mobile —
+                      matching the device page. The panel does the filtering.
                     */}
-                    {showProbeToggle && (
-                      <ToggleButtonGroup
-                        exclusive
-                        value={selectedProbe}
-                        onChange={(_, next) => {
-                          if (next != null) setSelectedProbe(next);
-                        }}
-                        size="small"
-                        aria-label="probe filter"
-                        sx={{
-                          // Mobile: stretch the 3 buttons across the full row
-                          // like the dropdowns above. Desktop: hug content.
-                          alignSelf: { xs: 'stretch', sm: 'center' },
-                          width: { xs: '100%', sm: 'auto' },
-                          '& .MuiToggleButton-root': {
-                            flex: { xs: 1, sm: '0 0 auto' },
-                            border: '1px solid var(--reflected-light) !important',
-                            color: 'var(--blue)',
-                            backgroundColor: 'rgba(0, 20, 61, 0.72)',
-                            textTransform: 'none',
-                            fontWeight: 600,
-                            fontSize: '0.72rem',
-                            px: '13px',
-                            py: '8px'
-                          },
-                          '& .MuiToggleButton-root:hover': {
-                            backgroundColor: 'rgba(0, 20, 61, 0.72) !important',
-                            backgroundImage: 'linear-gradient(rgba(72, 247, 245, 0.08), rgba(72, 247, 245, 0.08)) !important'
-                          },
-                          '& .Mui-selected': {
-                            color: 'var(--green) !important',
-                            backgroundImage: 'linear-gradient(rgba(72, 247, 245, 0.2), rgba(72, 247, 245, 0.2)) !important',
-                            textShadow: '0 0 6px rgba(72, 247, 245, 0.45)'
-                          }
-                        }}
+                    {(showSourceToggle || showProbeToggle) && (
+                      <Stack
+                        direction={{ xs: 'column', sm: 'row' }}
+                        spacing={1}
+                        sx={{ alignSelf: { xs: 'stretch', sm: 'center' }, width: { xs: '100%', sm: 'auto' } }}
                       >
-                        <ToggleButton value="both">Both</ToggleButton>
-                        <ToggleButton value="1">Probe 1</ToggleButton>
-                        <ToggleButton value="2">Probe 2</ToggleButton>
-                      </ToggleButtonGroup>
+                        {showSourceToggle && (
+                          <Stack spacing={0.5} sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                            {showSourceToggle && showProbeToggle && (
+                              <Typography sx={{ color: 'var(--blue)', fontSize: '0.72rem', fontWeight: 600, lineHeight: 1 }}>
+                                Temp:
+                              </Typography>
+                            )}
+                            <ToggleButtonGroup
+                              exclusive
+                              value={selectedSource}
+                              onChange={(_, next) => {
+                                if (next != null) setSelectedSource(next);
+                              }}
+                              size="small"
+                              aria-label="temperature sensor filter"
+                              sx={filterToggleSx}
+                            >
+                              <ToggleButton value="both">Both</ToggleButton>
+                              <ToggleButton value="high">High Resolution</ToggleButton>
+                              <ToggleButton value="standard">Standard</ToggleButton>
+                            </ToggleButtonGroup>
+                          </Stack>
+                        )}
+                        {showProbeToggle && (
+                          <Stack spacing={0.5} sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                            {showSourceToggle && showProbeToggle && (
+                              <Typography sx={{ color: 'var(--blue)', fontSize: '0.72rem', fontWeight: 600, lineHeight: 1 }}>
+                                Soil:
+                              </Typography>
+                            )}
+                            <ToggleButtonGroup
+                              exclusive
+                              value={selectedProbe}
+                              onChange={(_, next) => {
+                                if (next != null) setSelectedProbe(next);
+                              }}
+                              size="small"
+                              aria-label="probe filter"
+                              sx={filterToggleSx}
+                            >
+                              <ToggleButton value="both">Both</ToggleButton>
+                              <ToggleButton value="1">Probe 1</ToggleButton>
+                              <ToggleButton value="2">Probe 2</ToggleButton>
+                            </ToggleButtonGroup>
+                          </Stack>
+                        )}
+                      </Stack>
                     )}
                   </Stack>
                 </LocalizationProvider>
@@ -2093,6 +2141,7 @@ export default function SensorNetwork() {
                   timezone={timezone}
                   selectedCategory={selectedCategory}
                   selectedProbe={selectedProbe}
+                  selectedSource={selectedSource}
                 />
               </Box>
             </Grid>

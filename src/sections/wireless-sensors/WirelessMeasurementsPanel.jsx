@@ -99,12 +99,26 @@ function applyProbeFilter(seriesDefs, probeFilter) {
   return seriesDefs;
 }
 
-function buildMultiSensorLines(rowsBySensor, chart, sensorList, probeFilter = 'both') {
+// Temp-sensor source filter — keep only the chosen onboard sensor's line when
+// the user picks High Resolution / Standard. Keyed on the series LABELS the
+// ambient-temperature chart uses ('High Resolution' = MCP9808, 'Standard' =
+// BME280). 'both' keeps everything; charts without those labels (soil probes,
+// single-source) are untouched, and we never blank a chart if nothing matches.
+function applySourceFilter(seriesDefs, sourceFilter) {
+  if (sourceFilter === 'both') return seriesDefs;
+  const hasSourceLabels = seriesDefs.some((s) => s.label === 'High Resolution' || s.label === 'Standard');
+  if (!hasSourceLabels) return seriesDefs;
+  const wanted = sourceFilter === 'high' ? 'High Resolution' : 'Standard';
+  const filtered = seriesDefs.filter((s) => s.label === wanted);
+  return filtered.length ? filtered : seriesDefs;
+}
+
+function buildMultiSensorLines(rowsBySensor, chart, sensorList, probeFilter = 'both', sourceFilter = 'both') {
   const rawSeriesDefs =
     Array.isArray(chart.series) && chart.series.length
       ? chart.series
       : [{ field: chart.primaryField, label: chart.title, color: chart.color, transform: chart.transform }];
-  const seriesDefs = applyProbeFilter(rawSeriesDefs, probeFilter);
+  const seriesDefs = applySourceFilter(applyProbeFilter(rawSeriesDefs, probeFilter), sourceFilter);
 
   const nSensors = sensorList.length;
   const nSeries = seriesDefs.length;
@@ -374,7 +388,8 @@ export default function WirelessMeasurementsPanel({
   layout = 'row',
   timezone = null,
   selectedCategory = WIRELESS_CATEGORY_IDS.WEATHER,
-  selectedProbe = 'both'
+  selectedProbe = 'both',
+  selectedSource = 'both'
 }) {
   const [enlargedKey, setEnlargedKey] = useState(null);
 
@@ -409,17 +424,14 @@ export default function WirelessMeasurementsPanel({
   const linesByChart = useMemo(() => {
     const out = {};
     for (const chart of activeCharts) {
-      out[chart.key] = buildMultiSensorLines(rowsBySensor, chart, wirelessSensors ?? [], selectedProbe);
+      out[chart.key] = buildMultiSensorLines(rowsBySensor, chart, wirelessSensors ?? [], selectedProbe, selectedSource);
     }
     return out;
-  }, [activeCharts, rowsBySensor, wirelessSensors, selectedProbe]);
+  }, [activeCharts, rowsBySensor, wirelessSensors, selectedProbe, selectedSource]);
 
-  const totalPoints = useMemo(() => {
-    let n = 0;
-    for (const v of Object.values(linesByChart)) n += v?.times?.length ?? 0;
-    return n;
-  }, [linesByChart]);
-  const glowFilterVar = totalPoints > 500 ? 'url(#chart-glow-lite)' : 'url(#chart-glow-full)';
+  // Always full-strength glow, matching the device charts (kept identical so the
+  // line glow looks the same across both surfaces).
+  const glowFilterVar = 'url(#chart-glow-full)';
 
   const enlargedChart = enlargedKey ? (activeCharts.find((c) => c.key === enlargedKey) ?? null) : null;
 

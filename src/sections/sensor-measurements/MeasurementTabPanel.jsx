@@ -95,6 +95,20 @@ function applyProbeFilter(seriesDefs, probeFilter) {
   return seriesDefs;
 }
 
+// Device-source filter — drop the OTHER source's line when the user picks
+// Primary / Alternate. Keyed on the 'Primary' / 'Alternate' series labels the
+// multi-sensor charts use (temperature, wind speed/direction/gust). 'both'
+// keeps everything; charts that don't use those labels (soil probes, single-
+// source) are left untouched, and we never blank a chart if nothing matches.
+function applySourceFilter(seriesDefs, sourceFilter) {
+  if (sourceFilter === 'both') return seriesDefs;
+  const hasSourceLabels = seriesDefs.some((s) => s.label === 'Primary' || s.label === 'Alternate');
+  if (!hasSourceLabels) return seriesDefs;
+  const wanted = sourceFilter === 'primary' ? 'Primary' : 'Alternate';
+  const filtered = seriesDefs.filter((s) => s.label === wanted);
+  return filtered.length ? filtered : seriesDefs;
+}
+
 function buildAlignedSeries(rows, chart) {
   const fields =
     Array.isArray(chart.series) && chart.series.length
@@ -247,7 +261,12 @@ function renderChartBody(chart, rows, { from, to, xAxisTicks, axisFormat, height
     );
   }
 
-  const isMulti = Array.isArray(chart.series) && chart.series.length > 1;
+  // Any chart that declares a `series` array goes through the multiline
+  // renderer — including when a filter (soil probe / device source) has
+  // narrowed it to ONE series. Keying off `> 1` here was the bug: a filtered
+  // chart fell through to the single-series branch below, which needs
+  // `primaryField` (these charts don't have one), so it rendered empty.
+  const isMulti = Array.isArray(chart.series) && chart.series.length > 0;
 
   // Single-series line → the SHARED MeasurementChart (pixel-identical to the
   // Weather grid). Its X-axis hugs the data extent and it computes y-padding
@@ -303,17 +322,15 @@ function renderChartBody(chart, rows, { from, to, xAxisTicks, axisFormat, height
           valueFormatter: chart.yAxisValueFormatter ?? makeYAxisFormatter(chart.unit)
         }
       ]}
-      // `renderedAsMulti` keys off the actual rendered series count, NOT the
-      // catalog declaration. If a chart declares two probes but only one has
-      // data on this device, lines.length === 1 → render it like a single-
-      // series chart (no legend) for visual parity with the other charts.
-      // Line + glow only — no area fill (per Jake).
+      // Always label the line(s) so the legend (the colored series name) keeps
+      // rendering even when a filter narrows the chart to a single source/probe
+      // — the user wants to see WHICH line they're looking at. Line + glow only
+      // (no area fill, per Jake).
       series={lines.map((l, i) => {
-        const renderedAsMulti = lines.length > 1;
         return {
           id: `${chart.key}-l${i}${idSuffix}`,
           data: l.values,
-          label: renderedAsMulti ? l.label : undefined,
+          label: l.label,
           color: l.color,
           area: false,
           showMark: chart.chartType === 'step',
@@ -333,8 +350,12 @@ function renderChartBody(chart, rows, { from, to, xAxisTicks, axisFormat, height
       grid={{ horizontal: true, vertical: true }}
       height={height}
       margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
-      hideLegend={lines.length < 2}
-      slotProps={lines.length > 1 ? { legend: { labelStyle: { fontSize: 11, fill: 'var(--green)' } } } : undefined}
+      // Show the legend for any multi-source/probe chart (those declare a
+      // `series` array) — including when filtered to one line — so the colored
+      // series name stays visible. Single-source charts (GDD step via
+      // primaryField) keep it hidden.
+      hideLegend={!Array.isArray(chart.series)}
+      slotProps={Array.isArray(chart.series) ? { legend: { labelStyle: { fontSize: 11, fill: 'var(--green)' } } } : undefined}
       sx={chartSx}
     />
   );
@@ -410,6 +431,9 @@ const CatalogCard = memo(function CatalogCard({
  * @param {'row'|'column'} layout
  * @param {'both'|'1'|'2'} selectedProbe  Soil-probe filter for two-probe soil
  *   charts. 'both' shows every series; '1'/'2' drops the other probe's series.
+ * @param {'both'|'primary'|'alternate'} selectedSource  Device-source filter for
+ *   multi-sensor charts (temperature, wind). 'both' shows every series;
+ *   'primary'/'alternate' keeps only that source's line.
  */
 export default function MeasurementTabPanel({
   charts,
@@ -420,7 +444,8 @@ export default function MeasurementTabPanel({
   axisFormat,
   xAxisTicks,
   layout = 'row',
-  selectedProbe = 'both'
+  selectedProbe = 'both',
+  selectedSource = 'both'
 }) {
   const [enlargedKey, setEnlargedKey] = useState(null);
 
@@ -446,19 +471,27 @@ export default function MeasurementTabPanel({
 
   const rowsFor = (chart) => (chart.source === 'wireless' ? wirelessRows : deviceRows);
 
-  // Probe-filtered view for RENDERING. The fetch projection above still uses
-  // the unfiltered `charts`, so toggling Both/Probe 1/Probe 2 just hides the
-  // other probe's line — it never refetches.
-  const displayCharts = useMemo(
-    () =>
-      selectedProbe === 'both'
-        ? charts
-        : (charts ?? []).map((c) => (Array.isArray(c.series) ? { ...c, series: applyProbeFilter(c.series, selectedProbe) } : c)),
-    [charts, selectedProbe]
-  );
+  // Filtered view for RENDERING. The fetch projection above still uses the
+  // unfiltered `charts`, so the soil-probe and device-source toggles just hide
+  // lines — they never refetch. The two filters compose: soil filter keys off
+  // the `_1`/`_2` field suffix (soil charts only), source filter keys off the
+  // Primary/Alternate series label (temperature + wind only).
+  const displayCharts = useMemo(() => {
+    if (selectedProbe === 'both' && selectedSource === 'both') return charts;
+    return (charts ?? []).map((c) => {
+      if (!Array.isArray(c.series)) return c;
+      let series = c.series;
+      if (selectedProbe !== 'both') series = applyProbeFilter(series, selectedProbe);
+      if (selectedSource !== 'both') series = applySourceFilter(series, selectedSource);
+      return series === c.series ? c : { ...c, series };
+    });
+  }, [charts, selectedProbe, selectedSource]);
 
-  const pointCount = Math.max(deviceRows?.length ?? 0, wirelessRows?.length ?? 0);
-  const glowFilterVar = pointCount > 500 ? 'url(#chart-glow-lite)' : 'url(#chart-glow-full)';
+  // Always use the full-strength glow so the device-chart line glow matches the
+  // wireless charts. (Previously these downgraded to the faint "lite" glow past
+  // 500 points — and device charts merge device + linked-wireless rows, so they
+  // crossed that threshold and looked glow-less while the wireless charts didn't.)
+  const glowFilterVar = 'url(#chart-glow-full)';
 
   const isLoading = (needDevice && deviceLoading && !deviceRows) || (needWireless && wirelessLoading && !wirelessRows);
   const hardError = (needDevice && deviceError && !deviceRows) || (needWireless && wirelessError && !wirelessRows);
