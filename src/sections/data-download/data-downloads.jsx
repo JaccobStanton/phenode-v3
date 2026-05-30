@@ -224,10 +224,13 @@ const datePickerPopperSx = {
   }
 };
 
-const datePickerSlotProps = (placeholder) => ({
+const datePickerSlotProps = (placeholder, error = false) => ({
   textField: {
     size: 'small',
     placeholder,
+    // `error` paints the field's themed error state when the From/To range is
+    // reversed, alongside the inline message below the pickers.
+    error,
     sx: datePickerTextFieldSx
   },
   openPickerIcon: {
@@ -538,6 +541,10 @@ export default function DataDownloads() {
   const toValid = toDate != null && dayjs(toDate).isValid();
   // "From" must not be after "To". (Equal is allowed — a single-day window.)
   const datesValid = fromValid && toValid && !dayjs(fromDate).isAfter(dayjs(toDate));
+  // Both dates picked but reversed (From later than To) — surfaced as an inline
+  // error so the user understands why the download is blocked, rather than a
+  // silently-disabled button.
+  const datesReversed = fromValid && toValid && dayjs(fromDate).isAfter(dayjs(toDate));
 
   const fromDateLabel = fromValid ? dayjs(fromDate).format('MM/DD/YYYY') : 'Not selected';
   const toDateLabel = toValid ? dayjs(toDate).format('MM/DD/YYYY') : 'Not selected';
@@ -733,7 +740,7 @@ export default function DataDownloads() {
                         value={fromDate}
                         onChange={(newValue) => setFromDate(newValue)}
                         format="MM/DD/YY"
-                        slotProps={datePickerSlotProps('MM/DD/YY')}
+                        slotProps={datePickerSlotProps('MM/DD/YY', datesReversed)}
                       />
                     </Stack>
                     <Stack spacing={0.5} sx={{ flex: 1 }}>
@@ -744,10 +751,20 @@ export default function DataDownloads() {
                         value={toDate}
                         onChange={(newValue) => setToDate(newValue)}
                         format="MM/DD/YY"
-                        slotProps={datePickerSlotProps('MM/DD/YY')}
+                        slotProps={datePickerSlotProps('MM/DD/YY', datesReversed)}
                       />
                     </Stack>
                   </Stack>
+
+                  {datesReversed && (
+                    <Typography
+                      variant="caption"
+                      role="alert"
+                      sx={{ color: 'var(--orange)', fontWeight: 600 }}
+                    >
+                      The “From” date is after the “To” date. Pick a “From” date that’s on or before the “To” date.
+                    </Typography>
+                  )}
 
                   <Typography variant="subtitle1" sx={{ color: 'var(--blue)', fontWeight: 600 }}>
                     Download Type
