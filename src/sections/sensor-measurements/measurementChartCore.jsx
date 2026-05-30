@@ -36,8 +36,11 @@ export const chartSx = {
     // `--chart-glow-filter` based on point count (full ≤500, lite above).
     filter: 'var(--chart-glow-filter, url(#chart-glow-full))'
   },
+  // No area fill — charts are line + glow only (per Jake). The area element
+  // is also disabled at the series level (`area: false`); this keeps any
+  // stray area element invisible too.
   '& .MuiAreaElement-root': {
-    fillOpacity: 0.16
+    fillOpacity: 0
   },
   '& .MuiChartsAxis-line, & .MuiChartsAxis-tick': {
     stroke: 'rgba(232, 232, 232, 0.45)'
@@ -139,7 +142,7 @@ export const MeasurementChart = memo(function MeasurementChart({
           id: `${config.key}-line${idSuffix}`,
           data: seriesData,
           color: config.color,
-          area: true,
+          area: false,
           showMark: false,
           curve: 'linear',
           valueFormatter: (value) =>

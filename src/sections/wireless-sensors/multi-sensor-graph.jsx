@@ -278,7 +278,8 @@ export default function MultiSensorGraph() {
           label: series.sensorName,
           data: series.values,
           color: series.line,
-          area: true,
+          // No area fill — line + glow (the "-glow" duplicate line) only.
+          area: false,
           showMark: false,
           curve: 'linear'
         }

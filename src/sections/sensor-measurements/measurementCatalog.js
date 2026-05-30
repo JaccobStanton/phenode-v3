@@ -165,7 +165,7 @@ const DEPTH_LABELS = ['15 cm', '30 cm', '45 cm', '60 cm'];
 // a tiny static map for those tick labels and avoid recomputing the full
 // 16-point bucket logic on the client.
 // ---------------------------------------------------------------------------
-const COMPASS_TICKS = { 0: 'N', 45: 'NE', 90: 'E', 135: 'SE', 180: 'S', 225: 'SW', 270: 'W', 315: 'NW' };
+const COMPASS_TICKS = { 0: 'N', 45: 'NE', 90: 'E', 135: 'SE', 180: 'S', 225: 'SW', 270: 'W', 315: 'NW', 360: 'N' };
 export const compassTickFormatter = (deg) => {
   if (deg === null || deg === undefined) return '';
   return COMPASS_TICKS[Number(deg)] ?? '';
@@ -325,33 +325,37 @@ export function buildMeasurementCatalog(displayPrefs) {
       unit: speed.label,
       transform: speed.transform,
       series: [
-        { field: 'atmos_wind_speed', label: 'Atmos', color: COLORS.windSpeed, transform: speed.transform },
-        { field: 'calypso_wind_speed', label: 'Primary', color: COLORS.windCalypso, transform: speed.transform }
+        { field: 'calypso_wind_speed', label: 'Primary', color: COLORS.windSpeed, transform: speed.transform },
+        { field: 'atmos_wind_speed', label: 'Alternate', color: COLORS.windCalypso, transform: speed.transform }
       ],
       availability: 'live'
     },
     {
-      // Wind direction as a line graph, to match the other wind charts. Two
-      // lines — Atmos and the primary source — plotted as bearing in degrees.
-      // (A line can jump across the 0°/360° seam; rendered as a line per
-      // product preference.)
+      // Wind direction as a line graph (time on X). The Y axis is the compass
+      // rose, not raw degrees: fixed 0–360 domain with ticks on the 8 points
+      // (N, NE, E, … NW, back to N) rendered via compassTickFormatter. The
+      // line still plots the underlying bearing; the tooltip shows degrees.
       key: 'wind_direction',
       title: 'Wind Direction',
       source: 'device',
       chartType: 'multiline',
-      unit: '°',
+      unit: '',
       transform: identity,
+      yAxisMin: 0,
+      yAxisMax: 360,
+      yAxisTicks: [0, 45, 90, 135, 180, 225, 270, 315, 360],
+      yAxisValueFormatter: compassTickFormatter,
       series: [
-        {
-          field: 'atmos_wind_direction',
-          compassField: 'atmos_wind_direction_compass',
-          label: 'Atmos',
-          color: COLORS.windDirection
-        },
         {
           field: 'calypso_wind_direction',
           compassField: 'calypso_wind_direction_compass',
           label: 'Primary',
+          color: COLORS.windDirection
+        },
+        {
+          field: 'atmos_wind_direction',
+          compassField: 'atmos_wind_direction_compass',
+          label: 'Alternate',
           color: COLORS.windCalypso
         }
       ],
@@ -365,8 +369,8 @@ export function buildMeasurementCatalog(displayPrefs) {
       unit: speed.label,
       transform: speed.transform,
       series: [
-        { field: 'atmos_wind_gust', label: 'Atmos', color: COLORS.windGust, transform: speed.transform },
-        { field: 'calypso_wind_gust', label: 'Primary', color: COLORS.windCalypso, transform: speed.transform }
+        { field: 'calypso_wind_gust', label: 'Primary', color: COLORS.windGust, transform: speed.transform },
+        { field: 'atmos_wind_gust', label: 'Alternate', color: COLORS.windCalypso, transform: speed.transform }
       ],
       availability: 'live'
     },
@@ -397,28 +401,6 @@ export function buildMeasurementCatalog(displayPrefs) {
       color: COLORS.gdd,
       availability: 'live',
       note: 'Backend computes one cumulative GDD value per local day (downloads.py:788-874).'
-    },
-    {
-      key: 'lightning_strikes',
-      title: 'Lightning Strikes',
-      source: 'device',
-      chartType: 'line',
-      primaryField: 'lightning_strikes',
-      unit: 'count',
-      transform: identity,
-      color: COLORS.lightning,
-      availability: 'live'
-    },
-    {
-      key: 'lightning_distance',
-      title: 'Lightning Distance',
-      source: 'device',
-      chartType: 'line',
-      primaryField: 'lightning_strike_distance',
-      unit: 'km',
-      transform: identity,
-      color: COLORS.lightning,
-      availability: 'live'
     }
   ];
 
@@ -466,6 +448,30 @@ export function buildMeasurementCatalog(displayPrefs) {
       color: COLORS.solarRadiation,
       availability: 'live',
       note: 'Atmos 41 solar_radiation is live (downloads.py:987).'
+    },
+    {
+      // Lightning lives under Light (moved from Weather per Jake). Same yellow
+      // light-family color.
+      key: 'lightning_strikes',
+      title: 'Lightning Strikes',
+      source: 'device',
+      chartType: 'line',
+      primaryField: 'lightning_strikes',
+      unit: 'count',
+      transform: identity,
+      color: COLORS.lightning,
+      availability: 'live'
+    },
+    {
+      key: 'lightning_distance',
+      title: 'Lightning Distance',
+      source: 'device',
+      chartType: 'line',
+      primaryField: 'lightning_strike_distance',
+      unit: 'km',
+      transform: identity,
+      color: COLORS.lightning,
+      availability: 'live'
     }
   ];
 

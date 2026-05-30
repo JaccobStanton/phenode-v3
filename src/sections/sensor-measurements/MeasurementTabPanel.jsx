@@ -292,20 +292,22 @@ function renderChartBody(chart, rows, { from, to, xAxisTicks, axisFormat, height
       xAxis={[{ ...baseX, data: times, min: from, max: to }]}
       yAxis={[
         {
-          min: minVal - pad,
-          max: maxVal + pad,
+          // Charts can pin the Y domain + tick positions (e.g. wind direction
+          // uses a fixed 0–360 axis with ticks on the 8 compass points) and
+          // supply a custom tick formatter (compass labels instead of degrees).
+          min: chart.yAxisMin ?? minVal - pad,
+          max: chart.yAxisMax ?? maxVal + pad,
           width: 56,
           tickLabelStyle: { fontSize: 11, fill: 'var(--green)' },
-          valueFormatter: makeYAxisFormatter(chart.unit)
+          ...(chart.yAxisTicks ? { tickInterval: chart.yAxisTicks } : {}),
+          valueFormatter: chart.yAxisValueFormatter ?? makeYAxisFormatter(chart.unit)
         }
       ]}
       // `renderedAsMulti` keys off the actual rendered series count, NOT the
       // catalog declaration. If a chart declares two probes but only one has
       // data on this device, lines.length === 1 → render it like a single-
       // series chart (no legend) for visual parity with the other charts.
-      // Area fill stays ON for every line so all charts carry the same subtle
-      // glow; multi-series charts just use a lower fill opacity (set in the sx
-      // below) so two overlapping translucent bands don't muddy the chart.
+      // Line + glow only — no area fill (per Jake).
       series={lines.map((l, i) => {
         const renderedAsMulti = lines.length > 1;
         return {
@@ -313,7 +315,7 @@ function renderChartBody(chart, rows, { from, to, xAxisTicks, axisFormat, height
           data: l.values,
           label: renderedAsMulti ? l.label : undefined,
           color: l.color,
-          area: true,
+          area: false,
           showMark: chart.chartType === 'step',
           curve,
           connectNulls: true,
@@ -333,10 +335,7 @@ function renderChartBody(chart, rows, { from, to, xAxisTicks, axisFormat, height
       margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
       hideLegend={lines.length < 2}
       slotProps={lines.length > 1 ? { legend: { labelStyle: { fontSize: 11, fill: 'var(--green)' } } } : undefined}
-      // Multi-series: keep a visible area-fill glow on every line (matching the
-      // single-series look) but a touch lower than single's 0.16 so two
-      // overlapping bands don't muddy where they cross.
-      sx={lines.length > 1 ? { ...chartSx, '& .MuiAreaElement-root': { fillOpacity: 0.13 } } : chartSx}
+      sx={chartSx}
     />
   );
 }

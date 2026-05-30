@@ -273,10 +273,8 @@ function renderChartBody(chart, lines, times, { from, to, xAxisTicks, axisFormat
         data: l.values,
         label: l.label,
         color: l.color,
-        // Area fill on so the chart carries the same subtle glow as the
-        // single-series charts; the sx below lowers the fill opacity for
-        // multi-line so overlapping bands stay subtle.
-        area: true,
+        // Line + glow only — no area fill (per Jake).
+        area: false,
         showMark: false,
         curve: 'linear',
         connectNulls: true,
@@ -288,7 +286,7 @@ function renderChartBody(chart, lines, times, { from, to, xAxisTicks, axisFormat
       margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
       hideLegend={false}
       slotProps={{ legend: { labelStyle: { fontSize: 11, fill: 'var(--green)' } } }}
-      sx={lines.length > 1 ? { ...chartSx, '& .MuiAreaElement-root': { fillOpacity: 0.13 } } : chartSx}
+      sx={chartSx}
     />
   );
 }

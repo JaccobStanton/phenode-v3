@@ -80,7 +80,7 @@ export default function MeasurementsChartGrid({ charts, timeLabels, layout = 'ro
                   id: `${chart.title}-line`,
                   data: chart.data,
                   color: chart.lineColor,
-                  area: true,
+                  area: false,
                   showMark: false,
                   curve: 'linear'
                 }
@@ -115,7 +115,7 @@ export default function MeasurementsChartGrid({ charts, timeLabels, layout = 'ro
                   filter: 'var(--chart-glow-filter, url(#chart-glow-full))'
                 },
                 '& .MuiAreaElement-root': {
-                  fillOpacity: 0.16
+                  fillOpacity: 0
                 },
                 '& .MuiChartsAxis-line, & .MuiChartsAxis-tick': {
                   stroke: 'rgba(232, 232, 232, 0.45)'
