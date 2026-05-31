@@ -149,13 +149,13 @@ const cToF = (celsius) => (celsius * 9) / 5 + 32;
 // Internal temperature color thresholds are defined in °F (with °C
 // equivalents); the band is the same physical temperature regardless of the
 // unit the user displays, so we always classify on the °F value.
-//   ≤ 75 °F        → green
-//   76–120 °F      → orange
-//   ≥ 121 °F       → critical
+//   ≤ 100 °F (≤ 37.8 °C)        → green
+//   100–120 °F (37.8–48.9 °C)   → orange
+//   > 120 °F (> 48.9 °C)        → critical
 // Missing reading → blue (the page's neutral label color), not a status color.
 const tempColorFromF = (tempF) => {
   if (tempF === null) return 'var(--blue)';
-  if (tempF <= 75) return 'var(--green)';
+  if (tempF <= 100) return 'var(--green)';
   if (tempF <= 120) return 'var(--orange)';
   return 'var(--critical)';
 };
