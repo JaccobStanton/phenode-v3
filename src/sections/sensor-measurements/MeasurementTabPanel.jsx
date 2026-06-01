@@ -363,12 +363,11 @@ function renderChartBody(chart, rows, { from, to, xAxisTicks, axisFormat, height
       grid={{ horizontal: true, vertical: true }}
       height={height}
       margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
-      // Show the legend for any multi-source/probe chart (those declare a
-      // `series` array) — including when filtered to one line — so the colored
-      // series name stays visible. Single-source charts (GDD step via
-      // primaryField) keep it hidden.
-      hideLegend={!Array.isArray(chart.series)}
-      slotProps={Array.isArray(chart.series) ? { legend: { labelStyle: { fontSize: 11, fill: 'var(--green)' } } } : undefined}
+      // Show the legend ONLY when 2+ lines are actually rendered (per Jake).
+      // A chart filtered down to a single source/probe — or a single-source
+      // `series` chart — hides the legend, since a one-entry key adds nothing.
+      hideLegend={lines.length < 2}
+      slotProps={lines.length >= 2 ? { legend: { labelStyle: { fontSize: 11, fill: 'var(--green)' } } } : undefined}
       sx={chartSx}
     />
   );

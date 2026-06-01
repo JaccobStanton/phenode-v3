@@ -665,7 +665,9 @@ export default function MultiSensorGraph() {
                 }}
               />
 
-              <Box sx={{ mt: 1.5, display: 'flex', justifyContent: 'center' }}>
+              {/* Custom legend appears only with 2+ sensors plotted (per Jake);
+                  a single selected sensor needs no key. */}
+              <Box sx={{ mt: 1.5, display: sensorSeries.length >= 2 ? 'flex' : 'none', justifyContent: 'center' }}>
                 <Box
                   sx={{
                     display: 'grid',

@@ -302,8 +302,8 @@ function renderChartBody(chart, lines, times, { from, to, xAxisTicks, axisFormat
       grid={{ horizontal: true, vertical: true }}
       height={height}
       margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
-      hideLegend={false}
-      slotProps={{ legend: { labelStyle: { fontSize: 11, fill: 'var(--green)' } } }}
+      hideLegend={lines.length < 2}
+      slotProps={lines.length >= 2 ? { legend: { labelStyle: { fontSize: 11, fill: 'var(--green)' } } } : undefined}
       sx={chartSx}
     />
   );
