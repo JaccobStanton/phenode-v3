@@ -335,7 +335,7 @@ need it and we'll wire it up properly.
 
 ```bash
 cd phenodeV3
-lighthouse https://phenode.cloud/login \
+lighthouse https://phenode.live/login \
   --output=json \
   --output-path=../Lighthouse_Reports/lighthouse-login-prod.json \
   --chrome-flags="--headless=new"

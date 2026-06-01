@@ -1082,12 +1082,12 @@ version segment). The two <code>VITE_API_URL</code> candidates are:</p>
 </tr>
 <tr>
 <td>Production</td>
-<td><code>https://phenode.cloud/api</code></td>
+<td><code>https://phenode.live/api</code></td>
 </tr>
 </tbody>
 </table>
 <p>Confirmed in <code>phenodeX/docs/frontend-backend-api.md</code> ("Production API
-base URL: <code>https://phenode.cloud/api</code>") and in
+base URL: <code>https://phenode.live/api</code>") and in
 <code>phenodeX/phenode_backend/core/config.py</code>
 (<code>api_v1_prefix: str = "/api"</code> — the variable name is misleading, but
 the value is just <code>/api</code>). There is no <code>/v1</code> segment in either
@@ -1095,7 +1095,7 @@ environment; every router is mounted directly under <code>/api</code> in
 <code>phenodeX/phenode_backend/main.py</code>.</p>
 <blockquote>
 <p>Earlier guidance suggested the production base was
-<code>https://phenode.cloud/api/v1</code>. That was incorrect — that URL returns
+<code>https://phenode.live/api/v1</code>. That was incorrect — that URL returns
 404. The docs and config are the source of truth.</p>
 </blockquote>
 <p><strong>Where this is set:</strong> <code>phenodeV3/.env</code> has both URLs documented at the
@@ -1105,10 +1105,10 @@ flip the comment, then <strong>restart the vite dev server</strong> (Vite reads
 <pre><code class="language-env">## --- LOCAL (docker compose stack in phenodeX) -------------------------------
 # VITE_API_URL = http://localhost:8000/api
 
-## --- PRODUCTION (phenode.cloud) ---------------------------------------------
-VITE_API_URL = https://phenode.cloud/api
+## --- PRODUCTION (phenode.live) ---------------------------------------------
+VITE_API_URL = https://phenode.live/api
 </code></pre>
-<p><strong>CORS caveat for production from localhost:</strong> Hitting <code>phenode.cloud</code>
+<p><strong>CORS caveat for production from localhost:</strong> Hitting <code>phenode.live</code>
 from a <code>localhost:3000</code> page is a cross-origin request. The local
 backend has <code>localhost:3000</code> whitelisted in
 <code>Settings.cors_allow_origins</code>, but production does not. If you get a
@@ -1143,12 +1143,12 @@ account for testing or switch to local.</p>
 <hr />
 <h2>TL;DR</h2>
 <h3>Against production (default)</h3>
-<p><code>phenodeV3/.env</code> already points at <code>https://phenode.cloud/api</code>. So:</p>
+<p><code>phenodeV3/.env</code> already points at <code>https://phenode.live/api</code>. So:</p>
 <pre><code class="language-bash">cd ~/Coding/PheNode
 make frontend            # vite on http://localhost:3000
 # → log in with your real production credentials
 </code></pre>
-<p><code>make backend</code> is unnecessary for prod — you're hitting <code>phenode.cloud</code>,
+<p><code>make backend</code> is unnecessary for prod — you're hitting <code>phenode.live</code>,
 not the local docker stack.</p>
 <h3>Against local docker stack</h3>
 <pre><code class="language-bash"># 1. Edit phenodeV3/.env — comment the production line, uncomment the local one.
@@ -1257,7 +1257,7 @@ full_name: Jake Stanton
 <blockquote>
 <p><strong>Don't run <code>make signup</code> against production.</strong> It's hard-coded to the
 local backend on purpose so you can't accidentally create test
-accounts on <code>phenode.cloud</code>. To create a real production account, talk
+accounts on <code>phenode.live</code>. To create a real production account, talk
 to the backend team or use the production signup flow.</p>
 </blockquote>
 <h3>If you hit a 409</h3>
@@ -1322,7 +1322,7 @@ the running api container:</p>
 <p>The full URL the form posts to depends on <code>VITE_API_URL</code>:</p>
 <ul>
 <li>Local mode: <code>POST http://localhost:8000/api/auth/login</code></li>
-<li>Production mode: <code>POST https://phenode.cloud/api/auth/login</code></li>
+<li>Production mode: <code>POST https://phenode.live/api/auth/login</code></li>
 </ul>
 <hr />
 <h2>Lifecycle reference</h2>
