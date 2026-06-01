@@ -73,6 +73,19 @@ export const makeYAxisFormatter = (unit) => (value) => {
   return unit ? `${compact} ${unit}` : compact;
 };
 
+// Half-padding for a chart's Y domain (added above max and below min).
+//   • Varying series → 4% of the data span (with a 0.1 floor).
+//   • Dead-flat series (min === max, e.g. a stuck/constant sensor reading like
+//     a LUX value pinned at 37889) → real headroom proportional to the value
+//     (±5%, min 1) so the flat line renders clearly across the MIDDLE of the
+//     axis instead of collapsing onto a single gridline and looking like one
+//     lone point. This is purely a display fix — it does NOT change the data.
+export const yAxisPad = (minVal, maxVal) => {
+  const range = maxVal - minVal;
+  if (range > 0) return Math.max(0.1, range * 0.04);
+  return Math.max(Math.abs(maxVal) * 0.05, 1);
+};
+
 // =============================================================================
 // MeasurementChart — memoized single-series LineChart wrapper.
 // =============================================================================
@@ -104,11 +117,11 @@ export const MeasurementChart = memo(function MeasurementChart({
   // shallowEqual still short-circuits when nothing changed.
   timezone
 }) {
-  // Y-axis padding — 4% of the range, 0.1 floor so a flat series still renders
-  // a visible band rather than collapsing into the axis.
+  // Y-axis padding — 4% of the range for varying data; a flat (constant) series
+  // gets value-proportional headroom so it doesn't collapse onto one gridline.
   const minVal = Math.min(...seriesData);
   const maxVal = Math.max(...seriesData);
-  const pad = Math.max(0.1, (maxVal - minVal) * 0.04);
+  const pad = yAxisPad(minVal, maxVal);
 
   return (
     <LineChart
@@ -143,7 +156,10 @@ export const MeasurementChart = memo(function MeasurementChart({
           data: seriesData,
           color: config.color,
           area: false,
-          showMark: false,
+          // A single reading can't form a line, so show a marker (in the
+          // series color) for a lone point — otherwise the chart looks blank.
+          // Multi-point series keep clean, mark-free lines.
+          showMark: seriesData.length < 2,
           curve: 'linear',
           valueFormatter: (value) =>
             value === null || value === undefined ? 'No data' : `${Number(value).toFixed(2)}${config.unit ? ` ${config.unit}` : ''}`

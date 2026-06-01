@@ -22,7 +22,7 @@ import useDisplayPreferences from 'hooks/useDisplayPreferences';
 import useWirelessSensorMeasurements from 'hooks/data/useWirelessSensorMeasurements';
 import { reflectedCardChromeSx, tooltipSlotProps } from 'themes/sx-tokens';
 import { axisTickNumberFor, formatAxisTick, formatTooltipDate } from 'utils/chartTimeRanges';
-import { chartSx, makeYAxisFormatter, MeasurementChart } from 'sections/sensor-measurements/measurementChartCore';
+import { chartSx, makeYAxisFormatter, MeasurementChart, yAxisPad } from 'sections/sensor-measurements/measurementChartCore';
 import { fieldProjectionsForCharts } from 'sections/sensor-measurements/measurementCatalog';
 
 // =============================================================================
@@ -316,7 +316,7 @@ function renderChartBody(chart, rows, { from, to, xAxisTicks, axisFormat, height
   const allVals = lines.flatMap((l) => l.values).filter((v) => v !== null && v !== undefined);
   const minVal = allVals.length ? Math.min(...allVals) : 0;
   const maxVal = allVals.length ? Math.max(...allVals) : 1;
-  const pad = Math.max(0.1, (maxVal - minVal) * 0.04);
+  const pad = yAxisPad(minVal, maxVal);
   const curve = chart.chartType === 'step' ? 'stepAfter' : 'linear';
 
   return (
@@ -362,8 +362,14 @@ function renderChartBody(chart, rows, { from, to, xAxisTicks, axisFormat, height
           // chart's connectNulls=true visually bridges gaps but the tooltip
           // still says "No data" at every hovered position with no underlying
           // sample, which is misleading.
-          valueFormatter: (value) =>
-            value === null || value === undefined ? null : `${Number(value).toFixed(2)}${chart.unit ? ` ${chart.unit}` : ''}`
+          // Catalog hook: a chart can supply `tooltipValueFormatter` to render
+          // the hovered value as something other than a raw number — e.g. wind
+          // direction converts the bearing to a 16-point compass heading ("E").
+          valueFormatter: (value) => {
+            if (value === null || value === undefined) return null;
+            if (chart.tooltipValueFormatter) return chart.tooltipValueFormatter(value);
+            return `${Number(value).toFixed(2)}${chart.unit ? ` ${chart.unit}` : ''}`;
+          }
         };
       })}
       grid={{ horizontal: true, vertical: true }}

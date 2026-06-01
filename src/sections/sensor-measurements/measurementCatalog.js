@@ -171,6 +171,18 @@ export const compassTickFormatter = (deg) => {
   return COMPASS_TICKS[Number(deg)] ?? '';
 };
 
+// Full 16-point compass used for the wind-direction HOVER tooltip (the Y-axis
+// ticks stay on the coarse 8-point map above). The line plots the raw bearing;
+// this converts that bearing into the same 16-point label the backend computes
+// for *_wind_direction_compass and that the Grafana readout shows (e.g. "E"),
+// so the tooltip reads as a heading instead of a raw degree value.
+const COMPASS_16 = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+export const compassFromDegrees = (deg) => {
+  if (deg === null || deg === undefined || Number.isNaN(Number(deg))) return '';
+  const d = ((Number(deg) % 360) + 360) % 360;
+  return COMPASS_16[Math.round(d / 22.5) % 16];
+};
+
 // Resolve the unit-dependent label + transform for the families that respond
 // to display preferences. Returns { label, transform }.
 function resolveUnit(kind, displayPrefs) {
@@ -382,7 +394,8 @@ export function buildMeasurementCatalog(displayPrefs) {
       // Wind direction as a line graph (time on X). The Y axis is the compass
       // rose, not raw degrees: fixed 0–360 domain with ticks on the 8 points
       // (N, NE, E, … NW, back to N) rendered via compassTickFormatter. The
-      // line still plots the underlying bearing; the tooltip shows degrees.
+      // line still plots the underlying bearing; the tooltip shows the 16-point
+      // compass heading (e.g. "E"), matching the Grafana readout.
       key: 'wind_direction',
       title: 'Wind Direction',
       source: 'device',
@@ -393,6 +406,7 @@ export function buildMeasurementCatalog(displayPrefs) {
       yAxisMax: 360,
       yAxisTicks: [0, 45, 90, 135, 180, 225, 270, 315, 360],
       yAxisValueFormatter: compassTickFormatter,
+      tooltipValueFormatter: compassFromDegrees,
       series: [
         {
           field: 'calypso_wind_direction',
