@@ -621,11 +621,21 @@ export function buildMeasurementCatalog(displayPrefs) {
       note: 'No backend % field; sources raw mVbat. A linear pack-voltage→% mapping can be layered on later.'
     },
     {
+      // Two batteries on one graph: the PheNode's own control-box battery
+      // (device-native analog measurement, `battery_voltage`) and the linked
+      // wireless sensor's battery (`mVbat`, merged in via
+      // DEVICE_FIELDS_FROM_LINKED_WIRELESS). Base Station is the primary reading
+      // and keeps the battery-red; Wireless Sensor uses the secondary (purple)
+      // to match the second-source convention used across the weather charts.
       key: 'battery_voltage',
       title: 'Battery Voltage',
+      info: 'Base Station = PheNode control-box battery; Wireless Sensor = linked sensor battery',
       source: 'device',
-      chartType: 'line',
-      primaryField: 'battery_voltage',
+      chartType: 'multiline',
+      series: [
+        { field: 'battery_voltage', label: 'Base Station', color: COLORS.batteryVoltage, transform: voltage.transform },
+        { field: 'mVbat', label: 'Wireless Sensor', color: SECONDARY, transform: voltage.transform }
+      ],
       unit: voltage.label,
       transform: voltage.transform,
       color: COLORS.batteryVoltage,

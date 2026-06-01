@@ -169,7 +169,11 @@ function buildMultiSensorLines(rowsBySensor, chart, sensorList, probeFilter = 'b
   // buildAlignedSeries — same rationale).
   const unionIso = new Set();
   for (const l of lineDescriptors) for (const t of l.map.keys()) unionIso.add(t);
-  const sortedIso = [...unionIso].sort();
+  // Chronological (numeric) sort, NOT lexicographic — raw-mode timestamps mix
+  // "…Z" and "….123456Z" precision, and a string .sort() misorders them, which
+  // breaks the hover crosshair's sorted-array assumption. See the matching note
+  // in MeasurementTabPanel.buildAlignedSeries.
+  const sortedIso = [...unionIso].sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
   const times = sortedIso.map((t) => new Date(t));
 
   const lines = lineDescriptors.map((l) => ({
