@@ -340,13 +340,19 @@ function renderChartBody(chart, rows, { from, to, xAxisTicks, axisFormat, height
       // — the user wants to see WHICH line they're looking at. Line + glow only
       // (no area fill, per Jake).
       series={lines.map((l, i) => {
+        // A line needs 2+ non-null points to draw a segment (connectNulls
+        // bridges gaps between them). A series left with a single valid reading
+        // — e.g. a sparse linked-wireless field after out-of-bounds values are
+        // filtered — would otherwise render NOTHING while still showing a value
+        // on hover. Show a marker for those so the lone point is visible.
+        const nonNullCount = l.values.reduce((n, v) => (v === null || v === undefined ? n : n + 1), 0);
         return {
           id: `${chart.key}-l${i}${idSuffix}`,
           data: l.values,
           label: l.label,
           color: l.color,
           area: false,
-          showMark: chart.chartType === 'step',
+          showMark: chart.chartType === 'step' || nonNullCount < 2,
           curve,
           connectNulls: true,
           // Return `null` (not "No data") for null values so MUI's default

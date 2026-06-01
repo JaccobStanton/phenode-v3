@@ -291,9 +291,11 @@ function renderChartBody(chart, lines, times, { from, to, xAxisTicks, axisFormat
         data: l.values,
         label: l.label,
         color: l.color,
-        // Line + glow only — no area fill (per Jake).
+        // Line + glow only — no area fill (per Jake). A series with a single
+        // non-null reading can't form a line segment, so show a marker for it
+        // (otherwise the value appears on hover but nothing renders).
         area: false,
-        showMark: false,
+        showMark: l.values.reduce((n, v) => (v === null || v === undefined ? n : n + 1), 0) < 2,
         curve: 'linear',
         connectNulls: true,
         valueFormatter: (value) =>
