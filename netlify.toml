@@ -4,7 +4,7 @@
 #
 # Two things this file is responsible for:
 #
-# 1. Proxying /api/* to the FastAPI backend on phenode.cloud.
+# 1. Proxying /api/* to the FastAPI backend on phenode.live.
 #    The frontend code (see AuthLogin.jsx:213 and services/fetcher.js)
 #    falls back to a relative `/api` base when VITE_API_URL is unset.
 #    With this proxy in place, the browser sees same-origin requests
@@ -40,7 +40,7 @@
 # --- API proxy --------------------------------------------------------------
 [[redirects]]
   from   = "/api/*"
-  to     = "https://phenode.cloud/api/:splat"
+  to     = "https://phenode.live/api/:splat"
   status = 200
   force  = true
 
