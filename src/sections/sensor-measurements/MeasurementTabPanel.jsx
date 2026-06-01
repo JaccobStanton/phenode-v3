@@ -138,7 +138,18 @@ function buildAlignedSeries(rows, chart) {
   for (const s of seriesData) {
     for (const t of s.map.keys()) unionIsoTimes.add(t);
   }
-  const sortedIsoTimes = [...unionIsoTimes].sort();
+  // Sort CHRONOLOGICALLY by timestamp value, not lexicographically by string.
+  // Raw-mode rows (≤2-day ranges, where the backend returns un-bucketed data)
+  // carry mixed-precision ISO timestamps — the backend's isoformat() drops the
+  // fractional part when microseconds are zero, so a union interleaves
+  // "…:05Z" and "…:05.123456Z". A plain string .sort() puts ".123456Z" BEFORE
+  // "Z" (".".charCodeAt < "Z".charCodeAt), leaving the array out of time order.
+  // MUI x-charts' axis-highlight closest-point search (getAxisIndex) assumes
+  // axisData is ascending and only compares each point to its neighbors, so an
+  // unsorted array makes the hover crosshair stick instead of tracking the
+  // cursor. Bucketed ranges produce whole-second boundaries (uniform format),
+  // which is why the bug only showed at the 24h-and-under selections.
+  const sortedIsoTimes = [...unionIsoTimes].sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
   const times = sortedIsoTimes.map((t) => new Date(t));
 
   // Each series' values aligned to the union; null where that series has no
