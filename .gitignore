@@ -38,6 +38,8 @@ bower_components
 build/Release
 build
 dist
+# Ad-hoc / verification build output dirs (e.g. dist_verify, dist_chk_<timestamp>)
+dist_*
 
 # Dependency directories
 node_modules/
