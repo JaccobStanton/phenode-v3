@@ -320,3 +320,123 @@ export const changePassword = ({ currentPassword, newPassword }, accessToken) =>
     },
     token: accessToken
   });
+
+// =============================================================================
+// Admin panel mutations — SUPER_ADMIN-gated User + Device management.
+// =============================================================================
+//
+// All of these resolve URLs through API.admin.* (services/endpoints.js) and
+// go through mutationRequest, inheriting the 401-refresh-and-retry behavior.
+// Callers (the admin tab components) own SWR cache invalidation — each holds
+// the relevant `mutate` from useAdminData and calls it after a success.
+//
+// Backend reference: phenodeX/phenode_backend/api/admin/{users,routes}.py
+
+/**
+ * Create an email/password user from the admin panel.
+ * Body: { email, password, full_name?, role, is_approved }.
+ * Backend: POST /admin/users/ (201). 403 if a non-super-admin requests an
+ * ADMIN/SUPER_ADMIN role; 409 if the email already exists.
+ */
+export const adminCreateUser = ({ email, password, fullName, role, isApproved }, accessToken) =>
+  mutationRequest(buildUrl(API.admin.users.base), {
+    method: 'POST',
+    body: {
+      email,
+      password,
+      full_name: fullName?.trim() || null,
+      role,
+      is_approved: isApproved
+    },
+    token: accessToken
+  });
+
+/**
+ * Approve or reject a user. Backend: POST /admin/users/approve.
+ * Body: { user_id, approved }. Returns { message, user }.
+ */
+export const adminApproveUser = (userId, approved, accessToken) =>
+  mutationRequest(buildUrl(API.admin.users.approve), {
+    method: 'POST',
+    body: { user_id: userId, approved },
+    token: accessToken
+  });
+
+/**
+ * Create a PheNode device. Backend: POST /admin/devices (201).
+ * `externalDeviceId` must not start with WS-. 409 on duplicate id/label.
+ * Returns DeviceRead (use its `.id` for a follow-up assign).
+ */
+export const adminCreateDevice = ({ externalDeviceId, label }, accessToken) =>
+  mutationRequest(buildUrl(API.admin.devices), {
+    method: 'POST',
+    body: {
+      external_device_id: externalDeviceId,
+      label: label?.trim() || null,
+      organization_id: null,
+      latitude: null,
+      longitude: null,
+      health: null,
+      sensors: null
+    },
+    token: accessToken
+  });
+
+/**
+ * Assign a device to a user. Backend: POST /admin/devices/{device_id}/assign.
+ * `deviceId` is the NUMERIC db id (DeviceRead.id), not the external id.
+ */
+export const adminAssignDevice = (deviceId, userId, accessToken) =>
+  mutationRequest(buildUrl(API.admin.deviceAssign(deviceId)), {
+    method: 'POST',
+    body: { user_id: userId },
+    token: accessToken
+  });
+
+/**
+ * Clear a device's user assignment.
+ * Backend: DELETE /admin/devices/{device_id}/assign.
+ */
+export const adminUnassignDevice = (deviceId, accessToken) =>
+  mutationRequest(buildUrl(API.admin.deviceAssign(deviceId)), {
+    method: 'DELETE',
+    token: accessToken
+  });
+
+/**
+ * Create a wireless sensor (optionally physically linked to a device).
+ * Backend: POST /admin/wireless-sensors (201). `externalSensorId` must
+ * start with WS-. 409 on duplicate.
+ */
+export const adminCreateWirelessSensor = ({ externalSensorId, label, deviceId }, accessToken) =>
+  mutationRequest(buildUrl(API.admin.wirelessSensors), {
+    method: 'POST',
+    body: {
+      external_sensor_id: externalSensorId,
+      label: label?.trim() || null,
+      device_id: deviceId != null && deviceId !== '' ? Number(deviceId) : null
+    },
+    token: accessToken
+  });
+
+/**
+ * Link a virtual wireless sensor to a PheNode device.
+ * Backend: POST /admin/devices/{device_id}/wireless-sensors.
+ * Body: { wireless_sensor_id }. Returns updated AdminDeviceRead.
+ */
+export const adminLinkWirelessSensor = (deviceId, wirelessSensorId, accessToken) =>
+  mutationRequest(buildUrl(API.admin.deviceWirelessSensors(deviceId)), {
+    method: 'POST',
+    body: { wireless_sensor_id: Number(wirelessSensorId) },
+    token: accessToken
+  });
+
+/**
+ * Remove a virtual wireless-sensor mapping from a PheNode device.
+ * Backend: DELETE /admin/devices/{device_id}/wireless-sensors/{wireless_sensor_id}.
+ */
+export const adminUnlinkWirelessSensor = (deviceId, wirelessSensorId, accessToken) =>
+  mutationRequest(buildUrl(API.admin.deviceWirelessSensor(deviceId, wirelessSensorId)), {
+    method: 'DELETE',
+    token: accessToken
+  });

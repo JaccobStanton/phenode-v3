@@ -10,6 +10,7 @@ import ListItemText from '@mui/material/ListItemText';
 import AntIcon from 'components/AntIcon';
 import LogoutOutlined from '@ant-design/icons-svg/lib/asn/LogoutOutlined';
 import UserOutlined from '@ant-design/icons-svg/lib/asn/UserOutlined';
+import CrownOutlined from '@ant-design/icons-svg/lib/asn/CrownOutlined';
 
 // ==============================|| HEADER PROFILE - PROFILE TAB ||============================== //
 //
@@ -49,9 +50,21 @@ const themedListItemSx = {
   }
 };
 
-export default function ProfileTab({ onLogout, onOpenProfile }) {
+export default function ProfileTab({ onLogout, onOpenProfile, onOpenAdmin, isSuperAdmin = false }) {
   return (
     <List component="nav" sx={{ p: 0.75 }}>
+      {/* Admin Panel — only rendered for SUPER_ADMIN. The route itself is
+          also guarded (routes/RequireSuperAdmin.jsx), so hiding the entry
+          here is purely about not advertising a destination the viewer
+          can't use. */}
+      {isSuperAdmin && (
+        <ListItemButton sx={themedListItemSx} onClick={onOpenAdmin}>
+          <ListItemIcon>
+            <AntIcon icon={CrownOutlined} />
+          </ListItemIcon>
+          <ListItemText primary="Admin Panel" />
+        </ListItemButton>
+      )}
       <ListItemButton sx={themedListItemSx} onClick={onOpenProfile}>
         <ListItemIcon>
           <AntIcon icon={UserOutlined} />
@@ -68,4 +81,9 @@ export default function ProfileTab({ onLogout, onOpenProfile }) {
   );
 }
 
-ProfileTab.propTypes = { onLogout: PropTypes.func, onOpenProfile: PropTypes.func };
+ProfileTab.propTypes = {
+  onLogout: PropTypes.func,
+  onOpenProfile: PropTypes.func,
+  onOpenAdmin: PropTypes.func,
+  isSuperAdmin: PropTypes.bool
+};

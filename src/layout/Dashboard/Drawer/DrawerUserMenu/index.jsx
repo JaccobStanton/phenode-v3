@@ -27,6 +27,7 @@ import AntIcon from 'components/AntIcon';
 import LogoutOutlined from '@ant-design/icons-svg/lib/asn/LogoutOutlined';
 import UserOutlined from '@ant-design/icons-svg/lib/asn/UserOutlined';
 import SettingOutlined from '@ant-design/icons-svg/lib/asn/SettingOutlined';
+import CrownOutlined from '@ant-design/icons-svg/lib/asn/CrownOutlined';
 import UpOutlined from '@ant-design/icons-svg/lib/asn/UpOutlined';
 import avatar1 from 'assets/images/users/marble_icon.svg';
 
@@ -123,6 +124,10 @@ export default function DrawerUserMenu() {
   // populated yet (e.g., the moment between mount and first context value).
   const displayName = user?.email || 'Signed out';
   const displayRole = user ? formatRoleLabel(user.role) : '';
+  // Gate the Admin Panel entry to SUPER_ADMIN — mirrors the header Profile
+  // menu. The /dashboard/admin route is independently guarded by
+  // RequireSuperAdmin; hiding the entry just avoids advertising it.
+  const isSuperAdmin = (user?.role || '').toUpperCase() === 'SUPER_ADMIN';
 
   const handleToggle = () => setOpen((prev) => !prev);
   const handleClose = (event) => {
@@ -150,11 +155,25 @@ export default function DrawerUserMenu() {
     setOpen(false);
     navigate('/dashboard/account-settings');
   };
+  // Admin Panel → /dashboard/admin. Same close-then-navigate pattern. Only
+  // rendered for SUPER_ADMIN (see menuList below).
+  const handleAdmin = () => {
+    setOpen(false);
+    navigate('/dashboard/admin');
+  };
 
   // Shared dropdown content — three list items styled with the same
   // hover treatment as the header Profile menu's list.
   const menuList = (
     <List component="nav" sx={{ p: 0.75, minWidth: 200 }}>
+      {isSuperAdmin && (
+        <ListItemButton sx={themedListItemSx} onClick={handleAdmin}>
+          <ListItemIcon>
+            <AntIcon icon={CrownOutlined} />
+          </ListItemIcon>
+          <ListItemText primary="Admin Panel" />
+        </ListItemButton>
+      )}
       <ListItemButton sx={themedListItemSx} onClick={handleAccountSettings}>
         <ListItemIcon>
           <AntIcon icon={SettingOutlined} />

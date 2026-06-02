@@ -178,6 +178,44 @@ const API = {
     sensorDataDownload: (sensorList, fromIso, toIso) =>
       `/wireless-sensors/sensor-data/${encodeURIComponent(sensorList)}/${encodeURIComponent(fromIso)}/${encodeURIComponent(toIso)}`
   },
+  // ---------------------------------------------------------------------------
+  // Admin panel — SUPER_ADMIN-gated control surface (User + Device management).
+  //
+  // Every route here is mounted under the same /api prefix as the rest of the
+  // catalog (buildUrl prepends VITE_API_URL). The backend gates these with
+  // require_role('ADMIN') (ADMIN or SUPER_ADMIN); the FRONTEND additionally
+  // gates the whole panel to SUPER_ADMIN only via routes/RequireSuperAdmin.jsx
+  // and the profile-menu entries.
+  //
+  // Verified against:
+  //   phenodeX/phenode_backend/api/admin/users.py        (users.* routes)
+  //   phenodeX/phenode_backend/api/admin/routes.py       (devices.* + wirelessSensors.*)
+  //   phenodeX/docs/frontend-backend-api.md:1176-1535    (request/response shapes)
+  admin: {
+    users: {
+      // GET — UserRead[] of users where is_approved=false.
+      pending: '/admin/users/pending',
+      // GET — UserRead[] of all users. POST — create an email/password user
+      //   (body: { email, password, full_name?, role, is_approved }).
+      //   Trailing slash matches the backend router (prefix '/admin/users').
+      base: '/admin/users/',
+      // POST — approve/reject. Body: { user_id, approved }.
+      approve: '/admin/users/approve'
+    },
+    // GET — AdminDeviceRead[]. POST — create device (DeviceCreate body).
+    devices: '/admin/devices',
+    // POST — assign device to user (body: { user_id }). DELETE — clear
+    //   assignment. Path param is the NUMERIC db device_id, not external id.
+    deviceAssign: (deviceId) => `/admin/devices/${deviceId}/assign`,
+    // POST — link a virtual wireless sensor to a device
+    //   (body: { wireless_sensor_id }). Numeric device_id path param.
+    deviceWirelessSensors: (deviceId) => `/admin/devices/${deviceId}/wireless-sensors`,
+    // DELETE — unlink a virtual wireless sensor. Both path params numeric db ids.
+    deviceWirelessSensor: (deviceId, wirelessSensorId) => `/admin/devices/${deviceId}/wireless-sensors/${wirelessSensorId}`,
+    // GET — AdminWirelessSensorRead[]. POST — create a wireless sensor
+    //   (body: { external_sensor_id, label?, device_id? }).
+    wirelessSensors: '/admin/wireless-sensors'
+  },
   user: {
     // GET — used by AuthApprovalPending to detect approval.
     // 200 once approved, 403 while pending.

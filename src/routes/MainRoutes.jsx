@@ -3,6 +3,7 @@ import { lazy } from 'react';
 // project imports
 import Loadable from 'components/Loadable';
 import RequireAuth from './RequireAuth';
+import RequireSuperAdmin from './RequireSuperAdmin';
 
 // DashboardLayout is lazy too. Previously this was a static import and
 // it became part of the eager entry chunk on every route — including
@@ -37,6 +38,11 @@ const ProfilePage = Loadable(lazy(() => import('pages/profile/profile')));
 // Profile menu's "Account Settings" entry) — same rationale for keeping
 // it out of menu-items but registering a route.
 const AccountSettingsPage = Loadable(lazy(() => import('pages/account-settings/account-settings')));
+// Admin panel is reached only via the SUPER_ADMIN-gated entries in the header
+// Profile dropdown and the DrawerUserMenu — it's not part of the main nav, so
+// it stays out of menu-items/* but registers a route. The route itself sits
+// behind RequireSuperAdmin so a hand-typed URL bounces non-super-admins.
+const AdminPage = Loadable(lazy(() => import('pages/admin/admin')));
 
 // Dev-only showcase pages. Lazy + gated so the chunks aren't shipped
 // to production builds — Vite dead-code-eliminates the conditional
@@ -121,6 +127,19 @@ const MainRoutes = {
         {
           path: 'account-settings',
           element: <AccountSettingsPage />
+        },
+        // Admin panel — pathless RequireSuperAdmin wrapper gates the
+        // /dashboard/admin child to SUPER_ADMIN. The wrapper renders an
+        // <Outlet/> for its children, so a non-super-admin hitting the URL
+        // gets a <Navigate to="/dashboard/default"> instead of the panel.
+        {
+          element: <RequireSuperAdmin />,
+          children: [
+            {
+              path: 'admin',
+              element: <AdminPage />
+            }
+          ]
         },
         // Dev-only routes — appended conditionally so production builds
         // contain neither the route entries nor (after tree-shaking) the

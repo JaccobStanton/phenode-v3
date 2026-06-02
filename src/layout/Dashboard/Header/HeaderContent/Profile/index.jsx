@@ -159,6 +159,10 @@ export default function Profile({ embedded = false, onOpenSupport, onOpenPrivacy
   const navigate = useNavigate();
   const displayName = user?.email || 'Signed out';
   const displayRole = user ? formatRoleLabel(user.role) : '';
+  // Gate the Admin Panel entry to SUPER_ADMIN. The /dashboard/admin route is
+  // independently guarded by RequireSuperAdmin — this just hides the menu
+  // item from anyone who can't use it.
+  const isSuperAdmin = (user?.role || '').toUpperCase() === 'SUPER_ADMIN';
 
   const anchorRef = useRef(null);
   const [open, setOpen] = useState(false);
@@ -191,6 +195,14 @@ export default function Profile({ embedded = false, onOpenSupport, onOpenPrivacy
   // pattern. This is the destination wired into the SettingTab row AND
   // into DrawerUserMenu's handleAccountSettings — both entry points
   // land on the same page.
+  // Admin Panel → /dashboard/admin. Same close-then-act pattern. Only
+  // reachable for SUPER_ADMIN (the entry is hidden otherwise and the route
+  // is guarded), but the handler is harmless for anyone else.
+  const handleOpenAdmin = () => {
+    setOpen(false);
+    navigate('/dashboard/admin');
+  };
+
   const handleOpenAccountSettings = () => {
     setOpen(false);
     navigate('/dashboard/account-settings');
@@ -285,7 +297,7 @@ export default function Profile({ embedded = false, onOpenSupport, onOpenPrivacy
         </Tabs>
       </Box>
       <TabPanel value={value} index={0} dir={theme.direction}>
-        <ProfileTab onLogout={handleLogout} onOpenProfile={handleOpenProfile} />
+        <ProfileTab onLogout={handleLogout} onOpenProfile={handleOpenProfile} onOpenAdmin={handleOpenAdmin} isSuperAdmin={isSuperAdmin} />
       </TabPanel>
       <TabPanel value={value} index={1} dir={theme.direction}>
         {/* Both modal callbacks flow from HeaderContent. We also close the

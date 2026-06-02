@@ -481,7 +481,10 @@ function extensionFromBackendFilename(filename) {
 // buildCircleMetrics + the `latestValues` memo below).
 const DEVICE_CHART_FIELDS = [
   'temperature',
+  'temperature_mcp9808',
+  'temperature_bme',
   'humidity',
+  'humidity_bme',
   'pressure',
   'wind_speed',
   'wind_direction',
@@ -590,8 +593,8 @@ function buildCircleMetrics(device, displayPrefs, latest) {
   // Latest > DeviceRead fallback. Backend ships temperature in °C and wind
   // speed in m/s; the format helpers take the raw unit and the user's display
   // pref so this stays a pure pass-through.
-  const tempC = latest?.temperature ?? device?.temperature_c;
-  const humidity = latest?.humidity;
+  const tempC = latest?.temperature_mcp9808 ?? latest?.temperature_bme ?? latest?.temperature ?? device?.temperature_c;
+  const humidity = latest?.humidity_bme ?? latest?.humidity;
   const windSpeedMs = latest?.wind_speed ?? device?.wind_speed;
   const windGustMs = latest?.wind_gust;
   const windDirDeg = latest?.wind_direction;
@@ -986,11 +989,20 @@ export default function SensorMeasurements() {
   // transforms in lockstep with the Weather grid above.
   const measurementCatalog = useMemo(() => buildMeasurementCatalog(displayPrefs), [displayPrefs]);
 
-  // Auto-picked primary wireless sensor for this PheNode — the Soil / Light /
-  // Power tabs read from it. DeviceRead carries wireless_sensors[] of
-  // { id, external_sensor_id, label } (services/schemas/device.js); we take
-  // the first as the primary per the agreed "auto-pick" scope.
-  const activeWirelessSensorId = activeDevice?.wireless_sensors?.[0]?.external_sensor_id ?? null;
+  // Primary wireless sensor for this PheNode — the Soil / Light / Power tabs
+  // read from it. The "primary" is the device's VIRTUAL wireless mapping
+  // (device_virtual_wireless_sensors), set by a super admin in the Admin Panel
+  // → Device Management → "Set Primary Sensor". DeviceRead carries
+  // virtual_wireless_sensors[] of { id, external_sensor_id, label }
+  // (backend api/devices/routes.py:354,511; passes through the device yup
+  // schema's stripUnknown:false). When no primary is set this is null, and
+  // MeasurementTabPanel renders its "no linked wireless sensor" empty state —
+  // so the charts show NO wireless data until a primary is explicitly chosen.
+  //
+  // NOTE: this intentionally does NOT fall back to wireless_sensors[0] (the
+  // first physically-linked sensor). Physical links alone must not surface
+  // wireless data on the device charts — only the chosen primary does.
+  const activeWirelessSensorId = activeDevice?.virtual_wireless_sensors?.[0]?.external_sensor_id ?? null;
 
   // Charts for the currently-active tab. Every tab — including Weather — now
   // renders through the single catalog-driven MeasurementTabPanel, so the
@@ -1914,9 +1926,7 @@ export default function SensorMeasurements() {
                     {showProbeToggle && (
                       <Stack spacing={0.5} sx={{ width: { xs: '100%', sm: 'auto' } }}>
                         {showSourceToggle && showProbeToggle && (
-                          <Typography sx={{ color: 'var(--blue)', fontSize: '0.72rem', fontWeight: 600, lineHeight: 1 }}>
-                            Soil:
-                          </Typography>
+                          <Typography sx={{ color: 'var(--blue)', fontSize: '0.72rem', fontWeight: 600, lineHeight: 1 }}>Soil:</Typography>
                         )}
                         <ToggleButtonGroup
                           exclusive

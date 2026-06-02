@@ -85,7 +85,12 @@ const deviceReadSchema = yup.object({
   sensor_health: yup.object().nullable().optional(),
 
   assigned_user: assignedUserSchema,
-  wireless_sensors: yup.array().of(wirelessSensorReadSchema).nullable().optional()
+  wireless_sensors: yup.array().of(wirelessSensorReadSchema).nullable().optional(),
+  // Virtual wireless mapping = the device's "primary" sensor (set in Admin
+  // Panel → Device Management). The device charting tabs (Soil/Light/Power)
+  // read sensor data from this, NOT from wireless_sensors. Same item shape as
+  // wireless_sensors. Backend: api/devices/routes.py:354,511 (DeviceRead).
+  virtual_wireless_sensors: yup.array().of(wirelessSensorReadSchema).nullable().optional()
 });
 
 const deviceListSchema = yup.array().of(deviceReadSchema).required();
