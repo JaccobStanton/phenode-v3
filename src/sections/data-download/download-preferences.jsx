@@ -556,6 +556,12 @@ export default function DownloadPreferences() {
                   </MenuItem>
                 </Select>
               </FormControl>
+              <Typography variant="caption" sx={{ color: 'var(--blue)', fontSize: '0.75rem', lineHeight: 1.4 }}>
+                Rounds every numeric reading in the CSV to the chosen number of decimal places using fixed-point format (so a raw value of{' '}
+                <code>1.5</code> becomes <code>1.50</code> at 2 places). The <code>Time</code>, <code>Latitude</code>, and{' '}
+                <code>Longitude</code> columns are excluded so timestamps and coordinate precision are preserved. Pick <code>No limit</code>{' '}
+                to keep every value exactly as the backend returned it.
+              </Typography>
             </PreferenceBox>
           </Grid>
 
@@ -615,6 +621,13 @@ export default function DownloadPreferences() {
                   )}
                 </>
               )}
+              <Typography variant="caption" sx={{ color: 'var(--blue)', fontSize: '0.75rem', lineHeight: 1.4 }}>
+                Applies to cells the backend left empty (sensor offline at that timestamp, sample not collected, reading simply not
+                reported). Heads-up: this includes empty <code>Latitude</code>/<code>Longitude</code> cells too — picking{' '}
+                <code>Replace with zero</code> there yields coordinates of <code>(0, 0)</code>, the equator off the African coast, not the
+                device&apos;s actual location. Prefer <code>Leave cell blank</code> or a flagged sentinel when readings may legitimately be
+                missing.
+              </Typography>
             </PreferenceBox>
           </Grid>
 
@@ -714,6 +727,13 @@ export default function DownloadPreferences() {
                   </MenuItem>
                 </Select>
               </FormControl>
+              <Typography variant="caption" sx={{ color: 'var(--blue)', fontSize: '0.75rem', lineHeight: 1.4 }}>
+                Rewrites the hyphen character (<code>-</code>) inside non-numeric cells. Negative numeric readings like <code>-39.5</code>{' '}
+                are preserved. <strong>Heads-up:</strong> with the current backend, <code>Replace with underscore</code> and{' '}
+                <code>Delete hyphen</code> also rewrite the hyphens inside ISO timestamps in the <code>Time</code> column (
+                <code>2026-06-03T12:34:56Z</code> becomes <code>2026_06_03T...</code> or <code>20260603T...</code>), making the timestamp
+                column non-standard. A backend fix to exclude <code>Time</code> from this transform is queued.
+              </Typography>
             </PreferenceBox>
           </Grid>
         </Grid>
