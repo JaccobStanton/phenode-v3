@@ -288,6 +288,20 @@ export default function DownloadPreferences() {
 
   const isDirty = JSON.stringify(normalizeForm(currentForm)) !== JSON.stringify(normalizeForm(loadedForm));
 
+  // "Flag with custom value" stores the user's chosen sentinel string in
+  // errorValues.customValue / blankCells.customValue and inserts it into
+  // matching cells in the CSV. An empty/whitespace-only value would still
+  // save — the backend then falls back to its own hardcoded strings
+  // ("ERR" at downloads.py:399, "BLANK_ERR" at downloads.py:450), which
+  // is surprising. We block the save here so the field has to be filled
+  // explicitly when the strategy is in use. The check unwraps to false
+  // for the other strategies (the TextField is hidden and its state is
+  // normalized to '' by the dirty-tracking helpers, so it doesn't
+  // contribute).
+  const errorCustomMissing = showErrorCustomInput && errorCustomValue.trim() === '';
+  const blankCustomMissing = showBlankCustomInput && blankCustomValue.trim() === '';
+  const hasInvalidCustomValue = errorCustomMissing || blankCustomMissing;
+
   // Render the form chrome immediately and let useEffect hydrate values
   // when preferences resolve — gating the body on `isLoading` previously
   // pushed LCP to 3.7s (Lighthouse, 2026-05-30). The Save button stays
@@ -297,7 +311,7 @@ export default function DownloadPreferences() {
   const loadFailed = error && !preferences;
 
   const handleUpdate = async () => {
-    if (saving || !isDirty || !preferences) return;
+    if (saving || !isDirty || !preferences || hasInvalidCustomValue) return;
 
     // Backend replaces data_download_preferences wholesale when this key is
     // present (routes.py:94-95 model_dump), so spread the existing stored
@@ -438,7 +452,7 @@ export default function DownloadPreferences() {
         )}
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, md: 6, xl: 4 }}>
-            <PreferenceBox id="pref-error-values-label" title="In the case of error values...">
+            <PreferenceBox id="pref-error-values-label" title="In the case of error or out-of-range values...">
               <FormControl size="small">
                 <Select
                   // `aria-labelledby` on <Select> lands on the role-less
@@ -474,23 +488,36 @@ export default function DownloadPreferences() {
               </FormControl>
 
               {showErrorCustomInput && (
-                <TextField
-                  size="small"
-                  placeholder="Enter custom value"
-                  value={errorCustomValue}
-                  onChange={(event) => setErrorCustomValue(event.target.value)}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      ...neonControlSx,
-                      '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
-                    },
-                    '& .MuiInputBase-input': {
-                      color: 'var(--green)',
-                      '&::placeholder': { color: 'var(--green)', opacity: 1 }
-                    }
-                  }}
-                />
+                <>
+                  <TextField
+                    size="small"
+                    placeholder="Enter custom value"
+                    value={errorCustomValue}
+                    onChange={(event) => setErrorCustomValue(event.target.value)}
+                    error={errorCustomMissing}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        ...neonControlSx,
+                        '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
+                      },
+                      '& .MuiInputBase-input': {
+                        color: 'var(--green)',
+                        '&::placeholder': { color: 'var(--green)', opacity: 1 }
+                      }
+                    }}
+                  />
+                  {errorCustomMissing && (
+                    <Typography variant="caption" sx={{ color: 'var(--orange)', fontSize: '0.72rem', fontStyle: 'italic' }}>
+                      Required when &quot;Flag with custom value&quot; is selected.
+                    </Typography>
+                  )}
+                </>
               )}
+              <Typography variant="caption" sx={{ color: 'var(--blue)', fontSize: '0.75rem', lineHeight: 1.4 }}>
+                Applies to cells that contain a literal <code>ERROR</code> or <code>NaN</code>, and to numeric readings that fall outside
+                the expected sanity bounds for that measurement (for example, a temperature below &minus;60&deg;C or a wind speed above 120
+                m/s). Configurable per-column bounds live in the backend.
+              </Typography>
             </PreferenceBox>
           </Grid>
 
@@ -563,22 +590,30 @@ export default function DownloadPreferences() {
               </FormControl>
 
               {showBlankCustomInput && (
-                <TextField
-                  size="small"
-                  placeholder="Enter custom value"
-                  value={blankCustomValue}
-                  onChange={(event) => setBlankCustomValue(event.target.value)}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      ...neonControlSx,
-                      '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
-                    },
-                    '& .MuiInputBase-input': {
-                      color: 'var(--green)',
-                      '&::placeholder': { color: 'var(--green)', opacity: 1 }
-                    }
-                  }}
-                />
+                <>
+                  <TextField
+                    size="small"
+                    placeholder="Enter custom value"
+                    value={blankCustomValue}
+                    onChange={(event) => setBlankCustomValue(event.target.value)}
+                    error={blankCustomMissing}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        ...neonControlSx,
+                        '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
+                      },
+                      '& .MuiInputBase-input': {
+                        color: 'var(--green)',
+                        '&::placeholder': { color: 'var(--green)', opacity: 1 }
+                      }
+                    }}
+                  />
+                  {blankCustomMissing && (
+                    <Typography variant="caption" sx={{ color: 'var(--orange)', fontSize: '0.72rem', fontStyle: 'italic' }}>
+                      Required when &quot;Flag with custom value&quot; is selected.
+                    </Typography>
+                  )}
+                </>
               )}
             </PreferenceBox>
           </Grid>
@@ -684,17 +719,29 @@ export default function DownloadPreferences() {
         </Grid>
 
         <Box sx={{ mt: 2.5, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1.5 }}>
-          {isDirty && !saving && (
+          {/* Validation hint wins over the dirty hint when both apply —
+              the user needs to know what they have to fix, not just that
+              there are unsaved changes. */}
+          {hasInvalidCustomValue && !saving && (
+            <Typography sx={{ fontSize: '0.78rem', color: 'var(--orange)', fontStyle: 'italic' }}>
+              Enter a custom value to save changes.
+            </Typography>
+          )}
+          {isDirty && !saving && !hasInvalidCustomValue && (
             <Typography sx={{ fontSize: '0.78rem', color: 'var(--orange)', fontStyle: 'italic' }}>You have unsaved changes.</Typography>
           )}
           <Button
             variant="outlined"
             onClick={handleUpdate}
             // !preferences guards against the user saving defaults
-            // before the SWR fetch resolves. handleUpdate also early-
-            // returns on this condition, but disabling the control is
-            // the better UX signal.
-            disabled={!isDirty || saving || !preferences}
+            // before the SWR fetch resolves. hasInvalidCustomValue blocks
+            // saves where "Flag with custom value" was selected but the
+            // TextField is empty — otherwise the backend's hardcoded
+            // fallback strings ("ERR" / "BLANK_ERR") would land in the
+            // CSV without the user knowing. handleUpdate also guards
+            // both conditions, but disabling the control is the better
+            // UX signal.
+            disabled={!isDirty || saving || !preferences || hasInvalidCustomValue}
             startIcon={saving ? <CircularProgress size={14} sx={{ color: 'inherit' }} /> : null}
             sx={{
               borderColor: 'var(--blue)',

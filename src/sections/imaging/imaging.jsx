@@ -36,10 +36,12 @@ import useMyDevices from 'hooks/data/useMyDevices';
 import useDeviceImages from 'hooks/data/useDeviceImages';
 import useImageDetail from 'hooks/data/useImageDetail';
 import useAuth from 'hooks/useAuth';
+import useDisplayPreferences from 'hooks/useDisplayPreferences';
 import { useToast } from 'providers/ToastProvider';
 import { deleteDeviceImage } from 'services/mutations';
 import API from 'services/endpoints';
 import { buildUrl, fetcher } from 'services/fetcher';
+import { formatDateWith, formatTimeWith } from 'utils/displayDateTime';
 
 import AntIcon from 'components/AntIcon';
 import CloseOutlined from '@ant-design/icons-svg/lib/asn/CloseOutlined';
@@ -248,15 +250,61 @@ const datePickerSlotProps = (placeholder, error = false) => ({
 const imagingTableBorder = '1px solid var(--reflected-light)';
 const imagingTableHeaderBg = 'rgb(8, 36, 82)';
 
+// Parse a backend image timestamp into a JS Date.
+//
+// Why this helper exists: the backend stores image timestamps as naive
+// UTC datetimes (phenodeX/phenode_backend/db/models.py:210 — column has
+// no `timezone=True`, ingestion at notehub/routes.py:_parse_timestamp
+// strips tzinfo before storing). Pydantic serializes those naive
+// datetimes as ISO strings WITHOUT a `Z` or offset suffix
+// (e.g. `"2026-05-21T14:30:00"`). The wire contract is "always UTC,"
+// but the string itself doesn't say so.
+//
+// ISO 8601 says a no-offset string represents local time. So passing
+// the raw string to `new Date(...)` or `dayjs(...)` parses it as the
+// USER's local time — producing a displayed wall-clock offset by the
+// user's UTC offset for every image. (The old code did exactly that.)
+//
+// Fix: tag the string with `Z` before parsing so the Date object
+// represents the correct instant. Strings that already carry an
+// offset (`Z`, `+05:30`, `-04:00`) pass through unchanged.
+const parseBackendTimestamp = (raw) => {
+  if (raw == null || raw === '') return null;
+  if (typeof raw !== 'string') {
+    const d = new Date(raw);
+    return Number.isFinite(d.getTime()) ? d : null;
+  }
+  const hasOffset = /Z$|[+-]\d{2}:?\d{2}$/.test(raw);
+  const iso = hasOffset ? raw : `${raw}Z`;
+  const d = new Date(iso);
+  return Number.isFinite(d.getTime()) ? d : null;
+};
+
+// Two-digit numeric date in the user's timezone (matches the legacy
+// `dayjs.format('MM/DD/YYYY')` shape: "05/21/2026"). The Intl options
+// produce a localized order, but for `en-US` (the project's locale
+// default) that's M/D/YYYY which renders identically to the dayjs
+// pattern.
+const IMAGING_DATE_FORMAT = { year: 'numeric', month: '2-digit', day: '2-digit' };
+
+// Two-digit 12-hour time in the user's timezone (matches the legacy
+// `dayjs.format('hh:mm A')` shape: "02:30 PM").
+const IMAGING_TIME_FORMAT = { hour: '2-digit', minute: '2-digit', hour12: true };
+
 // Normalize a single ImageRead row from the API into the view-shape
 // the carousel / table / details panel expect. Centralized so the
 // table cells, the carousel slide, and the details panel all read
 // from the same canonical fields and a backend rename (e.g. `s3_url`
 // → `image_url`) only needs to be patched once.
 //
+// Takes a `timezone` argument (the user's saved preference from
+// Account Settings → Display, or null for browser-local) so every
+// rendered date/time on this page honors the same setting every other
+// page does. See `utils/displayDateTime.js` for the central helpers.
+//
 // Backend reference: phenodeX/phenode_backend/schemas/images.py:9-20
-const normalizeImage = (img) => {
-  const ts = img?.timestamp ? dayjs(img.timestamp) : null;
+const normalizeImage = (img, timezone) => {
+  const date = parseBackendTimestamp(img?.timestamp);
   return {
     // String id so it composes cleanly with array-based selection state
     // (selectedRows is string[]). The backend returns numeric ids; we
@@ -266,9 +314,13 @@ const normalizeImage = (img) => {
     name: img?.filename || (img?.id != null ? `image-${img.id}.jpg` : 'image.jpg'),
     src: img?.s3_url || null,
     hasData: Boolean(img?.has_data),
-    timestamp: ts ? ts.valueOf() : null,
-    date: ts ? ts.format('MM/DD/YYYY') : '—',
-    time: ts ? ts.format('hh:mm A') : '—'
+    // Milliseconds since epoch (true UTC instant). The date-picker
+    // prefill effect uses this via dayjs() — dayjs accepts a number
+    // millis with no ambiguity, so we don't re-introduce the
+    // local-vs-UTC parsing issue downstream.
+    timestamp: date ? date.getTime() : null,
+    date: date ? formatDateWith(date, IMAGING_DATE_FORMAT, timezone) : '—',
+    time: date ? formatTimeWith(date, IMAGING_TIME_FORMAT, timezone) : '—'
   };
 };
 
@@ -444,11 +496,25 @@ export default function Imaging() {
   // navy chrome (see providers/ToastProvider.jsx).
   const toast = useToast();
 
+  // User's saved Display Timezone preference (Account Settings →
+  // Display → Display Timezone). `null` here means "Use device
+  // timezone" — the formatters in displayDateTime.js handle that as a
+  // fallback to the browser's resolved zone. Every visible timestamp
+  // on this page (carousel filename overlay, table rows, View dialog
+  // header, "Last Image Captured" header, description-card Date row)
+  // flows through `normalizeImage(img, timezone)` below so changing
+  // the Account Settings value moves every clock on this page in
+  // lockstep with the rest of the app.
+  const { timezone } = useDisplayPreferences();
+
   // The API returns images sorted newest-first
   // (phenodeX/phenode_backend/api/devices/routes.py:619 — order_by
   // timestamp.desc()). We preserve that ordering for the table and the
   // carousel so the "latest capture" affordance is always slide 0.
-  const normalizedImages = useMemo(() => (apiImages ?? []).map(normalizeImage).filter((img) => img.id != null), [apiImages]);
+  const normalizedImages = useMemo(
+    () => (apiImages ?? []).map((img) => normalizeImage(img, timezone)).filter((img) => img.id != null),
+    [apiImages, timezone]
+  );
 
   // -----------------------------------------------------------------
   // One-shot effect: when the first batch of images lands AND the user

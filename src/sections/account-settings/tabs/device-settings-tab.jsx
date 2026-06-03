@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 // material-ui
 import Autocomplete from '@mui/material/Autocomplete';
@@ -14,6 +14,7 @@ import Typography from '@mui/material/Typography';
 // project imports
 import useAuth from 'hooks/useAuth';
 import useMyDevices from 'hooks/data/useMyDevices';
+import { useSelection } from 'contexts/SelectionContext';
 import { useToast } from 'providers/ToastProvider';
 import { renameDevice, setDeviceEnvironmentVariables } from 'services/mutations';
 import { neonControlSx, neonMenuPaperSx, neonMenuItemSx } from 'themes/sx-tokens';
@@ -45,6 +46,76 @@ import WifiOutlined from '@ant-design/icons-svg/lib/asn/WifiOutlined';
 // Each form has its own dirty state and Save button — they save
 // independently so a user changing only the WiFi password doesn't have
 // to also re-confirm the label.
+//
+// Error-copy philosophy: the backend speaks its own implementation
+// language ("Notehub environment variable management is not
+// configured", "Device has no cellular notecard ID configured") and
+// we deliberately TRANSLATE those status codes into customer-facing
+// copy here. Two helpers below — friendlyRenameError + friendlyWifiError
+// — own that mapping so the toast strings live in one place.
+
+/**
+ * Map a renameDevice error to user-facing copy. Falls back to
+ * `err.detail` (then a generic message) when we don't have a
+ * dedicated translation for the status.
+ *
+ * Backend status codes from PUT /devices/{id} (api/devices/routes.py:631):
+ *   400 — empty/invalid label (guarded by `labelDirty` frontend-side)
+ *   403 — caller has no access to this device
+ *   404 — device not found
+ *   409 — duplicate label (name already used by another PheNode)
+ */
+function friendlyRenameError(err) {
+  const status = err?.status;
+  if (status === 409) {
+    return 'That name is already in use by another PheNode in your fleet. Please pick a different label.';
+  }
+  if (status === 403) {
+    return "You don't have permission to rename this PheNode.";
+  }
+  if (status === 404) {
+    return "We couldn't find that PheNode. It may have been removed from your fleet — refresh and try again.";
+  }
+  const detail = err?.detail;
+  return detail ? `Couldn't rename: ${detail}` : "Couldn't rename the device. Please try again.";
+}
+
+/**
+ * Map a setDeviceEnvironmentVariables error to user-facing copy. The
+ * Wi-Fi push goes through Notehub, which has its own failure modes the
+ * end user shouldn't see verbatim.
+ *
+ * Backend status codes from POST /devices/{id}/environment-variables
+ * (api/devices/routes.py:683):
+ *   400 — no environment variables provided (guarded by `wifiReady`)
+ *   403 — caller has no access to this device
+ *   404 — device not found, OR device has no cellular_notecard_id
+ *   502 — Notehub OAuth failed / Notehub PUT failed
+ *   503 — Notehub env-var management not configured on this server
+ */
+function friendlyWifiError(err) {
+  const status = err?.status;
+  if (status === 503) {
+    return 'Wi-Fi configuration is temporarily unavailable on this server. Please try again later or contact support.';
+  }
+  if (status === 502) {
+    return "We couldn't reach the PheNode network to push these credentials. Please try again in a moment.";
+  }
+  if (status === 404) {
+    // Backend conflates "device not found" and "device has no notecard"
+    // into the same 404. The notecard case is the far more common one
+    // for a signed-in user picking from their own device list — the
+    // device list (useMyDevices) already filtered out devices they
+    // can't access, so a 404 here almost always means the notecard
+    // isn't provisioned yet.
+    return "This PheNode isn't provisioned for remote Wi-Fi configuration yet. Contact support to enable it.";
+  }
+  if (status === 403) {
+    return "You don't have permission to push Wi-Fi credentials to this PheNode.";
+  }
+  const detail = err?.detail;
+  return detail ? `Couldn't set Wi-Fi credentials: ${detail}` : "Couldn't set Wi-Fi credentials. Please try again.";
+}
 
 // Autocomplete TextField sx — copied verbatim from the canonical
 // pattern in sections/data-download/data-downloads.jsx:208-252 so the
@@ -81,21 +152,49 @@ export default function DeviceSettingsTab() {
   const toast = useToast();
   const { devices, isLoading, error, mutate } = useMyDevices();
 
-  // Selected device. We track by external_device_id (immutable) so a
-  // rename mid-session doesn't unstick the selection.
-  const [selectedDeviceId, setSelectedDeviceId] = useState(null);
+  // Cross-page device selection — same source of truth that drives
+  // Sensor Measurements, Imaging, Diagnostics, and the Fleet Overview.
+  // Reading from useSelection() gives this tab the session-scoped
+  // freeze-on-first-load default (most-recently-reporting device) for
+  // free, AND any explicit pick here propagates to the rest of the
+  // dashboard so the user doesn't have to re-pick the same device when
+  // they jump from "Account Settings → Devices" to "Sensor Measurements".
+  //
+  // We still track by external_device_id (the immutable hardware id) so
+  // a successful rename mid-session can't unstick the selection.
+  //
+  // The provider is optional-chained for tests / Storybook where the
+  // page is rendered outside the dashboard shell — we fall back to a
+  // local useState picker in that case so the component still works.
+  const selection = useSelection();
+  const [localDeviceId, setLocalDeviceId] = useState(null);
+  const selectedDeviceId = selection?.selectedPheNodeId ?? localDeviceId;
+
+  const handleSelectDevice = useCallback(
+    (nextId) => {
+      if (selection?.selectPheNode) selection.selectPheNode(nextId);
+      else setLocalDeviceId(nextId);
+    },
+    [selection]
+  );
 
   const selectedDevice = useMemo(
     () => devices?.find((d) => d.external_device_id === selectedDeviceId) || null,
     [devices, selectedDeviceId]
   );
 
-  // Auto-select the first device once devices load.
+  // Standalone-render fallback: when there's no SelectionProvider above
+  // us, seed the local picker with the most-recently-reporting device
+  // exactly once — same recency winner the SelectionProvider would pick
+  // (useMyDevices is sorted by last_measurement_at desc on the server).
+  // Inside the dashboard this effect is a no-op because `selection` is
+  // truthy.
   useEffect(() => {
-    if (selectedDeviceId) return;
+    if (selection) return;
+    if (localDeviceId) return;
     if (!devices || devices.length === 0) return;
-    setSelectedDeviceId(devices[0].external_device_id);
-  }, [devices, selectedDeviceId]);
+    setLocalDeviceId(devices[0].external_device_id);
+  }, [selection, devices, localDeviceId]);
 
   // ---------------------------------------------------------------------------
   // Rename form
@@ -119,8 +218,7 @@ export default function DeviceSettingsTab() {
       await mutate();
       toast.success(`Renamed to "${newLabel}".`);
     } catch (err) {
-      const detail = err?.detail;
-      toast.error(detail ? `Couldn't rename: ${detail}` : "Couldn't rename the device. Please try again.");
+      toast.error(friendlyRenameError(err));
     } finally {
       setRenaming(false);
     }
@@ -152,10 +250,7 @@ export default function DeviceSettingsTab() {
       toast.success('Wi-Fi credentials sent. The PheNode will reconnect shortly.');
       setWifiPassword('');
     } catch (err) {
-      const detail = err?.detail;
-      toast.error(
-        detail ? `Couldn't set Wi-Fi credentials: ${detail}` : "Couldn't set Wi-Fi credentials. Please try again."
-      );
+      toast.error(friendlyWifiError(err));
     } finally {
       setSavingWifi(false);
     }
@@ -212,7 +307,7 @@ export default function DeviceSettingsTab() {
           getOptionLabel={labelFor}
           isOptionEqualToValue={(opt, val) => opt.external_device_id === val.external_device_id}
           value={selectedDevice}
-          onChange={(_e, next) => setSelectedDeviceId(next?.external_device_id ?? null)}
+          onChange={(_e, next) => handleSelectDevice(next?.external_device_id ?? null)}
           disableClearable
           renderInput={(params) => (
             <TextField {...params} placeholder="Select a PheNode" size="small" sx={pickerInputSx} />

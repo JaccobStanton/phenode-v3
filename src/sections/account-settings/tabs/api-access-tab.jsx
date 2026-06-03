@@ -76,14 +76,21 @@ export default function ApiAccessTab() {
   const displayValue = revealed ? accessToken : maskToken(accessToken);
 
   // Canonical PheNode API host shown in the example. We deliberately
-  // hardcode `https://phenode.com` here rather than reading from
-  // VITE_API_URL — dev/staging values (e.g. localhost, *.phenode.cloud)
-  // shouldn't show up in user-facing documentation copy. The user can
-  // swap in their actual host if they need to. The path still comes
-  // from the endpoint catalog so a backend route rename keeps this
-  // snippet honest. /devices/my-devices is a good example call because
-  // it's read-only, requires auth, and exists in every env.
-  const exampleCurl = `curl -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \\\n  https://phenode.com${API.devices.myDevices}`;
+  // hardcode the production host (phenode.live) here rather than
+  // reading from VITE_API_URL — dev/staging values (localhost,
+  // *.phenode.cloud, Netlify preview URLs) shouldn't show up in
+  // user-facing documentation copy.
+  //
+  // Includes the `/api` prefix because that's where the FastAPI app
+  // mounts all routes (settings.api_v1_prefix in
+  // phenodeX/phenode_backend/core/config.py). Without it the example
+  // would 404 against the live server.
+  //
+  // The path itself still comes from the endpoint catalog so a
+  // backend route rename keeps this snippet honest.
+  // /devices/my-devices is a good example call because it's
+  // read-only, requires auth, and exists in every env.
+  const exampleCurl = `curl -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \\\n  https://phenode.live/api${API.devices.myDevices}`;
 
   const handleCopyExample = async () => {
     try {
