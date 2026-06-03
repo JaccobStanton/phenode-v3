@@ -69,6 +69,33 @@ const CUSTOM_VALUE_STRATEGY = 'Flag with custom value';
 // timezone they set in account settings.
 const USE_DISPLAY_TZ_VALUE = '';
 const USE_DISPLAY_TZ_LABEL = 'Match my Display Timezone (recommended)';
+const DOWNLOAD_RESOLUTION_OPTIONS = [
+  {
+    value: 'auto',
+    label: 'Automatic',
+    desc: 'The date range you choose for a download automatically sets the detail level: 2 days or less exports every reading, up to 1 month uses hourly averages, up to 6 months uses 6-hour averages, and anything longer uses daily averages — so the wider the range you download, the more it is averaged to keep the file a manageable size.'
+  },
+  {
+    value: 'raw',
+    label: 'Every reading',
+    desc: 'Every individual reading, no averaging; most detailed, large ranges = big files.'
+  },
+  {
+    value: '1h',
+    label: 'Hourly averages',
+    desc: 'One row per hour; smaller files, sub-hour detail smoothed.'
+  },
+  {
+    value: '6h',
+    label: '6-hour averages',
+    desc: 'One row per 6 hours; much smaller, broad trends only.'
+  },
+  {
+    value: '1d',
+    label: 'Daily averages',
+    desc: 'One row per day; smallest files, for long-range overviews.'
+  }
+];
 
 // Best-effort full IANA list — same recipe display-tab.jsx uses, so the two
 // timezone pickers stay in sync. Falls back to a small static list if the
@@ -118,6 +145,7 @@ const DEFAULT_FORM = {
   // Empty string = the "Use display preferences timezone" sentinel; serializes
   // to null on save so the backend continues to inherit the UI timezone.
   timeZone: USE_DISPLAY_TZ_VALUE,
+  downloadResolution: 'auto',
   hyphensStrategy: 'Leave hyphen'
 };
 
@@ -140,6 +168,15 @@ function formFromPreferences(ddp) {
   const safeZone = typeof storedZone === 'string' && storedZone.trim() ? storedZone : USE_DISPLAY_TZ_VALUE;
 
   const storedDigits = ddp.decimalPlaces?.digits;
+  const storedDownsample = ddp.downsample || {};
+  const storedResolutionRaw = storedDownsample.bucket || storedDownsample.resolution || storedDownsample.interval || storedDownsample.value;
+  const storedResolution = typeof storedResolutionRaw === 'string' ? storedResolutionRaw.trim().toLowerCase() : '';
+  const safeResolution =
+    storedDownsample.enabled === false
+      ? 'raw'
+      : DOWNLOAD_RESOLUTION_OPTIONS.some((option) => option.value === storedResolution)
+        ? storedResolution
+        : 'auto';
 
   return {
     errorValuesStrategy: ddp.errorValues?.strategy ?? DEFAULT_FORM.errorValuesStrategy,
@@ -148,6 +185,7 @@ function formFromPreferences(ddp) {
     blankCellsStrategy: ddp.blankCells?.strategy ?? DEFAULT_FORM.blankCellsStrategy,
     blankCustomValue: ddp.blankCells?.customValue ?? '',
     timeZone: safeZone,
+    downloadResolution: safeResolution,
     hyphensStrategy: ddp.hyphens?.strategy ?? DEFAULT_FORM.hyphensStrategy
   };
 }
@@ -163,6 +201,7 @@ function normalizeForm(form) {
     blankCellsStrategy: form.blankCellsStrategy,
     blankCustomValue: form.blankCellsStrategy === CUSTOM_VALUE_STRATEGY ? form.blankCustomValue : '',
     timeZone: form.timeZone,
+    downloadResolution: form.downloadResolution,
     hyphensStrategy: form.hyphensStrategy
   };
 }
@@ -211,6 +250,7 @@ export default function DownloadPreferences() {
   const [blankCellsStrategy, setBlankCellsStrategy] = useState(DEFAULT_FORM.blankCellsStrategy);
   const [blankCustomValue, setBlankCustomValue] = useState(DEFAULT_FORM.blankCustomValue);
   const [timeZone, setTimeZone] = useState(DEFAULT_FORM.timeZone);
+  const [downloadResolution, setDownloadResolution] = useState(DEFAULT_FORM.downloadResolution);
   const [hyphensStrategy, setHyphensStrategy] = useState(DEFAULT_FORM.hyphensStrategy);
   const [isDownloadsButtonHovered, setIsDownloadsButtonHovered] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -231,6 +271,7 @@ export default function DownloadPreferences() {
     setBlankCellsStrategy(loadedForm.blankCellsStrategy);
     setBlankCustomValue(loadedForm.blankCustomValue);
     setTimeZone(loadedForm.timeZone);
+    setDownloadResolution(loadedForm.downloadResolution);
     setHyphensStrategy(loadedForm.hyphensStrategy);
   }, [loadedForm]);
 
@@ -241,6 +282,7 @@ export default function DownloadPreferences() {
     blankCellsStrategy,
     blankCustomValue,
     timeZone,
+    downloadResolution,
     hyphensStrategy
   };
 
@@ -283,6 +325,11 @@ export default function DownloadPreferences() {
         // zone whenever the download zone is blank). Sending an explicit
         // 'UTC' here would permanently disable that inheritance.
         zone: timeZone ? timeZone : null
+      },
+      downsample: {
+        ...(existing.downsample || {}),
+        enabled: downloadResolution !== 'raw',
+        bucket: downloadResolution
       },
       hyphens: { strategy: hyphensStrategy }
     };
@@ -566,6 +613,39 @@ export default function DownloadPreferences() {
                 Applies only to timestamps in CSV downloads. The app&apos;s charts, sensor cards, and map use the Display Timezone you set
                 on Account Settings. Pick a specific zone here to override that default for downloads, or leave on &quot;Match my Display
                 Timezone&quot; to keep them in sync.
+              </Typography>
+            </PreferenceBox>
+          </Grid>
+
+          <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+            <PreferenceBox id="pref-download-resolution-label" title="CSV download resolution...">
+              <FormControl size="small">
+                <Select
+                  SelectDisplayProps={{ 'aria-labelledby': 'pref-download-resolution-label' }}
+                  value={downloadResolution}
+                  onChange={(event) => setDownloadResolution(event.target.value)}
+                  MenuProps={{
+                    PaperProps: { sx: neonMenuPaperSx },
+                    MenuListProps: {
+                      sx: {
+                        p: 0.5,
+                        '& .MuiMenuItem-root': { ...neonMenuItemSx }
+                      }
+                    }
+                  }}
+                  sx={preferenceSelectSx}
+                >
+                  {DOWNLOAD_RESOLUTION_OPTIONS.map((option) => (
+                    <MenuItem key={option.value} value={option.value} sx={neonMenuItemSx}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              {/* Explains the CURRENTLY-selected resolution, updating each time
+                  the user changes the dropdown. */}
+              <Typography variant="caption" sx={{ color: 'var(--blue)', fontSize: '0.75rem', lineHeight: 1.4 }}>
+                {DOWNLOAD_RESOLUTION_OPTIONS.find((option) => option.value === downloadResolution)?.desc}
               </Typography>
             </PreferenceBox>
           </Grid>
