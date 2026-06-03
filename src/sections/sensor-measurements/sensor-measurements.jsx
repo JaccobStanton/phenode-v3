@@ -483,12 +483,23 @@ const DEVICE_CHART_FIELDS = [
   'temperature',
   'temperature_mcp9808',
   'temperature_bme',
+  'gdd',
   'humidity',
   'humidity_bme',
   'pressure',
   'wind_speed',
   'wind_direction',
   'wind_gust',
+  // Calypso/Atmos-specific wind fields too: the bare wind_* fields are null on
+  // some devices (e.g. a Calypso that reports gust under `calypso_gust`), while
+  // the source-specific fields the chart uses DO resolve — so the circles fall
+  // back to these (see buildCircleMetrics) to match what the chart shows.
+  'calypso_wind_speed',
+  'atmos_wind_speed',
+  'calypso_wind_gust',
+  'atmos_wind_gust',
+  'calypso_wind_direction',
+  'atmos_wind_direction',
   'rainfall',
   'battery_voltage'
 ];
@@ -595,9 +606,13 @@ function buildCircleMetrics(device, displayPrefs, latest) {
   // pref so this stays a pure pass-through.
   const tempC = latest?.temperature_mcp9808 ?? latest?.temperature_bme ?? latest?.temperature ?? device?.temperature_c;
   const humidity = latest?.humidity_bme ?? latest?.humidity;
-  const windSpeedMs = latest?.wind_speed ?? device?.wind_speed;
-  const windGustMs = latest?.wind_gust;
-  const windDirDeg = latest?.wind_direction;
+  // Prefer the generic wind_* field, but fall back to the Calypso/Atmos-specific
+  // fields the chart uses — on some devices the generic field is null while the
+  // source-specific one has data (e.g. gust stored under `calypso_gust`). This
+  // keeps the circles in step with the chart lines.
+  const windSpeedMs = latest?.wind_speed ?? latest?.calypso_wind_speed ?? latest?.atmos_wind_speed ?? device?.wind_speed;
+  const windGustMs = latest?.wind_gust ?? latest?.calypso_wind_gust ?? latest?.atmos_wind_gust;
+  const windDirDeg = latest?.wind_direction ?? latest?.calypso_wind_direction ?? latest?.atmos_wind_direction;
 
   return [
     {
@@ -732,7 +747,33 @@ export default function SensorMeasurements() {
   // Soil tabs (the only ones with probe-keyed charts); the value is preserved
   // across tab switches so flipping away and back restores the user's pick.
   const [selectedProbe, setSelectedProbe] = useState('both');
-  const showProbeToggle = activeTab === TAB_IDS.ALL || activeTab === TAB_IDS.SOIL;
+
+  // Which source/probe filters actually have data on the current device —
+  // reported up by MeasurementTabPanel. Used to hide toggle buttons (and the
+  // whole toggle) that would filter to nothing. Defaults to all-false so a
+  // toggle only appears once the panel confirms there's something to switch.
+  const [availFilters, setAvailFilters] = useState({
+    primary: false,
+    alternate: false,
+    aux: false,
+    probe1: false,
+    probe2: false
+  });
+  const handleAvailableFilters = useCallback((f) => {
+    setAvailFilters((prev) =>
+      prev.primary === f.primary &&
+      prev.alternate === f.alternate &&
+      prev.aux === f.aux &&
+      prev.probe1 === f.probe1 &&
+      prev.probe2 === f.probe2
+        ? prev
+        : f
+    );
+  }, []);
+
+  // Probe toggle only when BOTH probes have data — a single probe has nothing
+  // to switch between.
+  const showProbeToggle = (activeTab === TAB_IDS.ALL || activeTab === TAB_IDS.SOIL) && availFilters.probe1 && availFilters.probe2;
 
   // Device-source filter (Both / Primary / Alternate) for the multi-sensor
   // charts that overlay a primary + alternate source (temperature, wind
@@ -740,8 +781,22 @@ export default function SensorMeasurements() {
   // 3-button control as the soil-probe toggle; single-source charts ignore it.
   const [selectedSource, setSelectedSource] = useState('both');
   // Shown on All + Environment only — the Light charts are all single-source,
-  // so the Both/Primary/Alternate toggle has nothing to filter there.
-  const showSourceToggle = activeTab === TAB_IDS.ALL || activeTab === TAB_IDS.WEATHER;
+  // so the Both/Primary/Alternate toggle has nothing to filter there. Also
+  // require 2+ sources to actually have data — a lone source (e.g. only the
+  // wireless MCP/BME with no Atmos) has nothing to switch between, so the whole
+  // toggle is hidden, and individual buttons hide when their source is absent.
+  const sourceCount = (availFilters.primary ? 1 : 0) + (availFilters.alternate ? 1 : 0) + (availFilters.aux ? 1 : 0);
+  const showSourceToggle = (activeTab === TAB_IDS.ALL || activeTab === TAB_IDS.WEATHER) && sourceCount >= 2;
+
+  // Snap a stale/now-unavailable selection back to "Both" so we never filter to
+  // a source/probe that has no data (or whose toggle just got hidden).
+  useEffect(() => {
+    if (selectedSource !== 'both' && (!showSourceToggle || !availFilters[selectedSource])) setSelectedSource('both');
+  }, [showSourceToggle, availFilters, selectedSource]);
+  useEffect(() => {
+    const probeOk = selectedProbe === '1' ? availFilters.probe1 : selectedProbe === '2' ? availFilters.probe2 : true;
+    if (selectedProbe !== 'both' && (!showProbeToggle || !probeOk)) setSelectedProbe('both');
+  }, [showProbeToggle, availFilters, selectedProbe]);
 
   // Custom-range pickers — only consulted when `timeRange` equals the
   // CUSTOM_RANGE_LABEL sentinel. dayjs values (or null) because that's
@@ -1914,12 +1969,14 @@ export default function SensorMeasurements() {
                           aria-label="sensor source filter"
                           sx={filterToggleSx}
                         >
+                          {/* Only render a source button when that source has
+                              data on this device — e.g. "Aux" appears only if a
+                              chart actually has a BME688/Aux line. The whole
+                              toggle is already hidden unless 2+ sources exist. */}
                           <ToggleButton value="both">Both</ToggleButton>
-                          <ToggleButton value="primary">Primary</ToggleButton>
-                          <ToggleButton value="alternate">Alternate</ToggleButton>
-                          {/* Aux only isolates the temperature chart's BME688
-                              line; charts without an Aux series ignore it. */}
-                          <ToggleButton value="aux">Aux</ToggleButton>
+                          {availFilters.primary && <ToggleButton value="primary">Primary</ToggleButton>}
+                          {availFilters.alternate && <ToggleButton value="alternate">Alternate</ToggleButton>}
+                          {availFilters.aux && <ToggleButton value="aux">Aux</ToggleButton>}
                         </ToggleButtonGroup>
                       </Stack>
                     )}
@@ -1998,6 +2055,7 @@ export default function SensorMeasurements() {
                 layout={chartLayout}
                 selectedProbe={selectedProbe}
                 selectedSource={selectedSource}
+                onAvailableFilters={handleAvailableFilters}
               />
             </Suspense>
           </Box>

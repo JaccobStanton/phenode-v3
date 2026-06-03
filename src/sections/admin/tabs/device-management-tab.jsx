@@ -4,10 +4,9 @@ import { useMemo, useState } from 'react';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import FormControl from '@mui/material/FormControl';
-import InputLabel from '@mui/material/InputLabel';
+import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import Stack from '@mui/material/Stack';
@@ -18,6 +17,7 @@ import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 
 // project imports
@@ -36,86 +36,94 @@ import {
   themedTextFieldSx,
   themedSelectSx,
   themedDropdownMenuProps,
-  floatingLabelSx,
   primaryActionButtonSx,
   formPanelSx,
   sectionTitleSx,
-  subSectionTitleSx,
-  tableContainerSx,
-  tableHeaderCellSx,
-  tableCellSx
+  imagingTableContainerSx,
+  imagingTableHeadRowSx,
+  imagingTableBodyRowSx,
+  imagingTableCellSx
 } from '../shared';
+import {
+  LabeledField,
+  TableSearch,
+  SearchableSelect,
+  CountModalCell,
+  CollapsibleCard,
+  PaginationFooter,
+  usePaginatedRows
+} from '../components';
 
 // assets
 import AntIcon from 'components/AntIcon';
 import LinkOutlined from '@ant-design/icons-svg/lib/asn/LinkOutlined';
 import InfoCircleOutlined from '@ant-design/icons-svg/lib/asn/InfoCircleOutlined';
+import DeleteOutlined from '@ant-design/icons-svg/lib/asn/DeleteOutlined';
+import { tooltipSlotProps } from 'themes/sx-tokens';
 
 // =============================================================================
-// DeviceManagementTab — register PheNodes + wireless sensors, map virtual
-// sensors, assign devices to users.
+// DeviceManagementTab — register PheNodes + wireless sensors, set a device's
+// primary sensor, assign devices to users.
 // =============================================================================
 //
-// Ports the v2 AdminPage device-management logic into the V3 theme:
-//   - Add PheNode               → POST /admin/devices            (adminCreateDevice)
-//                                  + optional follow-up assign     (adminAssignDevice)
-//   - Add Wireless Sensor       → POST /admin/wireless-sensors    (adminCreateWirelessSensor)
-//   - Set Primary Sensor        → POST /admin/devices/{id}/wireless-sensors
-//                                                                  (adminLinkWirelessSensor)
-//   - PheNode Devices table     → GET  /admin/devices             (useAdminDevices)
-//                                  + per-row assign / unassign      (adminAssignDevice / unassign)
-//                                  + clear primary chip             (adminUnlinkWirelessSensor)
-//   - Wireless Sensors table    → GET  /admin/wireless-sensors     (useAdminWirelessSensors)
+//   - Add PheNode          → POST /admin/devices                 (adminCreateDevice)
+//   - Add Wireless Sensor  → POST /admin/wireless-sensors         (adminCreateWirelessSensor)
+//   - Set Primary Sensor   → POST /admin/devices/{id}/wireless-sensors (adminLinkWirelessSensor)
+//   - PheNode Devices table → GET /admin/devices                 (useAdminDevices)
+//   - Wireless Sensors table → GET /admin/wireless-sensors        (useAdminWirelessSensors)
 //
-// "Primary sensor": the PheNode's primary sensor IS the virtual wireless
-// mapping (device_virtual_wireless_sensors) — that sensor's data is what
-// appears on the device's charting pages and PheNode-scoped downloads
-// (per phenode_backend/api/admin/routes.py + api/devices/routes.py:205-211).
-// The backend allows several virtual mappings per device, but the product
-// rule is ONE primary per PheNode, so handleSetPrimary unlinks any existing
-// mapping before linking the chosen sensor (no backend change needed).
-//
-// Feedback flows through ToastProvider, matching the account-settings tabs.
+// Table declutter: any column that holds a LIST (connected sensors, primary
+// sensor, assigned users, rename history) renders a clickable "# items" count
+// (CountModalCell) that opens a project-themed modal with the full list — so
+// the rows stay compact. Both tables sit in a solid imaging-style Card, use the
+// EXACT imaging table chrome, and paginate at 10 rows/page.
 
 const containsQuery = (value, query) =>
   String(value || '')
     .toLowerCase()
     .includes(query);
 
-// Themed chip used to render linked / virtual wireless sensors in the table.
-function SensorChip({ label, onDelete }) {
-  return (
-    <Chip
-      label={label}
-      size="small"
-      variant="outlined"
-      onDelete={onDelete}
-      sx={{
-        color: 'var(--green)',
-        borderColor: 'var(--reflected-light)',
-        fontSize: '0.72rem',
-        '& .MuiChip-deleteIcon': { color: 'var(--blue)', '&:hover': { color: 'var(--red)' } }
-      }}
-    />
-  );
-}
-
-function RenameHistory({ history }) {
-  const rows = Array.isArray(history) ? history : [];
-  if (rows.length === 0) {
-    return <Typography sx={{ color: 'var(--blue)', fontSize: '0.76rem', opacity: 0.8 }}>No previous names</Typography>;
+// Destructive (Remove) button — red outline, critical hover.
+const dangerButtonSx = {
+  color: 'var(--red)',
+  borderColor: 'var(--red)',
+  backgroundColor: 'rgba(0, 20, 61, 0.72)',
+  boxShadow: '0 11px 19px 1px #0000002e',
+  transition: 'none',
+  textTransform: 'none',
+  '&:hover': {
+    borderColor: 'var(--critical)',
+    color: 'var(--critical)',
+    boxShadow: '0 0 7px -5px var(--critical)',
+    backgroundColor: 'rgba(255, 72, 75, 0.08)'
   }
+};
+
+// Inline remove icon-button (next to the "# primary" count) — project-themed:
+// blue at rest, red on hover, no hover background.
+const removeIconButtonSx = {
+  color: 'var(--blue)',
+  p: 0.25,
+  fontSize: '0.95rem',
+  transition: 'color 0.18s ease',
+  '&:hover': { color: 'var(--red)', backgroundColor: 'transparent' },
+  '&:focus-visible': { color: 'var(--red)', outline: 'none' }
+};
+
+// Rename-history list (rendered inside the Rename History modal).
+function RenameHistoryList({ history }) {
+  const rows = Array.isArray(history) ? history : [];
   return (
-    <Stack spacing={0.5} sx={{ minWidth: 200, maxWidth: 320 }}>
+    <Stack spacing={1}>
       {rows.map((entry) => (
         <Box
           key={entry.id}
           sx={{ border: '1px solid var(--reflected-light)', borderRadius: 1, p: 0.75, backgroundColor: 'rgba(4, 71, 138, 0.18)' }}
         >
-          <Typography sx={{ display: 'block', color: 'var(--green)', fontSize: '0.74rem' }}>
+          <Typography sx={{ display: 'block', color: 'var(--green)', fontSize: '0.82rem' }}>
             {(entry.old_label || 'Unlabeled') + ' → ' + (entry.new_label || 'Unlabeled')}
           </Typography>
-          <Typography sx={{ display: 'block', color: 'var(--blue)', fontSize: '0.7rem', opacity: 0.8 }}>
+          <Typography sx={{ display: 'block', color: 'var(--blue)', fontSize: '0.72rem', opacity: 0.8 }}>
             {entry.created_at ? new Date(entry.created_at).toLocaleString() : 'Unknown time'}
             {entry.changed_by_email ? ` by ${entry.changed_by_email}` : ''}
           </Typography>
@@ -125,44 +133,100 @@ function RenameHistory({ history }) {
   );
 }
 
-function WirelessSensorCell({ sensors, aliases, deviceId, removable, countLabel, onUnlink, showCount = true, emptyLabel }) {
-  const rows = Array.isArray(sensors) ? sensors : [];
-  const gatewayAliases = Array.isArray(aliases) ? aliases : [];
-  if (rows.length === 0) {
-    return (
-      <Stack spacing={0.5}>
-        <Typography sx={{ color: 'var(--blue)', fontSize: '0.78rem' }}>{emptyLabel || `0 ${countLabel}`}</Typography>
-        {gatewayAliases.length > 0 && (
-          <Typography sx={{ color: 'var(--blue)', fontSize: '0.7rem', opacity: 0.75 }}>
-            Gateway alias: {gatewayAliases.join(', ')}
+// Cell: connected (physical) wireless sensors → "# connected" → modal list.
+function ConnectedSensorsCell({ device }) {
+  const list = Array.isArray(device.wireless_sensors) ? device.wireless_sensors : [];
+  const aliases = Array.isArray(device.gateway_aliases) ? device.gateway_aliases : [];
+  return (
+    <CountModalCell count={list.length} label={`${list.length} connected`} title="Connected Wireless Sensors" emptyLabel="None">
+      <Stack spacing={1}>
+        {list.map((s) => (
+          <Typography key={s.id} sx={{ color: 'var(--green)', fontSize: '0.85rem' }}>
+            {s.label || s.external_sensor_id}{' '}
+            <Box component="span" sx={{ color: 'var(--blue)', opacity: 0.8 }}>
+              ({s.external_sensor_id})
+            </Box>
           </Typography>
+        ))}
+        {aliases.length > 0 && (
+          <Typography sx={{ color: 'var(--blue)', fontSize: '0.75rem', opacity: 0.8 }}>Gateway alias: {aliases.join(', ')}</Typography>
         )}
       </Stack>
-    );
-  }
-  return (
-    <Stack spacing={0.5} sx={{ minWidth: 180, maxWidth: 320 }}>
-      {showCount && (
-        <Chip
-          label={`${rows.length} ${countLabel}`}
-          size="small"
-          variant="outlined"
-          sx={{ color: 'var(--blue)', borderColor: 'var(--reflected-light)', width: 'fit-content', fontSize: '0.72rem' }}
-        />
-      )}
-      <Stack direction="row" spacing={0.5} useFlexGap flexWrap="wrap">
-        {rows.map((sensor) => (
-          <SensorChip
-            key={sensor.id}
-            label={sensor.label || sensor.external_sensor_id}
-            onDelete={removable ? () => onUnlink(deviceId, sensor.id) : undefined}
-          />
+    </CountModalCell>
+  );
+}
+
+// Cell: primary (virtual) sensor → "# primary" with an inline themed remove
+// icon (clears the primary directly, no modal needed). The modal still lists
+// the sensor(s) with a Remove button each.
+function PrimarySensorCell({ device, onClear }) {
+  const list = Array.isArray(device.virtual_wireless_sensors) ? device.virtual_wireless_sensors : [];
+  const modal = (
+    <CountModalCell count={list.length} label={`${list.length} primary`} title="Primary Sensor" emptyLabel="None">
+      <Stack spacing={1}>
+        {list.map((s) => (
+          <Stack key={s.id} direction="row" alignItems="center" justifyContent="space-between" spacing={1.5}>
+            <Typography sx={{ color: 'var(--green)', fontSize: '0.85rem' }}>
+              {(s.label || s.external_sensor_id) + ` (${s.external_sensor_id})`}
+            </Typography>
+            <Button variant="outlined" size="small" onClick={() => onClear(device.id, s.id)} sx={dangerButtonSx}>
+              Remove
+            </Button>
+          </Stack>
         ))}
       </Stack>
-      {gatewayAliases.length > 0 && (
-        <Typography sx={{ color: 'var(--blue)', fontSize: '0.7rem', opacity: 0.75 }}>Gateway alias: {gatewayAliases.join(', ')}</Typography>
-      )}
+    </CountModalCell>
+  );
+
+  // No primary set → just the "None" text (CountModalCell handles it).
+  if (list.length === 0) return modal;
+
+  // Primary set → count link + an inline remove icon with a themed tooltip.
+  return (
+    <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="center">
+      {modal}
+      <Tooltip title="Remove primary" arrow={false} slotProps={tooltipSlotProps}>
+        <IconButton size="small" aria-label="Remove primary" onClick={() => onClear(device.id, list[0].id)} sx={removeIconButtonSx}>
+          <AntIcon icon={DeleteOutlined} />
+        </IconButton>
+      </Tooltip>
     </Stack>
+  );
+}
+
+// Cell: assigned users → "# users" → modal list of emails.
+function AssignedUsersCell({ sensor }) {
+  const list = Array.isArray(sensor.assigned_users) ? sensor.assigned_users : [];
+  return (
+    <CountModalCell
+      count={list.length}
+      label={`${list.length} ${list.length === 1 ? 'user' : 'users'}`}
+      title="Assigned Users"
+      emptyLabel="Unassigned"
+    >
+      <Stack spacing={0.75}>
+        {list.map((u) => (
+          <Typography key={u.id} sx={{ color: 'var(--green)', fontSize: '0.85rem' }}>
+            {u.email}
+          </Typography>
+        ))}
+      </Stack>
+    </CountModalCell>
+  );
+}
+
+// Cell: rename history → "# previous names" → modal list.
+function RenameHistoryCell({ history }) {
+  const rows = Array.isArray(history) ? history : [];
+  return (
+    <CountModalCell
+      count={rows.length}
+      label={`${rows.length} ${rows.length === 1 ? 'previous name' : 'previous names'}`}
+      title="Rename History"
+      emptyLabel="No previous names"
+    >
+      <RenameHistoryList history={rows} />
+    </CountModalCell>
   );
 }
 
@@ -210,6 +274,24 @@ export default function DeviceManagementTab() {
       return containsQuery(s.label, q) || containsQuery(s.external_sensor_id, q) || assigned.some((u) => containsQuery(u.email, q));
     });
   }, [sensors, sensorsSearch]);
+
+  const devicesPage = usePaginatedRows(filteredDevices);
+  const sensorsPage = usePaginatedRows(filteredSensors);
+
+  // { id, label } option lists for the typeable (SearchableSelect) pickers.
+  const deviceOptions = useMemo(
+    () => (Array.isArray(devices) ? devices : []).map((d) => ({ id: d.id, label: d.label || d.external_device_id })),
+    [devices]
+  );
+  const userOptions = useMemo(() => (Array.isArray(allUsers) ? allUsers : []).map((u) => ({ id: u.id, label: u.email })), [allUsers]);
+  const sensorOptions = useMemo(
+    () =>
+      (Array.isArray(sensors) ? sensors : []).map((s) => ({
+        id: s.id,
+        label: `${s.label || s.external_sensor_id} (${s.external_sensor_id})`
+      })),
+    [sensors]
+  );
 
   const handleCreateDevice = async () => {
     const id = newDeviceId.trim();
@@ -259,15 +341,9 @@ export default function DeviceManagementTab() {
     }
   };
 
-  // Set the PheNode's primary sensor. The "primary" sensor is the virtual
-  // wireless mapping (device_virtual_wireless_sensors) — the sensor whose data
-  // shows on the device's charting pages and PheNode-scoped downloads.
-  //
-  // Single-primary enforcement: the backend allows many virtual mappings per
-  // device, but product-wise a PheNode has exactly ONE primary. So before
-  // linking the chosen sensor we unlink any existing virtual mapping(s) on that
-  // device (skipping the chosen one if it's somehow already mapped). Uses the
-  // existing link/unlink routes — no backend change.
+  // Set the PheNode's primary sensor (virtual wireless mapping). Single-primary
+  // enforcement: unlink any existing virtual mapping(s) before linking the new
+  // one, so each PheNode has exactly one primary. No backend change.
   const handleSetPrimary = async () => {
     if (!mapDeviceId || !mapSensorId) {
       toast.error('Please select both a PheNode and a sensor.');
@@ -276,13 +352,10 @@ export default function DeviceManagementTab() {
     try {
       const device = (devices || []).find((d) => d.id === mapDeviceId);
       const existing = Array.isArray(device?.virtual_wireless_sensors) ? device.virtual_wireless_sensors : [];
-      // Already the primary — nothing to do.
-      if (existing.length === 1 && existing[0].id === Number(mapSensorId)) {
-        toast.success('That sensor is already the primary for this PheNode.');
-        setMapSensorId('');
+      if (existing.some((s) => s.id === Number(mapSensorId))) {
+        toast.error('That sensor is already the primary for this PheNode — it can’t be set twice.');
         return;
       }
-      // Clear the current primary (any stale extras too) before setting the new one.
       await Promise.all(
         existing.filter((s) => s.id !== Number(mapSensorId)).map((s) => adminUnlinkWirelessSensor(mapDeviceId, s.id, accessToken))
       );
@@ -328,40 +401,38 @@ export default function DeviceManagementTab() {
       {/* ----- Add PheNode ----- */}
       <Box sx={formPanelSx}>
         <Typography sx={{ ...sectionTitleSx, mb: 1.5 }}>Add PheNode (MAC/ID)</Typography>
-        <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1.5} alignItems={{ lg: 'center' }} flexWrap="wrap" useFlexGap>
-          <TextField
-            label="Device ID / MAC"
-            size="small"
-            value={newDeviceId}
-            onChange={(e) => setNewDeviceId(e.target.value)}
-            sx={{ ...themedTextFieldSx, minWidth: 200, '& .MuiInputLabel-root': floatingLabelSx }}
-          />
-          <TextField
-            label="Label (optional)"
-            size="small"
-            value={newDeviceLabel}
-            onChange={(e) => setNewDeviceLabel(e.target.value)}
-            sx={{ ...themedTextFieldSx, minWidth: 180, '& .MuiInputLabel-root': floatingLabelSx }}
-          />
-          <FormControl size="small" sx={{ minWidth: 200 }}>
-            <InputLabel sx={floatingLabelSx}>User (optional)</InputLabel>
-            <Select
-              label="User (optional)"
-              value={newDeviceUserId}
-              onChange={(e) => setNewDeviceUserId(e.target.value)}
-              sx={themedSelectSx}
-              MenuProps={themedDropdownMenuProps}
-            >
-              <MenuItem value="">
-                <em>None</em>
-              </MenuItem>
-              {(allUsers || []).map((u) => (
-                <MenuItem key={u.id} value={u.id}>
-                  {u.email}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+        <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1.5} alignItems={{ lg: 'flex-end' }} flexWrap="wrap" useFlexGap>
+          <LabeledField label="Device ID / MAC" htmlFor="add-device-id" sx={{ flex: 1, minWidth: 200 }}>
+            <TextField
+              id="add-device-id"
+              size="small"
+              fullWidth
+              placeholder="e.g. C2:9F:82:D2:51:93"
+              value={newDeviceId}
+              onChange={(e) => setNewDeviceId(e.target.value)}
+              sx={themedTextFieldSx}
+            />
+          </LabeledField>
+          <LabeledField label="Label (optional)" htmlFor="add-device-label" sx={{ flex: 1, minWidth: 180 }}>
+            <TextField
+              id="add-device-label"
+              size="small"
+              fullWidth
+              placeholder="e.g. FVSU PheNode 001"
+              value={newDeviceLabel}
+              onChange={(e) => setNewDeviceLabel(e.target.value)}
+              sx={themedTextFieldSx}
+            />
+          </LabeledField>
+          <LabeledField label="User (optional)" htmlFor="add-device-user" sx={{ minWidth: 200 }}>
+            <SearchableSelect
+              id="add-device-user"
+              placeholder="Search users…"
+              options={userOptions}
+              value={userOptions.find((o) => o.id === newDeviceUserId) || null}
+              onChange={(opt) => setNewDeviceUserId(opt ? opt.id : '')}
+            />
+          </LabeledField>
           <Button
             variant="outlined"
             onClick={handleCreateDevice}
@@ -375,40 +446,38 @@ export default function DeviceManagementTab() {
       {/* ----- Add Wireless Sensor ----- */}
       <Box sx={formPanelSx}>
         <Typography sx={{ ...sectionTitleSx, mb: 1.5 }}>Add Wireless Sensor (WS-ID)</Typography>
-        <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1.5} alignItems={{ lg: 'center' }} flexWrap="wrap" useFlexGap>
-          <TextField
-            label="Wireless Sensor ID"
-            size="small"
-            value={newSensorId}
-            onChange={(e) => setNewSensorId(e.target.value)}
-            sx={{ ...themedTextFieldSx, minWidth: 200, '& .MuiInputLabel-root': floatingLabelSx }}
-          />
-          <TextField
-            label="Label (optional)"
-            size="small"
-            value={newSensorLabel}
-            onChange={(e) => setNewSensorLabel(e.target.value)}
-            sx={{ ...themedTextFieldSx, minWidth: 180, '& .MuiInputLabel-root': floatingLabelSx }}
-          />
-          <FormControl size="small" sx={{ minWidth: 220 }}>
-            <InputLabel sx={floatingLabelSx}>Assign PheNode (optional)</InputLabel>
-            <Select
-              label="Assign PheNode (optional)"
-              value={newSensorDeviceId}
-              onChange={(e) => setNewSensorDeviceId(e.target.value)}
-              sx={themedSelectSx}
-              MenuProps={themedDropdownMenuProps}
-            >
-              <MenuItem value="">
-                <em>None</em>
-              </MenuItem>
-              {(devices || []).map((d) => (
-                <MenuItem key={d.id} value={d.id}>
-                  {d.label || d.external_device_id}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+        <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1.5} alignItems={{ lg: 'flex-end' }} flexWrap="wrap" useFlexGap>
+          <LabeledField label="Wireless Sensor ID" htmlFor="add-sensor-id" sx={{ flex: 1, minWidth: 200 }}>
+            <TextField
+              id="add-sensor-id"
+              size="small"
+              fullWidth
+              placeholder="e.g. WS-0A1B2C"
+              value={newSensorId}
+              onChange={(e) => setNewSensorId(e.target.value)}
+              sx={themedTextFieldSx}
+            />
+          </LabeledField>
+          <LabeledField label="Label (optional)" htmlFor="add-sensor-label" sx={{ flex: 1, minWidth: 180 }}>
+            <TextField
+              id="add-sensor-label"
+              size="small"
+              fullWidth
+              placeholder="e.g. North Field Teros 12"
+              value={newSensorLabel}
+              onChange={(e) => setNewSensorLabel(e.target.value)}
+              sx={themedTextFieldSx}
+            />
+          </LabeledField>
+          <LabeledField label="Assign PheNode (optional)" htmlFor="add-sensor-device" sx={{ minWidth: 220 }}>
+            <SearchableSelect
+              id="add-sensor-device"
+              placeholder="Search PheNodes…"
+              options={deviceOptions}
+              value={deviceOptions.find((o) => o.id === newSensorDeviceId) || null}
+              onChange={(opt) => setNewSensorDeviceId(opt ? opt.id : '')}
+            />
+          </LabeledField>
           <Button
             variant="outlined"
             onClick={handleCreateSensor}
@@ -426,45 +495,25 @@ export default function DeviceManagementTab() {
           The primary sensor is the wireless sensor whose data appears on this PheNode&apos;s charting pages and PheNode-scoped downloads.
           Each PheNode has one primary — setting a new one replaces the current primary.
         </Typography>
-        <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1.5} alignItems={{ lg: 'center' }} flexWrap="wrap" useFlexGap>
-          <FormControl size="small" sx={{ minWidth: 240 }}>
-            <InputLabel sx={floatingLabelSx}>PheNode</InputLabel>
-            <Select
-              label="PheNode"
-              value={mapDeviceId}
-              onChange={(e) => setMapDeviceId(e.target.value)}
-              sx={themedSelectSx}
-              MenuProps={themedDropdownMenuProps}
-            >
-              <MenuItem value="">
-                <em>Select PheNode</em>
-              </MenuItem>
-              {(devices || []).map((d) => (
-                <MenuItem key={d.id} value={d.id}>
-                  {d.label || d.external_device_id}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl size="small" sx={{ minWidth: 260 }}>
-            <InputLabel sx={floatingLabelSx}>Primary Sensor</InputLabel>
-            <Select
-              label="Primary Sensor"
-              value={mapSensorId}
-              onChange={(e) => setMapSensorId(e.target.value)}
-              sx={themedSelectSx}
-              MenuProps={themedDropdownMenuProps}
-            >
-              <MenuItem value="">
-                <em>Select sensor</em>
-              </MenuItem>
-              {(sensors || []).map((s) => (
-                <MenuItem key={s.id} value={s.id}>
-                  {(s.label || s.external_sensor_id) + ` (${s.external_sensor_id})`}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+        <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1.5} alignItems={{ lg: 'flex-end' }} flexWrap="wrap" useFlexGap>
+          <LabeledField label="PheNode" htmlFor="primary-device" sx={{ minWidth: 240 }}>
+            <SearchableSelect
+              id="primary-device"
+              placeholder="Search PheNodes…"
+              options={deviceOptions}
+              value={deviceOptions.find((o) => o.id === mapDeviceId) || null}
+              onChange={(opt) => setMapDeviceId(opt ? opt.id : '')}
+            />
+          </LabeledField>
+          <LabeledField label="Primary Sensor" htmlFor="primary-sensor" sx={{ minWidth: 260 }}>
+            <SearchableSelect
+              id="primary-sensor"
+              placeholder="Search sensors…"
+              options={sensorOptions}
+              value={sensorOptions.find((o) => o.id === mapSensorId) || null}
+              onChange={(opt) => setMapSensorId(opt ? opt.id : '')}
+            />
+          </LabeledField>
           <Button
             variant="outlined"
             startIcon={<AntIcon icon={LinkOutlined} />}
@@ -476,9 +525,8 @@ export default function DeviceManagementTab() {
         </Stack>
       </Box>
 
-      {/* ----- PheNode Devices ----- */}
-      <Box>
-        <Typography sx={{ ...subSectionTitleSx, mb: 1 }}>PheNode Devices</Typography>
+      {/* ----- PheNode Devices (collapsible, default closed) ----- */}
+      <CollapsibleCard title="PheNode Devices">
         {devicesError ? (
           <Alert severity="error" variant="outlined">
             Failed to load devices.
@@ -492,100 +540,111 @@ export default function DeviceManagementTab() {
             direction="row"
             spacing={1}
             alignItems="center"
-            sx={{ color: 'var(--blue)', p: 1.5, border: '1px solid var(--reflected-light)', borderRadius: 1.5 }}
+            sx={{ color: 'var(--blue)', p: 1.5, border: '1px solid var(--reflected-light)', borderRadius: 1 }}
           >
             <AntIcon icon={InfoCircleOutlined} />
             <Typography sx={{ fontSize: '0.86rem' }}>No devices yet. They appear automatically when data arrives.</Typography>
           </Stack>
         ) : (
           <Stack spacing={1.5}>
-            <TextField
-              size="small"
-              placeholder="Search devices (label, external ID, assigned user)"
+            <TableSearch
               value={devicesSearch}
               onChange={(e) => setDevicesSearch(e.target.value)}
-              sx={{ ...themedTextFieldSx, maxWidth: 520 }}
+              placeholder="Search devices (label, external ID, assigned user)"
+              maxWidth={520}
             />
             {filteredDevices.length === 0 ? (
               <Typography sx={{ color: 'var(--blue)', fontSize: '0.85rem' }}>No matching devices.</Typography>
             ) : (
-              <TableContainer sx={tableContainerSx}>
-                <Table stickyHeader size="small">
-                  <TableHead>
-                    <TableRow>
-                      {['Label', 'External ID', 'Assigned To', 'Wireless Sensors', 'Primary Sensor', 'Rename History', 'Action'].map(
-                        (h) => (
-                          <TableCell key={h} sx={tableHeaderCellSx}>
-                            {h}
-                          </TableCell>
-                        )
-                      )}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {filteredDevices.map((device) => (
-                      <TableRow key={device.id} hover>
-                        <TableCell sx={tableCellSx}>{device.label || '—'}</TableCell>
-                        <TableCell sx={tableCellSx}>{device.external_device_id}</TableCell>
-                        <TableCell sx={tableCellSx}>{device.assigned_user?.email || 'Unassigned'}</TableCell>
-                        <TableCell sx={tableCellSx}>
-                          <WirelessSensorCell
-                            sensors={device.wireless_sensors}
-                            aliases={device.gateway_aliases}
-                            deviceId={device.id}
-                            countLabel="connected"
-                          />
-                        </TableCell>
-                        <TableCell sx={tableCellSx}>
-                          <WirelessSensorCell
-                            sensors={device.virtual_wireless_sensors}
-                            aliases={[]}
-                            deviceId={device.id}
-                            removable
-                            showCount={false}
-                            emptyLabel="None"
-                            countLabel="primary"
-                            onUnlink={handleClearPrimary}
-                          />
-                        </TableCell>
-                        <TableCell sx={tableCellSx}>
-                          <RenameHistory history={device.rename_history} />
-                        </TableCell>
-                        <TableCell sx={tableCellSx}>
-                          <FormControl size="small" sx={{ minWidth: 170 }}>
-                            <InputLabel sx={floatingLabelSx}>Assign User</InputLabel>
-                            <Select
-                              label="Assign User"
-                              value={device.assigned_user?.id || ''}
-                              onChange={(e) => handleAssign(device.id, e.target.value)}
-                              sx={themedSelectSx}
-                              MenuProps={themedDropdownMenuProps}
-                            >
-                              <MenuItem value="">
-                                <em>Select…</em>
-                              </MenuItem>
-                              <MenuItem value="unassign">Unassign</MenuItem>
-                              {(allUsers || []).map((u) => (
-                                <MenuItem key={u.id} value={u.id}>
-                                  {u.email}
-                                </MenuItem>
-                              ))}
-                            </Select>
-                          </FormControl>
-                        </TableCell>
+              <>
+                <TableContainer sx={imagingTableContainerSx}>
+                  <Table stickyHeader aria-label="phenode devices">
+                    <TableHead>
+                      <TableRow sx={imagingTableHeadRowSx}>
+                        {['Label', 'External ID', 'Assigned To', 'Wireless Sensors', 'Primary Sensor', 'Rename History', 'Action'].map(
+                          (h, i) => (
+                            <TableCell key={h} align={i === 0 ? 'left' : 'center'}>
+                              {h}
+                            </TableCell>
+                          )
+                        )}
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                    </TableHead>
+                    <TableBody>
+                      {devicesPage.pageRows.map((device) => (
+                        <TableRow key={device.id} hover sx={imagingTableBodyRowSx}>
+                          <TableCell sx={imagingTableCellSx}>{device.label || '—'}</TableCell>
+                          <TableCell align="center" sx={imagingTableCellSx}>
+                            {device.external_device_id}
+                          </TableCell>
+                          <TableCell align="center" sx={imagingTableCellSx}>
+                            {device.assigned_user?.email || 'Unassigned'}
+                          </TableCell>
+                          <TableCell align="center" sx={imagingTableCellSx}>
+                            <ConnectedSensorsCell device={device} />
+                          </TableCell>
+                          <TableCell align="center" sx={imagingTableCellSx}>
+                            <PrimarySensorCell device={device} onClear={handleClearPrimary} />
+                          </TableCell>
+                          <TableCell align="center" sx={imagingTableCellSx}>
+                            <RenameHistoryCell history={device.rename_history} />
+                          </TableCell>
+                          <TableCell align="center" sx={imagingTableCellSx}>
+                            <FormControl size="small" sx={{ width: 180 }}>
+                              <Select
+                                displayEmpty
+                                value={device.assigned_user?.id || ''}
+                                onChange={(e) => handleAssign(device.id, e.target.value)}
+                                MenuProps={themedDropdownMenuProps}
+                                sx={{
+                                  ...themedSelectSx,
+                                  '& .MuiSelect-select': {
+                                    color: 'var(--green)',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap'
+                                  }
+                                }}
+                                renderValue={(selected) => {
+                                  if (!selected)
+                                    return (
+                                      <Box component="span" sx={{ color: 'var(--blue)', opacity: 0.65 }}>
+                                        Assign User
+                                      </Box>
+                                    );
+                                  return (allUsers || []).find((u) => u.id === selected)?.email || device.assigned_user?.email || selected;
+                                }}
+                              >
+                                <MenuItem value="unassign">Unassign</MenuItem>
+                                {(allUsers || []).map((u) => (
+                                  <MenuItem key={u.id} value={u.id}>
+                                    {u.email}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+                <PaginationFooter
+                  page={devicesPage.page}
+                  pageCount={devicesPage.pageCount}
+                  onChange={(_e, v) => devicesPage.setPage(v)}
+                  shown={devicesPage.pageRows.length}
+                  total={devicesPage.total}
+                  noun="devices"
+                />
+              </>
             )}
           </Stack>
         )}
-      </Box>
+      </CollapsibleCard>
 
-      {/* ----- Wireless Sensors ----- */}
-      <Box>
-        <Typography sx={{ ...subSectionTitleSx, mb: 1 }}>Wireless Sensors</Typography>
+      {/* ----- Wireless Sensors (collapsible, default closed) ----- */}
+      <CollapsibleCard title="Wireless Sensors">
         {sensorsError ? (
           <Alert severity="error" variant="outlined">
             Failed to load wireless sensors.
@@ -599,57 +658,68 @@ export default function DeviceManagementTab() {
             direction="row"
             spacing={1}
             alignItems="center"
-            sx={{ color: 'var(--blue)', p: 1.5, border: '1px solid var(--reflected-light)', borderRadius: 1.5 }}
+            sx={{ color: 'var(--blue)', p: 1.5, border: '1px solid var(--reflected-light)', borderRadius: 1 }}
           >
             <AntIcon icon={InfoCircleOutlined} />
             <Typography sx={{ fontSize: '0.86rem' }}>Wireless sensors (WS-…) appear here as they report data.</Typography>
           </Stack>
         ) : (
           <Stack spacing={1.5}>
-            <TextField
-              size="small"
-              placeholder="Search wireless sensors (label, ID, assigned user)"
+            <TableSearch
               value={sensorsSearch}
               onChange={(e) => setSensorsSearch(e.target.value)}
-              sx={{ ...themedTextFieldSx, maxWidth: 560 }}
+              placeholder="Search wireless sensors (label, ID, assigned user)"
+              maxWidth={560}
             />
             {filteredSensors.length === 0 ? (
               <Typography sx={{ color: 'var(--blue)', fontSize: '0.85rem' }}>No matching wireless sensors.</Typography>
             ) : (
-              <TableContainer sx={tableContainerSx}>
-                <Table stickyHeader size="small">
-                  <TableHead>
-                    <TableRow>
-                      {['Label', 'External ID', 'Assigned User(s)', 'Rename History', 'Last Updated'].map((h) => (
-                        <TableCell key={h} sx={tableHeaderCellSx}>
-                          {h}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {filteredSensors.map((sensor) => (
-                      <TableRow key={sensor.id} hover>
-                        <TableCell sx={tableCellSx}>{sensor.label || '—'}</TableCell>
-                        <TableCell sx={tableCellSx}>{sensor.external_sensor_id}</TableCell>
-                        <TableCell sx={tableCellSx}>
-                          {Array.isArray(sensor.assigned_users) && sensor.assigned_users.length > 0
-                            ? sensor.assigned_users.map((u) => u.email).join(', ')
-                            : 'Unassigned'}
-                        </TableCell>
-                        <TableCell sx={tableCellSx}>
-                          <RenameHistory history={sensor.rename_history} />
-                        </TableCell>
-                        <TableCell sx={tableCellSx}>{sensor.updated_at ? new Date(sensor.updated_at).toLocaleString() : '—'}</TableCell>
+              <>
+                <TableContainer sx={imagingTableContainerSx}>
+                  <Table stickyHeader aria-label="wireless sensors">
+                    <TableHead>
+                      <TableRow sx={imagingTableHeadRowSx}>
+                        {['Label', 'External ID', 'Assigned User(s)', 'Rename History', 'Last Updated'].map((h, i) => (
+                          <TableCell key={h} align={i === 0 ? 'left' : 'center'}>
+                            {h}
+                          </TableCell>
+                        ))}
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                    </TableHead>
+                    <TableBody>
+                      {sensorsPage.pageRows.map((sensor) => (
+                        <TableRow key={sensor.id} hover sx={imagingTableBodyRowSx}>
+                          <TableCell sx={imagingTableCellSx}>{sensor.label || '—'}</TableCell>
+                          <TableCell align="center" sx={imagingTableCellSx}>
+                            {sensor.external_sensor_id}
+                          </TableCell>
+                          <TableCell align="center" sx={imagingTableCellSx}>
+                            <AssignedUsersCell sensor={sensor} />
+                          </TableCell>
+                          <TableCell align="center" sx={imagingTableCellSx}>
+                            <RenameHistoryCell history={sensor.rename_history} />
+                          </TableCell>
+                          <TableCell align="center" sx={imagingTableCellSx}>
+                            {sensor.updated_at ? new Date(sensor.updated_at).toLocaleString() : '—'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+                <PaginationFooter
+                  page={sensorsPage.page}
+                  pageCount={sensorsPage.pageCount}
+                  onChange={(_e, v) => sensorsPage.setPage(v)}
+                  shown={sensorsPage.pageRows.length}
+                  total={sensorsPage.total}
+                  noun="wireless sensors"
+                />
+              </>
             )}
           </Stack>
         )}
-      </Box>
+      </CollapsibleCard>
     </Stack>
   );
 }

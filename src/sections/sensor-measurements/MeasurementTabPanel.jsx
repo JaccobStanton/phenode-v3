@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -99,16 +99,34 @@ function applyProbeFilter(seriesDefs, probeFilter) {
 // picks Primary / Alternate / Aux. Keyed on the series labels the multi-sensor
 // charts use (temperature has all three; wind has Primary/Alternate). 'both'
 // keeps everything; charts that don't use those labels (soil probes, single-
-// source) are left untouched, and we never blank a chart if nothing matches —
-// so e.g. picking "Aux" on a chart that has no Aux line shows it unchanged.
+// source) are left untouched. A multi-source chart that HAS source labels but
+// none for the chosen source (e.g. "Aux" on a Primary/Alternate-only chart)
+// is narrowed to empty so it shows its empty state — it does NOT fall back to
+// rendering all its lines.
 const SOURCE_LABEL_BY_FILTER = { primary: 'Primary', alternate: 'Alternate', aux: 'Aux' };
 function applySourceFilter(seriesDefs, sourceFilter) {
   const wanted = SOURCE_LABEL_BY_FILTER[sourceFilter];
   if (!wanted) return seriesDefs;
   const hasSourceLabels = seriesDefs.some((s) => s.label === 'Primary' || s.label === 'Alternate' || s.label === 'Aux');
   if (!hasSourceLabels) return seriesDefs;
-  const filtered = seriesDefs.filter((s) => s.label === wanted);
-  return filtered.length ? filtered : seriesDefs;
+  // Return the filtered set EVEN WHEN EMPTY. A multi-source chart that has no
+  // line for the chosen source (e.g. picking "Aux" on a Primary/Alternate-only
+  // chart like wind or pressure) should show its empty state — NOT fall back to
+  // rendering all its lines, which left Primary/Alternate lines on screen under
+  // "Aux". Single-source charts (no Primary/Alternate/Aux labels) were already
+  // returned untouched above, so they stay visible regardless of source.
+  return seriesDefs.filter((s) => s.label === wanted);
+}
+
+// Does any row carry a non-null reading for this field? Cheap short-circuit —
+// used to decide which source/probe filters are actually usable on this device.
+function fieldHasData(rows, field) {
+  if (!field) return false;
+  for (const r of rows ?? []) {
+    const v = r.fields?.[field]?.avg;
+    if (v !== null && v !== undefined) return true;
+  }
+  return false;
 }
 
 function buildAlignedSeries(rows, chart) {
@@ -155,11 +173,19 @@ function buildAlignedSeries(rows, chart) {
   // Each series' values aligned to the union; null where that series has no
   // reading at a given union timestamp (only happens when series report on
   // different cadences). connectNulls bridges those gaps visually.
-  const lines = seriesData.map((s) => ({
-    label: s.label,
-    color: s.color,
-    values: sortedIsoTimes.map((t) => s.map.get(t) ?? null)
-  }));
+  const lines = seriesData.map((s) => {
+    const values = sortedIsoTimes.map((t) => s.map.get(t) ?? null);
+    // Constant series (incl. a SINGLE reading) → hold the value across the whole
+    // domain so it renders as a flat line, not a lone dot. This keeps a source
+    // that reports rarely (e.g. a rain gauge sending one 0) visually consistent
+    // with a source that reports often (both show a flat line at the value),
+    // instead of one drawing a line and the other only a dot.
+    const nonNull = values.filter((v) => v !== null && v !== undefined);
+    if (nonNull.length >= 1 && nonNull.every((v) => v === nonNull[0])) {
+      return { label: s.label, color: s.color, values: values.map(() => nonNull[0]) };
+    }
+    return { label: s.label, color: s.color, values };
+  });
 
   return { times, lines };
 }
@@ -285,8 +311,16 @@ function renderChartBody(chart, rows, { from, to, xAxisTicks, axisFormat, height
   // Weather grid). Its X-axis hugs the data extent and it computes y-padding
   // + area fill internally.
   if (!isMulti && chart.chartType !== 'step') {
-    const { times, values } = buildSingleSeries(rows, chart.primaryField, chart.transform);
+    let { times, values } = buildSingleSeries(rows, chart.primaryField, chart.transform);
     if (!values.length) return <Box sx={emptyBodySx}>No data for this time range</Box>;
+    // Constant series (incl. a SINGLE reading) → draw a flat line across the
+    // whole window instead of a lone dot, so it stays consistent with a source
+    // that reports often. Two synthetic endpoints at `from`/`to` give the line
+    // something to span (one point alone has a zero-width X domain).
+    if (values.every((v) => v === values[0])) {
+      times = [from, to];
+      values = [values[0], values[0]];
+    }
     return (
       <MeasurementChart
         config={{ key: chart.key, unit: chart.unit, color: chart.color }}
@@ -469,7 +503,10 @@ export default function MeasurementTabPanel({
   xAxisTicks,
   layout = 'row',
   selectedProbe = 'both',
-  selectedSource = 'both'
+  selectedSource = 'both',
+  // Reports which source/probe filters actually have data on this device, so the
+  // parent can hide toggle buttons (and the whole toggle) that lead nowhere.
+  onAvailableFilters
 }) {
   const [enlargedKey, setEnlargedKey] = useState(null);
 
@@ -494,6 +531,31 @@ export default function MeasurementTabPanel({
   } = useWirelessSensorMeasurements(needWireless ? wirelessSensorId : null, { from, to, fields: wirelessFields, bucket: 'auto' });
 
   const rowsFor = (chart) => (chart.source === 'wireless' ? wirelessRows : deviceRows);
+
+  // Which source/probe filters actually have data on THIS device — drives the
+  // parent's decision to hide a toggle button (e.g. "Aux") or the whole toggle
+  // when there's nothing to switch between. Keyed off the unfiltered `charts`
+  // so it reflects everything available, not the current selection.
+  const availableFilters = useMemo(() => {
+    const avail = { primary: false, alternate: false, aux: false, probe1: false, probe2: false };
+    for (const chart of charts ?? []) {
+      if (!Array.isArray(chart.series)) continue;
+      const rows = chart.source === 'wireless' ? wirelessRows : deviceRows;
+      for (const s of chart.series) {
+        if (!fieldHasData(rows, s.field)) continue;
+        if (s.label === 'Primary') avail.primary = true;
+        else if (s.label === 'Alternate') avail.alternate = true;
+        else if (s.label === 'Aux') avail.aux = true;
+        if (s.field?.endsWith('_1')) avail.probe1 = true;
+        else if (s.field?.endsWith('_2')) avail.probe2 = true;
+      }
+    }
+    return avail;
+  }, [charts, deviceRows, wirelessRows]);
+
+  useEffect(() => {
+    if (onAvailableFilters) onAvailableFilters(availableFilters);
+  }, [availableFilters, onAvailableFilters]);
 
   // Filtered view for RENDERING. The fetch projection above still uses the
   // unfiltered `charts`, so the soil-probe and device-source toggles just hide

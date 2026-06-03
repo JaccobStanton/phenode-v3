@@ -16,7 +16,7 @@
 // Everything composes the canonical tokens from themes/sx-tokens.js so a
 // global chrome tweak still flows through.
 
-import { neonControlSx, neonMenuPaperSx, neonMenuItemSx } from 'themes/sx-tokens';
+import { neonControlSx, neonMenuPaperSx, neonMenuItemSx, reflectedCardChromeSx } from 'themes/sx-tokens';
 
 // ---------------------------------------------------------------------------
 // Inputs / selects
@@ -144,24 +144,30 @@ export const sectionTitleSx = { color: 'var(--green)', fontWeight: 600, fontSize
 export const subSectionTitleSx = { color: 'var(--blue)', fontWeight: 600, fontSize: '0.95rem' };
 
 // ---------------------------------------------------------------------------
-// Tables — neon chrome shared by the admin tables (header band, border,
-// shadow, themed scrollbar). The All Users table opts into the fuller imaging
-// table replica locally (see user-management-tab.jsx); these tokens are the
-// lighter shared baseline used by the other admin tables.
+// Tables — EXACT replica of the imaging table (sections/imaging/imaging.jsx,
+// ~lines 1181-1430). EVERY admin table uses these tokens, so all four tables
+// across the User Management and Device Management tabs render identically to
+// the imaging "PheNode Images" table: transparent body, reflected-light border,
+// project shadow, the always-visible themed scrollbar (overflowY: 'scroll'),
+// the rgb(8,36,82) sticky header band, blue header text with non-first columns
+// centered, and the teal hover / selected row washes with a faint purple cell
+// underline.
 // ---------------------------------------------------------------------------
 
-// Header background band.
+// Header background band — the exact value the imaging table uses.
 const tableHeaderBg = 'rgb(8, 36, 82)';
 
-export const tableContainerSx = {
-  maxHeight: 460,
+// TableContainer chrome.
+export const imagingTableContainerSx = {
+  maxHeight: 600,
+  overflowY: 'scroll',
   backgroundColor: 'transparent',
   border: '1px solid var(--reflected-light)',
   borderRadius: 1,
   boxShadow: '0 11px 19px 1px #0000002e',
   scrollbarWidth: 'thin',
   scrollbarColor: 'rgba(0, 68, 143, 0.6) transparent',
-  '&::-webkit-scrollbar': { width: '8px', height: '8px' },
+  '&::-webkit-scrollbar': { width: '8px' },
   '&::-webkit-scrollbar-track': { background: 'transparent' },
   '&::-webkit-scrollbar-thumb': {
     backgroundColor: 'rgba(0, 68, 143, 0.6)',
@@ -169,7 +175,7 @@ export const tableContainerSx = {
     '&:hover': { backgroundColor: 'rgba(0, 68, 143, 0.85)' }
   },
   '& .MuiTable-root': { backgroundColor: 'transparent' },
-  '& .MuiTableHead-root': { backgroundColor: tableHeaderBg },
+  '& .MuiTableHead-root': { backgroundColor: tableHeaderBg, borderTop: 'none', borderBottom: 'none' },
   '& .MuiTableCell-stickyHeader': {
     backgroundColor: `${tableHeaderBg} !important`,
     borderBottom: '1px solid var(--reflected-light) !important'
@@ -177,16 +183,81 @@ export const tableContainerSx = {
   '& .MuiTableBody-root': { backgroundColor: 'transparent' }
 };
 
-// Header cell — blue text on the header band. Font weight / uppercase / size
-// come from the global MuiTableCell.head theme override.
-export const tableHeaderCellSx = {
-  color: 'var(--blue)',
-  backgroundColor: tableHeaderBg,
-  whiteSpace: 'nowrap'
+// Header TableRow — sticky `& th` band, blue text, non-first columns centered.
+export const imagingTableHeadRowSx = {
+  '& th': { position: 'sticky', top: 0, zIndex: 1, backgroundColor: tableHeaderBg, color: 'var(--blue)' },
+  '& th:not(:first-of-type)': { textAlign: 'center' }
+};
+
+// Body TableRow — faint purple cell underline, teal hover / selected washes.
+export const imagingTableBodyRowSx = {
+  '& .MuiTableCell-root': { borderBottom: '1px solid rgba(118, 76, 235, 0.12)' },
+  '&:hover': { backgroundColor: 'rgba(72, 247, 245, 0.04)' },
+  '&.Mui-selected': { backgroundColor: 'rgba(72, 247, 245, 0.08)' },
+  '&.Mui-selected:hover': { backgroundColor: 'rgba(72, 247, 245, 0.1)' }
 };
 
 // Body cell — green value text.
-export const tableCellSx = {
+export const imagingTableCellSx = { color: 'var(--green)' };
+
+// ---------------------------------------------------------------------------
+// Card wrapper for the table cards. Background matches the Add User / form
+// panels (formPanelSx — rgba(0, 20, 61, 0.35)) so every card on the admin
+// panel reads as one family, plus the reflected-light border + shadow chrome.
+// ---------------------------------------------------------------------------
+export const imagingCardSx = {
+  p: { xs: 1.5, sm: 2 },
+  overflow: 'hidden',
+  backgroundColor: 'rgba(0, 20, 61, 0.35)',
+  backgroundImage: 'none',
+  ...reflectedCardChromeSx
+};
+
+// ---------------------------------------------------------------------------
+// Themed modal (Dialog) + the clickable "count" link + pagination styling.
+// Used by the list-column "# items → modal" declutter pattern and the table
+// pagination footer (see sections/admin/components.jsx).
+// ---------------------------------------------------------------------------
+
+// Dialog Paper — same neon-on-navy chrome as the Profile popper / drawer menu
+// (solid #054085 border per the alpha-border project memory).
+export const modalPaperSx = {
+  backgroundColor: '#002a63',
+  backgroundImage: 'radial-gradient(circle at 50% 0%, #002a63, #001f53)',
+  border: '1.5px solid #054085',
+  boxShadow: '0 11px 19px 1px #0000002e',
   color: 'var(--green)',
-  verticalAlign: 'top'
+  borderRadius: 2
+};
+
+// Clickable count text (e.g. "3 connected") that opens the detail modal.
+export const countLinkSx = {
+  minWidth: 0,
+  px: 0.5,
+  py: 0.25,
+  textTransform: 'none',
+  fontWeight: 600,
+  fontSize: '0.82rem',
+  lineHeight: 1.4,
+  color: 'var(--green)',
+  textDecoration: 'underline',
+  textUnderlineOffset: '3px',
+  transition: 'none',
+  '&:hover': {
+    backgroundColor: 'transparent',
+    color: 'var(--green)',
+    textShadow: '0 1px 5px #007bff'
+  }
+};
+
+// MUI Pagination styling — matches the imaging table paginator exactly.
+export const paginationSx = {
+  '& .MuiPaginationItem-root': {
+    color: 'var(--blue)',
+    borderColor: 'var(--reflected-light)'
+  },
+  '& .MuiPaginationItem-root.Mui-selected': {
+    color: 'var(--green)',
+    backgroundColor: 'rgba(72, 247, 245, 0.14)'
+  }
 };

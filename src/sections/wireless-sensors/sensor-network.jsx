@@ -610,15 +610,43 @@ export default function SensorNetwork() {
   const [selectedCategory, setSelectedCategory] = useState(WIRELESS_CATEGORY_IDS.WEATHER);
   // Panel speaks 'both' | '1' | '2' for its probe filter.
   const [selectedProbe, setSelectedProbe] = useState('both');
-  const showProbeToggle = selectedCategory === WIRELESS_CATEGORY_IDS.SOIL || selectedCategory === WIRELESS_CATEGORY_IDS.ALL;
+
+  // Which source (Primary/Aux) and probe (1/2) filters actually have data on the
+  // current sensor selection — reported up by WirelessMeasurementsPanel so we
+  // hide toggle buttons (and the whole toggle) that would filter to nothing.
+  const [availFilters, setAvailFilters] = useState({ primary: false, aux: false, probe1: false, probe2: false });
+  const handleAvailableFilters = useCallback((f) => {
+    setAvailFilters((prev) =>
+      prev.primary === f.primary && prev.aux === f.aux && prev.probe1 === f.probe1 && prev.probe2 === f.probe2 ? prev : f
+    );
+  }, []);
+
+  // Probe toggle only when BOTH probes have data — a single probe has nothing
+  // to switch between.
+  const showProbeToggle =
+    (selectedCategory === WIRELESS_CATEGORY_IDS.SOIL || selectedCategory === WIRELESS_CATEGORY_IDS.ALL) &&
+    availFilters.probe1 &&
+    availFilters.probe2;
 
   // Onboard ambient-temperature sensor filter (Both / Primary / Aux). The
   // temperature chart overlays the MCP9808 (Primary) and BME688 (Aux) sensors;
-  // this picks which line(s) show. Mirrors the device page's source toggle:
-  // shown on Environment + All (Light is single-source).
+  // this picks which line(s) show. Shown on Environment + All, and only when
+  // both sources actually have data (a lone source has nothing to switch).
   const [selectedSource, setSelectedSource] = useState('both');
   const showSourceToggle =
-    selectedCategory === WIRELESS_CATEGORY_IDS.WEATHER || selectedCategory === WIRELESS_CATEGORY_IDS.ALL;
+    (selectedCategory === WIRELESS_CATEGORY_IDS.WEATHER || selectedCategory === WIRELESS_CATEGORY_IDS.ALL) &&
+    availFilters.primary &&
+    availFilters.aux;
+
+  // Snap a stale/now-unavailable selection back to "Both" so we never filter to
+  // a source/probe with no data (or whose toggle just got hidden).
+  useEffect(() => {
+    if (selectedSource !== 'both' && (!showSourceToggle || !availFilters[selectedSource])) setSelectedSource('both');
+  }, [showSourceToggle, availFilters, selectedSource]);
+  useEffect(() => {
+    const probeOk = selectedProbe === '1' ? availFilters.probe1 : selectedProbe === '2' ? availFilters.probe2 : true;
+    if (selectedProbe !== 'both' && (!showProbeToggle || !probeOk)) setSelectedProbe('both');
+  }, [showProbeToggle, availFilters, selectedProbe]);
 
   // Currently-enlarged chart key. null = closed; otherwise the
   // config.key of the chart being displayed in the Dialog.
@@ -1801,11 +1829,7 @@ export default function SensorNetwork() {
                           }
                         }}
                       >
-                        {downloading ? (
-                          <CircularProgress size={16} sx={{ color: 'var(--green)' }} />
-                        ) : (
-                          <AntIcon icon={DownloadOutlined} />
-                        )}
+                        {downloading ? <CircularProgress size={16} sx={{ color: 'var(--green)' }} /> : <AntIcon icon={DownloadOutlined} />}
                       </IconButton>
                     </Box>
                   </Tooltip>
@@ -2085,9 +2109,11 @@ export default function SensorNetwork() {
                               aria-label="temperature sensor filter"
                               sx={filterToggleSx}
                             >
+                              {/* Only render a source button when that source
+                                  has data on the current sensor selection. */}
                               <ToggleButton value="both">Both</ToggleButton>
-                              <ToggleButton value="primary">Primary</ToggleButton>
-                              <ToggleButton value="aux">Aux</ToggleButton>
+                              {availFilters.primary && <ToggleButton value="primary">Primary</ToggleButton>}
+                              {availFilters.aux && <ToggleButton value="aux">Aux</ToggleButton>}
                             </ToggleButtonGroup>
                           </Stack>
                         )}
@@ -2142,6 +2168,7 @@ export default function SensorNetwork() {
                   selectedCategory={selectedCategory}
                   selectedProbe={selectedProbe}
                   selectedSource={selectedSource}
+                  onAvailableFilters={handleAvailableFilters}
                 />
               </Box>
             </Grid>

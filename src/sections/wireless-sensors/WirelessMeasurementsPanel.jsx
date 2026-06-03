@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -109,8 +109,26 @@ function applySourceFilter(seriesDefs, sourceFilter) {
   const hasSourceLabels = seriesDefs.some((s) => s.label === 'Primary' || s.label === 'Aux');
   if (!hasSourceLabels) return seriesDefs;
   const wanted = sourceFilter === 'primary' ? 'Primary' : 'Aux';
-  const filtered = seriesDefs.filter((s) => s.label === wanted);
-  return filtered.length ? filtered : seriesDefs;
+  // Return the filtered set even when empty — a chart with no line for the
+  // chosen source shows its empty state rather than falling back to all lines
+  // (which left other lines rendering under "Aux"). Single-source charts were
+  // already returned untouched above.
+  return seriesDefs.filter((s) => s.label === wanted);
+}
+
+// Does any selected sensor carry a non-null reading for this field? Used to
+// decide which source/probe toggle buttons are actually usable on the current
+// sensor selection.
+function wirelessFieldHasData(rowsBySensor, sensorList, field) {
+  if (!field) return false;
+  for (const sensor of sensorList ?? []) {
+    const rows = rowsBySensor?.[sensor.external_sensor_id]?.rows || [];
+    for (const r of rows) {
+      const v = r.fields?.[field]?.avg;
+      if (v !== null && v !== undefined) return true;
+    }
+  }
+  return false;
 }
 
 function buildMultiSensorLines(rowsBySensor, chart, sensorList, probeFilter = 'both', sourceFilter = 'both') {
@@ -395,7 +413,10 @@ export default function WirelessMeasurementsPanel({
   timezone = null,
   selectedCategory = WIRELESS_CATEGORY_IDS.WEATHER,
   selectedProbe = 'both',
-  selectedSource = 'both'
+  selectedSource = 'both',
+  // Reports which source (Primary/Aux) and probe (1/2) filters have data on the
+  // current sensor selection, so the parent can hide useless toggle buttons.
+  onAvailableFilters
 }) {
   const [enlargedKey, setEnlargedKey] = useState(null);
 
@@ -434,6 +455,28 @@ export default function WirelessMeasurementsPanel({
     }
     return out;
   }, [activeCharts, rowsBySensor, wirelessSensors, selectedProbe, selectedSource]);
+
+  // Which source/probe filters actually have data on the current sensor
+  // selection — drives the parent's hiding of toggle buttons (and the whole
+  // toggle) that would filter to nothing.
+  const availableFilters = useMemo(() => {
+    const avail = { primary: false, aux: false, probe1: false, probe2: false };
+    for (const chart of activeCharts) {
+      if (!Array.isArray(chart.series)) continue;
+      for (const s of chart.series) {
+        if (!wirelessFieldHasData(rowsBySensor, wirelessSensors ?? [], s.field)) continue;
+        if (s.label === 'Primary') avail.primary = true;
+        else if (s.label === 'Aux') avail.aux = true;
+        if (s.field?.endsWith('_1')) avail.probe1 = true;
+        else if (s.field?.endsWith('_2')) avail.probe2 = true;
+      }
+    }
+    return avail;
+  }, [activeCharts, rowsBySensor, wirelessSensors]);
+
+  useEffect(() => {
+    if (onAvailableFilters) onAvailableFilters(availableFilters);
+  }, [availableFilters, onAvailableFilters]);
 
   // Always full-strength glow, matching the device charts (kept identical so the
   // line glow looks the same across both surfaces).

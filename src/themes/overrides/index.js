@@ -2,6 +2,7 @@
 import { merge } from 'lodash-es';
 
 // project imports
+import Autocomplete from './Autocomplete';
 import Badge from './Badge';
 import Button from './Button';
 import ButtonBase from './ButtonBase';
@@ -32,6 +33,7 @@ import Typography from './Typography';
 
 export default function ComponentsOverrides(theme) {
   return merge(
+    Autocomplete(),
     Badge(theme),
     Button(theme),
     ButtonBase(),
