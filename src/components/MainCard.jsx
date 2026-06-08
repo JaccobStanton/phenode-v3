@@ -17,7 +17,7 @@ import Divider from '@mui/material/Divider';
 // centre sits 15% down the card), so taller pages get a proportionally taller glow.
 const MAIN_CARD_BASE_COLOR = '#00102f';
 const MAIN_CARD_GRADIENT =
-  'radial-gradient(circle at 50% 15%, #00438f 0%, #003679 26%, #001f53 65%, rgba(0, 16, 47, 0.72) 80%, rgba(0, 16, 47, 0) 100%)';
+  'radial-gradient(circle at 50% 15%, #00438F 0%, #003679 15%, #001F53 55%, rgba(0, 16, 47, 0.72) 80%, rgba(0, 16, 47, 0) 100%)';
 
 export default function MainCard({
   border = true,
