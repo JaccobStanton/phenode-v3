@@ -6,18 +6,16 @@ import CardContent from '@mui/material/CardContent';
 import CardHeader from '@mui/material/CardHeader';
 import Divider from '@mui/material/Divider';
 
-// Original glow colors with UX-tuned middle stops (26% / 65%) for a more gradual
-// blend, applied over the WHOLE div — NO background-size cutoff box. That full-div
-// coverage is what kills the band: the band only ever came from the old 900px
-// cutoff box slicing the gradient mid-fade; with the gradient covering the whole
-// card there is no slice line — it just fades smoothly toward the corners. Its
-// final stop is transparent over MAIN_CARD_BASE_COLOR (#00102f), so it ends in
-// the base color.
-// Trade-off vs the old fixed-height glow: the wash now scales with card size (its
-// centre sits 15% down the card), so taller pages get a proportionally taller glow.
+// TEST (Jake's request): the ORIGINAL 5-stop gradient clipped at a 1200px cutoff.
+// WARNING — this reintroduces the band. A `circle ... farthest-corner` clipped by
+// a rectangle is always cut while still bright at the box's bottom-centre, so a
+// fixed cutoff produces a horizontal band there. Raising 900px → 1200px only moves
+// the band down to ~1200px; any card taller than 1200px (most pages on a large
+// screen, card min-height ≈ 1477px) will show it again.
 const MAIN_CARD_BASE_COLOR = '#00102f';
 const MAIN_CARD_GRADIENT =
-  'radial-gradient(circle at 50% 15%, #00438F 0%, #001F53 55%, rgba(0, 16, 47, 0.72) 56%, rgba(0, 16, 47, 0) 100%)';
+  'radial-gradient(circle at 50% 15%, #00438f 0%, #003679 34%, #001f53 58%, rgba(0, 16, 47, 0.72) 80%, rgba(0, 16, 47, 0) 100%)';
+const MAIN_CARD_GRADIENT_CUTOFF_HEIGHT = '1200px';
 
 export default function MainCard({
   border = true,
@@ -47,9 +45,11 @@ export default function MainCard({
         position: 'relative',
         ...(border && { border: '1.5px solid var(--box-outline-blue)' }),
         backgroundColor: MAIN_CARD_BASE_COLOR,
-        // Single full-card wash; no cutoff box (see note above the constants).
-        backgroundImage: MAIN_CARD_GRADIENT,
-        backgroundRepeat: 'no-repeat',
+        // Glow clipped to a fixed height, with a solid base layer below the cutoff.
+        backgroundImage: `${MAIN_CARD_GRADIENT}, linear-gradient(${MAIN_CARD_BASE_COLOR}, ${MAIN_CARD_BASE_COLOR})`,
+        backgroundRepeat: 'no-repeat, no-repeat',
+        backgroundPosition: 'top center, top left',
+        backgroundSize: `100% ${MAIN_CARD_GRADIENT_CUTOFF_HEIGHT}, 100% 100%`,
         borderRadius: 1,
         boxShadow: boxShadow && !border ? shadow || theme.vars.customShadows.z1 : 'inherit',
         ...(boxShadow &&
