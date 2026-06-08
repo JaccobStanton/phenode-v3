@@ -6,17 +6,18 @@ import CardContent from '@mui/material/CardContent';
 import CardHeader from '@mui/material/CardHeader';
 import Divider from '@mui/material/Divider';
 
-// UX-engineer palette (June 2026): one radial wash over the WHOLE card — no
-// background-size cutoff box. Band-free by construction: the old horizontal
-// band only ever came from a cutoff box slicing the gradient mid-fade; with no
-// box there is nothing to slice, and past its last stop a radial gradient
-// simply keeps painting its final color. That final color (#041232) doubles as
-// MAIN_CARD_BASE_COLOR so the card ends in one flat tone everywhere.
-// Trade-off vs the old fixed-height glow: the wash scales with card size (its
-// centre sits 15% down the card), so taller pages get a proportionally taller
-// glow.
-const MAIN_CARD_BASE_COLOR = '#041232';
-const MAIN_CARD_GRADIENT = 'radial-gradient(circle at 50% 8%, #194188, #092255, #041232)';
+// Original glow colors with UX-tuned middle stops (26% / 65%) for a more gradual
+// blend, applied over the WHOLE div — NO background-size cutoff box. That full-div
+// coverage is what kills the band: the band only ever came from the old 900px
+// cutoff box slicing the gradient mid-fade; with the gradient covering the whole
+// card there is no slice line — it just fades smoothly toward the corners. Its
+// final stop is transparent over MAIN_CARD_BASE_COLOR (#00102f), so it ends in
+// the base color.
+// Trade-off vs the old fixed-height glow: the wash now scales with card size (its
+// centre sits 15% down the card), so taller pages get a proportionally taller glow.
+const MAIN_CARD_BASE_COLOR = '#00102f';
+const MAIN_CARD_GRADIENT =
+  'radial-gradient(circle at 50% 15%, #00438f 0%, #003679 26%, #001f53 65%, rgba(0, 16, 47, 0.72) 80%, rgba(0, 16, 47, 0) 100%)';
 
 export default function MainCard({
   border = true,
