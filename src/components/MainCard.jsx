@@ -6,21 +6,17 @@ import CardContent from '@mui/material/CardContent';
 import CardHeader from '@mui/material/CardHeader';
 import Divider from '@mui/material/Divider';
 
-const MAIN_CARD_BASE_COLOR = '#00102f';
-// Vertical LINEAR fade (per UX review) instead of the original radial circle.
-// Two properties make it blend everywhere:
-//   1. Every horizontal row is ONE uniform color, so inner panel bottoms, the
-//      diagnostics sensor strip and section dividers meet a consistent color
-//      at any width — no radial arc to fight at horizontal boundaries.
-//   2. The last stop IS the base color (#00102f) at the cutoff, so the gradient
-//      ends by arriving at the base exactly — the old hard-clip band (a
-//      `circle ... farthest-corner` cut mid-fade by its 900px box) is
-//      structurally impossible.
-// The stop ramp traces the original glow's centre-line brightness (within Δ≤3
-// at card-y 150/300/450/600/800), so the device diagrams stay lit like before.
-const MAIN_CARD_GRADIENT =
-  'linear-gradient(180deg, #00438f 0%, #00418c 15%, #003e87 30%, #003a81 45%, #003679 60%, #002a62 80%, #001a44 92%, #00102f 100%)';
-const MAIN_CARD_GRADIENT_CUTOFF_HEIGHT = '1000px';
+// UX-engineer palette (June 2026): one radial wash over the WHOLE card — no
+// background-size cutoff box. Band-free by construction: the old horizontal
+// band only ever came from a cutoff box slicing the gradient mid-fade; with no
+// box there is nothing to slice, and past its last stop a radial gradient
+// simply keeps painting its final color. That final color (#041232) doubles as
+// MAIN_CARD_BASE_COLOR so the card ends in one flat tone everywhere.
+// Trade-off vs the old fixed-height glow: the wash scales with card size (its
+// centre sits 15% down the card), so taller pages get a proportionally taller
+// glow.
+const MAIN_CARD_BASE_COLOR = '#041232';
+const MAIN_CARD_GRADIENT = 'radial-gradient(circle at 50% 15%, #194188, #092255, #041232)';
 
 export default function MainCard({
   border = true,
@@ -50,11 +46,9 @@ export default function MainCard({
         position: 'relative',
         ...(border && { border: '1.5px solid var(--box-outline-blue)' }),
         backgroundColor: MAIN_CARD_BASE_COLOR,
-        // Keep the top glow fixed while smoothly fading into the shared base color below the cutoff.
-        backgroundImage: `${MAIN_CARD_GRADIENT}, linear-gradient(${MAIN_CARD_BASE_COLOR}, ${MAIN_CARD_BASE_COLOR})`,
-        backgroundRepeat: 'no-repeat, no-repeat',
-        backgroundPosition: 'top center, top left',
-        backgroundSize: `100% ${MAIN_CARD_GRADIENT_CUTOFF_HEIGHT}, 100% 100%`,
+        // Single full-card wash; no cutoff box (see note above the constants).
+        backgroundImage: MAIN_CARD_GRADIENT,
+        backgroundRepeat: 'no-repeat',
         borderRadius: 1,
         boxShadow: boxShadow && !border ? shadow || theme.vars.customShadows.z1 : 'inherit',
         ...(boxShadow &&
