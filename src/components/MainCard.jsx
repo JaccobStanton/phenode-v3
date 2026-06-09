@@ -14,7 +14,7 @@ import Divider from '@mui/material/Divider';
 // screen, card min-height ≈ 1477px) will show it again.
 const MAIN_CARD_BASE_COLOR = '#00102f';
 const MAIN_CARD_GRADIENT =
-  'radial-gradient(circle at 50% 15%, #00438f 0%, #003679 34%, #001f53 58%, rgba(0, 16, 47, 0.72) 80%, rgba(0, 16, 47, 0) 100%)';
+  'radial-gradient(circle at 50% 8%, #00438f 0%, #003679 24%, #001f53 48%, rgba(0, 16, 47, 0.72) 80%, rgba(0, 16, 47, 0) 100%)';
 const MAIN_CARD_GRADIENT_CUTOFF_HEIGHT = '1200px';
 
 export default function MainCard({
